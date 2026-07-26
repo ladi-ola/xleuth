@@ -1,0 +1,36 @@
+services:
+  postgres:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_DB: xleuth
+      POSTGRES_USER: xleuth_app
+      POSTGRES_PASSWORD: changeme
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - xleuth_net
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - xleuth_net
+
+  data-ingestion:
+    build: ./data-ingestion
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    networks:
+      - xleuth_net
+
+networks:
+  xleuth_net:
+    driver: bridge
+
+volumes:
+  pgdata:
