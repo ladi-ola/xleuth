@@ -4,7 +4,8 @@ import pytest
 import pytest_asyncio
 from dotenv import load_dotenv
 
-from xleuth_ingestion.basket_builder import build_basket, parse_basket_name
+from xleuth_ingestion.basket_builder import (_fetch_all_markets, build_basket,
+                                              parse_basket_name)
 from xleuth_ingestion.event_map import build_volume_map
 from xleuth_ingestion.liquidity_filter import compute_liquidity_score, filter_markets
 from xleuth_ingestion.polymarket_client import PolymarketClient
@@ -343,6 +344,66 @@ async def test_basket_with_two_months(client):
             assert result["index_price"] is not None
         print(f"\nBasket {name}: index_price={result['index_price']}, "
               f"constituents={result['total_constituents']}")
+
+
+@pytest.mark.asyncio
+async def test_build_basket_with_prefetched_markets(client):
+    """Verify the markets= parameter produces same result as self-fetch."""
+    markets = await _fetch_all_markets(client)
+    assert len(markets) >= 100
+
+    result_self = await build_basket(
+        "TOP5-JULY",
+        client=client,
+        min_volume_usd=5000,
+        min_liquidity_score=0.3,
+        exclude_categories="sports",
+    )
+    result_pre = await build_basket(
+        "TOP5-JULY",
+        client=client,
+        min_volume_usd=5000,
+        min_liquidity_score=0.3,
+        exclude_categories="sports",
+        markets=markets,
+    )
+
+    assert result_pre["basket_name"] == result_self["basket_name"]
+    assert isinstance(result_pre["index_price"], float) or result_pre["index_price"] is None
+    assert result_pre["total_constituents"] == result_self["total_constituents"]
+    assert result_pre["markets_filtered_out"] == result_self["markets_filtered_out"]
+    assert len(result_pre["constituents"]) == len(result_self["constituents"])
+    print(f"\nPrefetched basket: index_price={result_pre['index_price']:.6f}, "
+          f"constituents={result_pre['total_constituents']} (matches self-fetch)")
+
+
+@pytest.mark.asyncio
+async def test_build_basket_prefetched_month_filter(client):
+    markets = await _fetch_all_markets(client)
+    assert len(markets) >= 100
+
+    july = await build_basket(
+        "TOP5-JULY",
+        client=client,
+        min_volume_usd=5000,
+        min_liquidity_score=0.0,
+        exclude_categories=None,
+        markets=markets,
+    )
+    assert july["basket_name"] == "TOP5-JULY"
+    assert isinstance(july["index_price"], float) or july["index_price"] is None
+
+    august = await build_basket(
+        "TOP5-AUGUST",
+        client=client,
+        min_volume_usd=5000,
+        min_liquidity_score=0.0,
+        exclude_categories=None,
+        markets=markets,
+    )
+    assert august["basket_name"] == "TOP5-AUGUST"
+    print(f"\nSame snapshot: JULY={july['total_constituents']} constituents, "
+          f"AUGUST={august['total_constituents']} constituents")
 
 
 # ── Verification: CLOB vs Gamma price diff + liquidity filter output  ──

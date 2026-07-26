@@ -113,6 +113,7 @@ async def build_basket(
     exclude_categories: str | None = None,
     liquidity_reference_usd: float = 100_000.0,
     oi_reference_usd: float = 500_000.0,
+    markets: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     parsed = parse_basket_name(basket_name)
     if not parsed:
@@ -121,7 +122,7 @@ async def build_basket(
 
     n, target_month, _ = parsed
 
-    raw_markets = await _fetch_all_markets(client)
+    raw_markets = markets if markets is not None else await _fetch_all_markets(client)
 
     resolving = [m for m in raw_markets if market_resolves_in_month(m, target_month)]
 

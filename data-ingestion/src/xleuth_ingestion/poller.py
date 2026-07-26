@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 
-from xleuth_ingestion.basket_builder import build_basket
+from xleuth_ingestion.basket_builder import build_basket, _fetch_all_markets
 from xleuth_ingestion.polymarket_client import PolymarketClient
 from xleuth_ingestion.storage import Storage
 
@@ -33,6 +33,14 @@ def load_config() -> dict:
 
 
 async def run_once(client: PolymarketClient, storage: Storage, config: dict) -> list[dict]:
+    logger.info("Fetching all markets (single snapshot for all baskets)...")
+    try:
+        all_markets = await _fetch_all_markets(client)
+        logger.info("Fetched %d markets across all pages", len(all_markets))
+    except Exception:
+        logger.exception("Market fetch failed, skipping this cycle")
+        return []
+
     results = []
     for basket_name in config["active_baskets"]:
         basket_name = basket_name.strip()
@@ -47,6 +55,7 @@ async def run_once(client: PolymarketClient, storage: Storage, config: dict) -> 
                 exclude_categories=config["exclude_categories"],
                 liquidity_reference_usd=config["liquidity_reference_usd"],
                 oi_reference_usd=config["oi_reference_usd"],
+                markets=all_markets,
             )
             await storage.save_basket(result)
             results.append(result)
