@@ -90,6 +90,8 @@ async def polling_loop(config: dict) -> None:
             for result in results:
                 await redis_pub.publish_basket(result)
 
+            await storage.cleanup_stale_baskets(config["active_baskets"])
+
             if not storage.pool:
                 print(
                     json.dumps(

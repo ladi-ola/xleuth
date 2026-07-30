@@ -88,34 +88,55 @@ class Storage:
         await self._save_index_price(basket_result)
         await self._save_market_prices(basket_result)
 
+    async def cleanup_stale_baskets(self, active_baskets: list[str]) -> None:
+        if not self.pool or not active_baskets:
+            return
+        async with self.pool.acquire() as conn:
+            for table in ("index_prices", "market_prices"):
+                result = await conn.execute(
+                    "DELETE FROM {} WHERE basket_name != ALL($1::text[])".format(table),
+                    active_baskets,
+                )
+                logger.info("Cleaned up stale rows from %s (active=%s)", table, active_baskets)
+
     async def _save_index_price(self, basket_result: dict[str, Any]) -> None:
         async with self.pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO index_prices (ts, basket_name, index_price, scaled_price, constituent_count, constituents)
-                VALUES ($1, $2, $3, $4, $5, $6::jsonb)
-                """,
-                basket_result["computed_at"],
-                basket_result["basket_name"],
-                basket_result["index_price"],
-                basket_result["index_price_scaled"],
-                basket_result["total_constituents"],
-                json.dumps(basket_result["constituents"]),
-            )
+            async with conn.transaction():
+                await conn.execute(
+                    "DELETE FROM index_prices WHERE basket_name = $1",
+                    basket_result["basket_name"],
+                )
+                await conn.execute(
+                    """
+                    INSERT INTO index_prices (ts, basket_name, index_price, scaled_price, constituent_count, constituents)
+                    VALUES ($1, $2, $3, $4, $5, $6::jsonb)
+                    """,
+                    basket_result["computed_at"],
+                    basket_result["basket_name"],
+                    basket_result["index_price"],
+                    basket_result["index_price_scaled"],
+                    basket_result["total_constituents"],
+                    json.dumps(basket_result["constituents"]),
+                )
 
     async def _save_market_prices(self, basket_result: dict[str, Any]) -> None:
         async with self.pool.acquire() as conn:
-            for c in basket_result["constituents"]:
+            async with conn.transaction():
                 await conn.execute(
-                    """
-                    INSERT INTO market_prices (ts, market_id, basket_name, question, price, volume, event_id)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
-                    """,
-                    basket_result["computed_at"],
-                    str(c.get("market_id", "")),
+                    "DELETE FROM market_prices WHERE basket_name = $1",
                     basket_result["basket_name"],
-                    c.get("question"),
-                    c.get("price"),
-                    c.get("volume"),
-                    c.get("event_id"),
                 )
+                for c in basket_result["constituents"]:
+                    await conn.execute(
+                        """
+                        INSERT INTO market_prices (ts, market_id, basket_name, question, price, volume, event_id)
+                        VALUES ($1, $2, $3, $4, $5, $6, $7)
+                        """,
+                        basket_result["computed_at"],
+                        str(c.get("market_id", "")),
+                        basket_result["basket_name"],
+                        c.get("question"),
+                        c.get("price"),
+                        c.get("volume"),
+                        c.get("event_id"),
+                    )
