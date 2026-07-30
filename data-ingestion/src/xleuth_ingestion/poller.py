@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 
 from xleuth_ingestion.basket_builder import build_basket, _fetch_all_markets
 from xleuth_ingestion.polymarket_client import PolymarketClient
+from xleuth_ingestion.redis_publisher import RedisPublisher
 from xleuth_ingestion.storage import Storage
 
 logger = logging.getLogger("xleuth_ingestion")
@@ -22,13 +23,10 @@ def load_config() -> dict:
         "clob_api_base": os.getenv("POLYMARKET_CLOB_API_BASE", "https://clob.polymarket.com"),
         "data_api_base": os.getenv("POLYMARKET_DATA_API_BASE", "https://data-api.polymarket.com"),
         "database_url": os.getenv("DATABASE_URL"),
-        "min_volume_usd": float(os.getenv("MIN_MARKET_VOLUME_USD", "5000")),
-        "min_liquidity_score": float(os.getenv("MIN_MARKET_LIQUIDITY_SCORE", "0.3")),
         "exclude_categories": os.getenv("EXCLUDE_CATEGORIES", "sports"),
         "active_baskets": os.getenv("ACTIVE_BASKETS", "TOP50-JULY,TOP50-AUGUST").split(","),
         "poll_interval": int(os.getenv("INGESTION_POLL_INTERVAL_SECONDS", "30")),
-        "liquidity_reference_usd": float(os.getenv("LIQUIDITY_REFERENCE_USD", "100000")),
-        "oi_reference_usd": float(os.getenv("OI_REFERENCE_USD", "500000")),
+        "redis_url": os.getenv("REDIS_URL"),
     }
 
 
@@ -50,11 +48,7 @@ async def run_once(client: PolymarketClient, storage: Storage, config: dict) -> 
             result = await build_basket(
                 basket_name,
                 client=client,
-                min_volume_usd=config["min_volume_usd"],
-                min_liquidity_score=config["min_liquidity_score"],
                 exclude_categories=config["exclude_categories"],
-                liquidity_reference_usd=config["liquidity_reference_usd"],
-                oi_reference_usd=config["oi_reference_usd"],
                 markets=all_markets,
             )
             await storage.save_basket(result)
@@ -79,6 +73,7 @@ async def polling_loop(config: dict) -> None:
         data_api_base=config["data_api_base"],
     )
     storage = Storage(config["database_url"])
+    redis_pub = RedisPublisher(redis_url=config.get("redis_url"))
 
     try:
         db_ok = await storage.connect()
@@ -86,9 +81,14 @@ async def polling_loop(config: dict) -> None:
             await storage.ensure_schema()
             logger.info("Database connected and schema ensured.")
 
+        await redis_pub.connect()
+
         while True:
             logger.info("Starting ingestion cycle...")
             results = await run_once(client, storage, config)
+
+            for result in results:
+                await redis_pub.publish_basket(result)
 
             if not storage.pool:
                 print(
@@ -109,6 +109,7 @@ async def polling_loop(config: dict) -> None:
     finally:
         await client.close()
         await storage.close()
+        await redis_pub.close()
 
 
 def main() -> None:

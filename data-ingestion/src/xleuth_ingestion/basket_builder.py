@@ -1,12 +1,10 @@
 import re
-from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Any
 
 from xleuth_ingestion.event_map import build_volume_map
-from xleuth_ingestion.liquidity_filter import filter_markets
 from xleuth_ingestion.polymarket_client import PolymarketClient
-from xleuth_ingestion.vwap import basket_vwap, sub_outcome_vwap
+from xleuth_ingestion.vwap import basket_vwap
 
 MONTH_NAMES = {
     "JANUARY": 1, "FEBRUARY": 2, "MARCH": 3, "APRIL": 4,
@@ -41,18 +39,6 @@ def market_resolves_in_month(market: dict[str, Any], target_month: int) -> bool:
         return dt.month == target_month
     except (ValueError, TypeError):
         return False
-
-
-def group_markets_by_event(markets: list[dict[str, Any]]) -> dict[str, list[dict[str, Any]]]:
-    groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for m in markets:
-        events = m.get("events", [])
-        if events:
-            event_id = str(events[0].get("id", ""))
-            groups[event_id].append(m)
-        else:
-            groups[f"standalone_{m.get('id')}"].append(m)
-    return groups
 
 
 async def _fetch_all_markets(
@@ -108,11 +94,7 @@ def _resolve_price(
 async def build_basket(
     basket_name: str,
     client: PolymarketClient,
-    min_volume_usd: float,
-    min_liquidity_score: float,
     exclude_categories: str | None = None,
-    liquidity_reference_usd: float = 100_000.0,
-    oi_reference_usd: float = 500_000.0,
     markets: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     parsed = parse_basket_name(basket_name)
@@ -126,14 +108,22 @@ async def build_basket(
 
     resolving = [m for m in raw_markets if market_resolves_in_month(m, target_month)]
 
-    filtered, excluded = filter_markets(
-        resolving,
-        min_volume_usd=min_volume_usd,
-        min_liquidity_score=min_liquidity_score,
-        exclude_categories=exclude_categories,
-        liquidity_reference_usd=liquidity_reference_usd,
-        oi_reference_usd=oi_reference_usd,
-    )
+    exclude_list = []
+    if exclude_categories:
+        exclude_list = [c.strip().lower() for c in exclude_categories.split(",")]
+
+    excluded: list[dict[str, str]] = []
+    filtered: list[dict[str, Any]] = []
+    for m in resolving:
+        category = PolymarketClient.get_category(m)
+        if category and category.lower() in exclude_list:
+            excluded.append({
+                "id": str(m.get("id", "?")),
+                "question": str(m.get("question", "")),
+                "reason": f"category '{category}' is excluded (EXCLUDE_CATEGORIES={exclude_categories})",
+            })
+            continue
+        filtered.append(m)
 
     filtered.sort(key=lambda m: PolymarketClient.get_volume(m), reverse=True)
     top_n = filtered[:n]
@@ -148,62 +138,27 @@ async def build_basket(
     all_token_ids = [tid for ids in clob_token_map.values() for tid in ids]
     midpoint_map = await client.get_midpoints_batch(all_token_ids)
 
-    event_groups = group_markets_by_event(top_n)
-
     constituents: list[dict[str, Any]] = []
     constituent_prices: list[tuple[float, float]] = []
 
-    for event_id, group in event_groups.items():
-        if len(group) == 1:
-            market = group[0]
-            cond_id = str(market.get("conditionId", ""))
-            price, source, yes_token = _resolve_price(market, midpoint_map, clob_token_map, cond_id)
-            volume = volume_map.get(cond_id, PolymarketClient.get_volume(market))
+    for market in top_n:
+        cond_id = str(market.get("conditionId", ""))
+        event_id = str(PolymarketClient.get_event_id(market) or "")
+        price, source, yes_token = _resolve_price(market, midpoint_map, clob_token_map, cond_id)
+        volume = volume_map.get(cond_id, PolymarketClient.get_volume(market))
 
-            constituents.append({
-                "condition_id": cond_id,
-                "clob_token_id": yes_token,
-                "event_id": event_id,
-                "question": market.get("question"),
-                "end_date": market.get("endDate") or market.get("endDateIso"),
-                "price": price,
-                "volume": volume,
-                "price_source": source,
-            })
-            if price is not None:
-                constituent_prices.append((price, volume))
-        else:
-            group_prices_volumes: list[tuple[float, float]] = []
-            sub_constituents: list[dict[str, Any]] = []
-            for market in group:
-                cond_id = str(market.get("conditionId", ""))
-                price, source, yes_token = _resolve_price(market, midpoint_map, clob_token_map, cond_id)
-                volume = volume_map.get(cond_id, PolymarketClient.get_volume(market))
-
-                sub_constituents.append({
-                    "condition_id": cond_id,
-                    "clob_token_id": yes_token,
-                    "price": price,
-                    "volume": volume,
-                })
-                if price is not None:
-                    group_prices_volumes.append((price, volume))
-
-            vwap_price = sub_outcome_vwap(group_prices_volumes) if group_prices_volumes else None
-            total_volume = sum(v for _, v in group_prices_volumes)
-
-            constituents.append({
-                "market_id": event_id,
-                "question": group[0].get("events", [{}])[0].get("title", "multi-outcome event"),
-                "price": vwap_price,
-                "volume": total_volume,
-                "event_id": event_id,
-                "end_date": group[0].get("endDate") or group[0].get("endDateIso"),
-                "sub_markets": sub_constituents,
-                "sub_market_count": len(sub_constituents),
-            })
-            if vwap_price is not None:
-                constituent_prices.append((vwap_price, total_volume))
+        constituents.append({
+            "condition_id": cond_id,
+            "clob_token_id": yes_token,
+            "event_id": event_id,
+            "question": market.get("question"),
+            "end_date": market.get("endDate") or market.get("endDateIso"),
+            "price": price,
+            "volume": volume,
+            "price_source": source,
+        })
+        if price is not None:
+            constituent_prices.append((price, volume))
 
     index_price = basket_vwap(constituent_prices)
 

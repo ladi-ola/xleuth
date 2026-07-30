@@ -7,9 +7,8 @@ from dotenv import load_dotenv
 from xleuth_ingestion.basket_builder import (_fetch_all_markets, build_basket,
                                               parse_basket_name)
 from xleuth_ingestion.event_map import build_volume_map
-from xleuth_ingestion.liquidity_filter import compute_liquidity_score, filter_markets
 from xleuth_ingestion.polymarket_client import PolymarketClient
-from xleuth_ingestion.vwap import basket_vwap, sub_outcome_vwap
+from xleuth_ingestion.vwap import basket_vwap
 
 load_dotenv()
 
@@ -138,61 +137,7 @@ async def test_live_volume_for_event(client):
         print(f"  Gamma cached volumeNum={gamma_volume:.2f} vs Data API total={live_total:.2f}")
 
 
-# ── Liquidity filter tests ───────────────────────────────────────────
 
-
-@pytest.mark.asyncio
-async def test_liquidity_filter_excludes_low_volume(client):
-    markets = await client.get_markets(limit=50, order_by="volumeNum", ascending=False)
-    assert len(markets) > 0
-
-    passed, excluded = filter_markets(
-        markets,
-        min_volume_usd=1_000_000_000,
-        min_liquidity_score=0.0,
-        exclude_categories=None,
-    )
-    assert len(passed) == 0, "All markets should be excluded with impossibly high volume threshold"
-    assert len(excluded) >= 1
-    for e in excluded:
-        assert "reason" in e
-    print(f"\nLiquidity filter excluded {len(excluded)} markets with $1B threshold")
-
-
-@pytest.mark.asyncio
-async def test_liquidity_filter_excludes_sports(client):
-    markets = await client.get_markets(limit=50, order_by="volumeNum", ascending=False)
-    assert len(markets) > 0
-
-    passed, excluded = filter_markets(
-        markets,
-        min_volume_usd=0,
-        min_liquidity_score=0.0,
-        exclude_categories="sports",
-    )
-    assert len(passed) >= 1
-    sports_excluded = [e for e in excluded if "sports" in e.get("reason", "").lower()]
-    if sports_excluded:
-        print(f"\nSports filter excluded {len(sports_excluded)} markets")
-        for e in sports_excluded[:3]:
-            print(f"  - {e['question']}: {e['reason']}")
-
-    passed2, excluded2 = filter_markets(
-        markets,
-        min_volume_usd=0,
-        min_liquidity_score=0.0,
-        exclude_categories=None,
-    )
-    print(f"\nProof: no category filter => {len(passed2)} passed, "
-          f"sports filter => {len(passed)} passed ({len(passed2) - len(passed)} sports excluded)")
-
-
-@pytest.mark.asyncio
-async def test_liquidity_score_computed(client):
-    markets = await client.get_markets(limit=5, order_by="volumeNum", ascending=False)
-    assert len(markets) > 0
-    score = compute_liquidity_score(markets[0])
-    assert 0.0 <= score <= 1.0, f"Liquidity score {score} should be in [0, 1]"
 
 
 # ── Event map tests (dedup /live-volume calls) ────────────────────────
@@ -232,22 +177,6 @@ async def test_event_map_no_double_calls(client):
 
 
 # ── VWAP tests ────────────────────────────────────────────────────────
-
-
-def test_sub_outcome_vwap():
-    prices_and_volumes = [(0.5, 1000), (0.6, 2000), (0.4, 1500)]
-    result = sub_outcome_vwap(prices_and_volumes)
-    expected = (0.5 * 1000 + 0.6 * 2000 + 0.4 * 1500) / (1000 + 2000 + 1500)
-    assert result is not None
-    assert abs(result - expected) < 0.0001
-
-
-def test_sub_outcome_vwap_empty():
-    assert sub_outcome_vwap([]) is None
-
-
-def test_sub_outcome_vwap_zero_volume():
-    assert sub_outcome_vwap([(0.5, 0), (0.6, 0)]) is None
 
 
 def test_basket_vwap():
@@ -291,8 +220,6 @@ async def test_build_basket_produces_sane_output(client):
     result = await build_basket(
         "TOP5-JULY",
         client=client,
-        min_volume_usd=5000,
-        min_liquidity_score=0.3,
         exclude_categories="sports",
     )
     assert result is not None
@@ -309,13 +236,9 @@ async def test_build_basket_produces_sane_output(client):
         assert "price" in c
         assert "volume" in c
         assert "end_date" in c
-        if "condition_id" in c:
-            assert "clob_token_id" in c
-            assert "question" in c
-        if "sub_markets" in c:
-            assert "market_id" in c
-            assert isinstance(c["sub_markets"], list)
-            assert c["sub_market_count"] == len(c["sub_markets"])
+        assert "condition_id" in c
+        assert "clob_token_id" in c
+        assert "question" in c
         if c["price"] is not None:
             assert 0.0 <= c["price"] <= 1.0
     print(f"\nBasket TOP5-JULY: index_price={result['index_price']:.6f} "
@@ -334,8 +257,6 @@ async def test_basket_with_two_months(client):
         result = await build_basket(
             name,
             client=client,
-            min_volume_usd=5000,
-            min_liquidity_score=0.3,
             exclude_categories="sports",
         )
         assert result is not None
@@ -355,15 +276,11 @@ async def test_build_basket_with_prefetched_markets(client):
     result_self = await build_basket(
         "TOP5-JULY",
         client=client,
-        min_volume_usd=5000,
-        min_liquidity_score=0.3,
         exclude_categories="sports",
     )
     result_pre = await build_basket(
         "TOP5-JULY",
         client=client,
-        min_volume_usd=5000,
-        min_liquidity_score=0.3,
         exclude_categories="sports",
         markets=markets,
     )
@@ -385,8 +302,6 @@ async def test_build_basket_prefetched_month_filter(client):
     july = await build_basket(
         "TOP5-JULY",
         client=client,
-        min_volume_usd=5000,
-        min_liquidity_score=0.0,
         exclude_categories=None,
         markets=markets,
     )
@@ -396,8 +311,6 @@ async def test_build_basket_prefetched_month_filter(client):
     august = await build_basket(
         "TOP5-AUGUST",
         client=client,
-        min_volume_usd=5000,
-        min_liquidity_score=0.0,
         exclude_categories=None,
         markets=markets,
     )
@@ -406,7 +319,7 @@ async def test_build_basket_prefetched_month_filter(client):
           f"AUGUST={august['total_constituents']} constituents")
 
 
-# ── Verification: CLOB vs Gamma price diff + liquidity filter output  ──
+# ── Verification: CLOB vs Gamma price diff  ──
 
 
 @pytest.mark.asyncio
@@ -417,23 +330,12 @@ async def test_verification_output(client):
     markets = await client.get_markets(limit=50, order_by="volumeNum", ascending=False)
     print(f"\nFetched {len(markets)} markets from Gamma /markets")
 
-    passed, excluded = filter_markets(
-        markets,
-        min_volume_usd=50000,
-        min_liquidity_score=0.0,
-        exclude_categories="sports",
-    )
-    print(f"\nLiquidity filter (min_volume=$50k, sports excluded): "
-          f"{len(passed)} passed, {len(excluded)} excluded")
-    for e in excluded[:5]:
-        print(f"  EXCLUDED: {e['question']} — {e['reason']}")
-
-    if passed:
-        m = passed[0]
+    if markets:
+        m = markets[0]
         token_ids = client.get_clob_token_ids(m)
         cond_id = m.get("conditionId", "")
         event_id = client.get_event_id(m)
-        print(f"\nTop passed market: {m.get('question')}")
+        print(f"\nTop market: {m.get('question')}")
         print(f"  conditionId: {cond_id}")
         print(f"  eventId: {event_id}")
         print(f"  clobTokenIds: {token_ids[:3]}...")

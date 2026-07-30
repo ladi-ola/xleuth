@@ -116,18 +116,6 @@ class PolymarketClient:
         return float(market.get("volumeNum", 0) or 0)
 
     @staticmethod
-    def get_liquidity(market: dict[str, Any]) -> float:
-        return float(market.get("liquidityNum", 0) or 0)
-
-    @staticmethod
-    def get_event_volume_and_oi(market: dict[str, Any]) -> tuple[float, float]:
-        events = market.get("events", [])
-        if events:
-            ev = events[0]
-            return float(ev.get("volume", 0) or 0), float(ev.get("openInterest", 0) or 0)
-        return 0.0, 0.0
-
-    @staticmethod
     def get_category(market: dict[str, Any]) -> str | None:
         events = market.get("events", [])
         if events:

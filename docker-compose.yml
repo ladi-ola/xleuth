@@ -25,6 +25,21 @@ services:
       - .env
     depends_on:
       - postgres
+      - redis
+    networks:
+      - xleuth_net
+
+  backend-api:
+    build:
+      context: .
+      dockerfile: backend-api/Dockerfile
+    ports:
+      - "${API_PORT:-8000}:8000"
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
     networks:
       - xleuth_net
 

@@ -1,0 +1,224 @@
+import logging
+from datetime import datetime, timezone
+from typing import Any
+
+import asyncpg
+
+logger = logging.getLogger("xleuth_api.db")
+
+USER_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    wallet_address TEXT PRIMARY KEY,
+    alias TEXT,
+    balance DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    realized_pnl DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    unrealized_pnl DOUBLE PRECISION NOT NULL DEFAULT 0.0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS transactions (
+    id SERIAL PRIMARY KEY,
+    wallet_address TEXT NOT NULL REFERENCES users(wallet_address),
+    tx_type TEXT NOT NULL,
+    amount DOUBLE PRECISION NOT NULL,
+    tx_hash TEXT,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    related_position_id INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_wallet ON transactions(wallet_address);
+"""
+
+
+class Database:
+    def __init__(self, dsn: str | None):
+        self.dsn = dsn
+        self.pool: asyncpg.Pool | None = None
+
+    async def connect(self) -> bool:
+        if not self.dsn:
+            logger.warning("No DATABASE_URL set; API will run without persistence")
+            return False
+        try:
+            self.pool = await asyncpg.create_pool(self.dsn, min_size=1, max_size=5)
+            return True
+        except Exception:
+            logger.warning("Database unavailable; API will run without persistence", exc_info=True)
+            return False
+
+    async def close(self) -> None:
+        if self.pool:
+            await self.pool.close()
+
+    async def ensure_schema(self) -> None:
+        if not self.pool:
+            return
+        async with self.pool.acquire() as conn:
+            for statement in USER_TABLE_SQL.split(";"):
+                stmt = statement.strip()
+                if stmt:
+                    await conn.execute(stmt)
+
+    # ── Basket / Price reads (tables created by data-ingestion) ────────
+
+    async def get_latest_basket_price(self, basket_name: str) -> dict | None:
+        if not self.pool:
+            return None
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT ts, basket_name, index_price, scaled_price, constituent_count
+                FROM index_prices
+                WHERE basket_name = $1
+                ORDER BY ts DESC
+                LIMIT 1
+                """,
+                basket_name,
+            )
+            if row:
+                return dict(row)
+            return None
+
+    async def get_basket_price_history(
+        self, basket_name: str, start: datetime | None = None, end: datetime | None = None, limit: int = 1000
+    ) -> list[dict]:
+        if not self.pool:
+            return []
+        async with self.pool.acquire() as conn:
+            if start and end:
+                rows = await conn.fetch(
+                    """
+                    SELECT ts, basket_name, index_price, scaled_price, constituent_count
+                    FROM index_prices
+                    WHERE basket_name = $1 AND ts >= $2 AND ts <= $3
+                    ORDER BY ts DESC
+                    LIMIT $4
+                    """,
+                    basket_name,
+                    start,
+                    end,
+                    limit,
+                )
+            else:
+                rows = await conn.fetch(
+                    """
+                    SELECT ts, basket_name, index_price, scaled_price, constituent_count
+                    FROM index_prices
+                    WHERE basket_name = $1
+                    ORDER BY ts DESC
+                    LIMIT $2
+                    """,
+                    basket_name,
+                    limit,
+                )
+            return [dict(r) for r in rows]
+
+    async def get_basket_constituents(self, basket_name: str) -> list[dict]:
+        if not self.pool:
+            return []
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT ON (market_id) ts, market_id, basket_name, question, price, volume, event_id
+                FROM market_prices
+                WHERE basket_name = $1
+                ORDER BY market_id, ts DESC
+                """,
+                basket_name,
+            )
+            return [dict(r) for r in rows]
+
+    async def list_baskets(self) -> list[dict]:
+        if not self.pool:
+            return []
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT DISTINCT ON (basket_name) basket_name, index_price, scaled_price, constituent_count, ts
+                FROM index_prices
+                ORDER BY basket_name, ts DESC
+                """
+            )
+            return [dict(r) for r in rows]
+
+    # ── User / Transaction CRUD ────────────────────────────────────────
+
+    async def upsert_user(self, wallet_address: str, alias: str | None = None) -> dict | None:
+        if not self.pool:
+            return None
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO users (wallet_address, alias)
+                VALUES ($1, $2)
+                ON CONFLICT (wallet_address)
+                DO UPDATE SET alias = COALESCE($2, users.alias)
+                RETURNING wallet_address, alias, balance, realized_pnl, unrealized_pnl, created_at
+                """,
+                wallet_address,
+                alias,
+            )
+            return dict(row) if row else None
+
+    async def get_user(self, wallet_address: str) -> dict | None:
+        if not self.pool:
+            return None
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT wallet_address, alias, balance, realized_pnl, unrealized_pnl, created_at FROM users WHERE wallet_address = $1",
+                wallet_address,
+            )
+            return dict(row) if row else None
+
+    async def update_user_alias(self, wallet_address: str, alias: str) -> dict | None:
+        if not self.pool:
+            return None
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "UPDATE users SET alias = $1 WHERE wallet_address = $2 RETURNING wallet_address, alias, balance, realized_pnl, unrealized_pnl, created_at",
+                alias,
+                wallet_address,
+            )
+            return dict(row) if row else None
+
+    async def get_transactions(self, wallet_address: str, limit: int = 50) -> list[dict]:
+        if not self.pool:
+            return []
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT id, wallet_address, tx_type, amount, tx_hash, timestamp, related_position_id
+                FROM transactions
+                WHERE wallet_address = $1
+                ORDER BY timestamp DESC
+                LIMIT $2
+                """,
+                wallet_address,
+                limit,
+            )
+            return [dict(r) for r in rows]
+
+    async def add_transaction(
+        self,
+        wallet_address: str,
+        tx_type: str,
+        amount: float,
+        tx_hash: str | None = None,
+        related_position_id: int | None = None,
+    ) -> dict | None:
+        if not self.pool:
+            return None
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO transactions (wallet_address, tx_type, amount, tx_hash, related_position_id)
+                VALUES ($1, $2, $3, $4, $5)
+                RETURNING id, wallet_address, tx_type, amount, tx_hash, timestamp, related_position_id
+                """,
+                wallet_address,
+                tx_type,
+                amount,
+                tx_hash,
+                related_position_id,
+            )
+            return dict(row) if row else None
