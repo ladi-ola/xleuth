@@ -1,9 +1,14 @@
+# ── Environment files (real secrets never committed) ─────
+# .env and .env.* variants are ignored, but .env.example
+# templates are committed — never put real values in them.
 .env
+**/.env
 .env.*
+!.env.example
+
 .venv/
 __pycache__/
 *.pyc
-.env
 *.egg-info/
 dist/
 build/
