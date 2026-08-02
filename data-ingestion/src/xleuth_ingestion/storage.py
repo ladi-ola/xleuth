@@ -89,12 +89,20 @@ class Storage:
         await self._save_market_prices(basket_result)
 
     async def cleanup_stale_baskets(self, active_baskets: list[str]) -> None:
+        """Remove rows for unknown baskets only.
+
+        Rows for dated baskets (e.g. TOP20-JULY) are never deleted: once an
+        index resolves it must remain queryable as history. Only names that
+        are neither in the active list nor valid dated basket names are purged.
+        """
         if not self.pool or not active_baskets:
             return
         async with self.pool.acquire() as conn:
             for table in ("index_prices", "market_prices"):
                 result = await conn.execute(
-                    "DELETE FROM {} WHERE basket_name != ALL($1::text[])".format(table),
+                    "DELETE FROM {} "
+                    "WHERE basket_name != ALL($1::text[]) "
+                    "AND basket_name !~ '^[A-Z]+[0-9]+-[A-Z]+(-[0-9]{4})?$'".format(table),
                     active_baskets,
                 )
                 logger.info("Cleaned up stale rows from %s (active=%s)", table, active_baskets)

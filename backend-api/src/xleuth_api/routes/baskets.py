@@ -1,10 +1,11 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query
 
 from xleuth_api.db import Database
 from xleuth_api.dependencies import get_db
+from xleuth_shared.basket_lifecycle import basket_status, is_tradeable
 from xleuth_shared.schemas.baskets import (
     BasketDetail,
     BasketHistoryResponse,
@@ -18,21 +19,30 @@ from xleuth_shared.schemas.baskets import (
 router = APIRouter(prefix="/baskets", tags=["baskets"])
 
 
+def _lifecycle(basket_name: str) -> tuple[str, bool]:
+    now = datetime.now(timezone.utc)
+    return basket_status(basket_name, now), is_tradeable(basket_name, now)
+
+
 @router.get("", response_model=BasketListResponse)
 async def list_baskets(
     db: Database = Depends(get_db),
 ):
     rows = await db.list_baskets()
-    baskets = [
-        BasketInfo(
-            basket_name=r["basket_name"],
-            total_constituents=r.get("constituent_count") or 0,
-            index_price=r.get("index_price"),
-            index_price_scaled=r.get("scaled_price"),
-            computed_at=r.get("ts"),
+    baskets = []
+    for r in rows:
+        status, tradeable = _lifecycle(r["basket_name"])
+        baskets.append(
+            BasketInfo(
+                basket_name=r["basket_name"],
+                total_constituents=r.get("constituent_count") or 0,
+                index_price=r.get("index_price"),
+                index_price_scaled=r.get("scaled_price"),
+                computed_at=r.get("ts"),
+                status=status,
+                is_tradeable=tradeable,
+            )
         )
-        for r in rows
-    ]
     return BasketListResponse(baskets=baskets)
 
 
@@ -42,14 +52,19 @@ async def get_basket_price(
     db: Database = Depends(get_db),
 ):
     row = await db.get_latest_basket_price(basket_name)
+    status, tradeable = _lifecycle(basket_name)
     if row is None:
-        return BasketPriceResponse(basket_name=basket_name)
+        return BasketPriceResponse(
+            basket_name=basket_name, status=status, is_tradeable=tradeable
+        )
     return BasketPriceResponse(
         basket_name=row["basket_name"],
         index_price=row.get("index_price"),
         scaled_price=row.get("scaled_price"),
         computed_at=row.get("ts"),
         constituent_count=row.get("constituent_count"),
+        status=status,
+        is_tradeable=tradeable,
     )
 
 
@@ -92,11 +107,14 @@ async def get_basket_constituents(
         for r in constituents_raw
     ]
     latest = await db.get_latest_basket_price(basket_name)
+    status, tradeable = _lifecycle(basket_name)
     return BasketDetail(
         basket_name=basket_name,
         total_constituents=len(constituents),
         index_price=latest.get("index_price") if latest else None,
         index_price_scaled=latest.get("scaled_price") if latest else None,
         computed_at=latest.get("ts") if latest else None,
+        status=status,
+        is_tradeable=tradeable,
         constituents=constituents,
     )

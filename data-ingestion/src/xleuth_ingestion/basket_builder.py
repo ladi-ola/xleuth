@@ -1,33 +1,10 @@
-import re
 from datetime import datetime, timezone
 from typing import Any
 
 from xleuth_ingestion.event_map import build_volume_map
 from xleuth_ingestion.polymarket_client import PolymarketClient
 from xleuth_ingestion.vwap import basket_vwap
-
-MONTH_NAMES = {
-    "JANUARY": 1, "FEBRUARY": 2, "MARCH": 3, "APRIL": 4,
-    "MAY": 5, "JUNE": 6, "JULY": 7, "AUGUST": 8,
-    "SEPTEMBER": 9, "OCTOBER": 10, "NOVEMBER": 11, "DECEMBER": 12,
-    "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4,
-    "MAY": 5, "JUN": 6, "JUL": 7, "AUG": 8,
-    "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12,
-}
-
-BASKET_PATTERN = re.compile(r"^TOP(\d+)-([A-Z]+)$")
-
-
-def parse_basket_name(name: str) -> tuple[int, int, str] | None:
-    m = BASKET_PATTERN.match(name.upper())
-    if not m:
-        return None
-    n = int(m.group(1))
-    month_str = m.group(2)
-    month_num = MONTH_NAMES.get(month_str)
-    if month_num is None:
-        return None
-    return n, month_num, name
+from xleuth_shared.basket_lifecycle import MONTH_NAMES, parse_basket_name
 
 
 def market_resolves_in_month(market: dict[str, Any], target_month: int) -> bool:
@@ -99,7 +76,10 @@ async def build_basket(
 ) -> dict[str, Any]:
     parsed = parse_basket_name(basket_name)
     if not parsed:
-        msg = f"Invalid basket name '{basket_name}'. Expected TOP<N>-<MONTH> (e.g. TOP50-JULY)"
+        msg = (
+            f"Invalid basket name '{basket_name}'. "
+            f"Expected <FAMILY><SIZE>-<MONTH> (e.g. TOP20-AUGUST)"
+        )
         raise ValueError(msg)
 
     n, target_month, _ = parsed

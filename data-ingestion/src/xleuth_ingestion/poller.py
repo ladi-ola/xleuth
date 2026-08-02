@@ -12,6 +12,11 @@ from xleuth_ingestion.basket_builder import build_basket, _fetch_all_markets
 from xleuth_ingestion.polymarket_client import PolymarketClient
 from xleuth_ingestion.redis_publisher import RedisPublisher
 from xleuth_ingestion.storage import Storage
+from xleuth_shared.basket_lifecycle import (
+    STATUS_RESOLVED,
+    BasketDescriptor,
+    expand_basket_templates,
+)
 
 logger = logging.getLogger("xleuth_ingestion")
 
@@ -24,13 +29,18 @@ def load_config() -> dict:
         "data_api_base": os.getenv("POLYMARKET_DATA_API_BASE", "https://data-api.polymarket.com"),
         "database_url": os.getenv("DATABASE_URL"),
         "exclude_categories": os.getenv("EXCLUDE_CATEGORIES", "sports"),
-        "active_baskets": os.getenv("ACTIVE_BASKETS", "TOP50-JULY,TOP50-AUGUST").split(","),
+        "active_baskets": os.getenv("ACTIVE_BASKETS", "TOP20-{MONTH}").split(","),
         "poll_interval": int(os.getenv("INGESTION_POLL_INTERVAL_SECONDS", "30")),
         "redis_url": os.getenv("REDIS_URL"),
     }
 
 
-async def run_once(client: PolymarketClient, storage: Storage, config: dict) -> list[dict]:
+async def run_once(
+    client: PolymarketClient,
+    storage: Storage,
+    config: dict,
+    descriptors: list[BasketDescriptor],
+) -> list[dict]:
     logger.info("Fetching all markets (single snapshot for all baskets)...")
     try:
         all_markets = await _fetch_all_markets(client)
@@ -40,13 +50,16 @@ async def run_once(client: PolymarketClient, storage: Storage, config: dict) -> 
         return []
 
     results = []
-    for basket_name in config["active_baskets"]:
-        basket_name = basket_name.strip()
-        if not basket_name:
+    for desc in descriptors:
+        if desc.status == STATUS_RESOLVED:
+            logger.info(
+                "Basket %s is resolved; keeping history, not updating/trading",
+                desc.basket_name,
+            )
             continue
         try:
             result = await build_basket(
-                basket_name,
+                desc.basket_name,
                 client=client,
                 exclude_categories=config["exclude_categories"],
                 markets=all_markets,
@@ -54,15 +67,17 @@ async def run_once(client: PolymarketClient, storage: Storage, config: dict) -> 
             await storage.save_basket(result)
             results.append(result)
             logger.info(
-                "Basket %s: index_price=%.6f (scaled=%.2f), constituents=%d, excluded=%d",
-                basket_name,
+                "Basket %s [%s, tradeable=%s]: index_price=%.6f (scaled=%.2f), constituents=%d, excluded=%d",
+                desc.basket_name,
+                desc.status,
+                desc.is_tradeable,
                 result["index_price"] or -1,
                 result["index_price_scaled"] or -1,
                 result["total_constituents"],
                 result["markets_filtered_out"],
             )
         except Exception:
-            logger.exception("Failed to build basket %s", basket_name)
+            logger.exception("Failed to build basket %s", desc.basket_name)
     return results
 
 
@@ -85,12 +100,13 @@ async def polling_loop(config: dict) -> None:
 
         while True:
             logger.info("Starting ingestion cycle...")
-            results = await run_once(client, storage, config)
+            descriptors = expand_basket_templates(config["active_baskets"])
+            results = await run_once(client, storage, config, descriptors)
 
             for result in results:
                 await redis_pub.publish_basket(result)
 
-            await storage.cleanup_stale_baskets(config["active_baskets"])
+            await storage.cleanup_stale_baskets([d.basket_name for d in descriptors])
 
             if not storage.pool:
                 print(

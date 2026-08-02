@@ -29,6 +29,8 @@ class BasketInfo(BaseModel):
     index_price: float | None = None
     index_price_scaled: float | None = None
     computed_at: datetime | None = None
+    status: str = "active"
+    is_tradeable: bool = True
 
 
 class BasketDetail(BasketInfo):
@@ -51,6 +53,8 @@ class BasketPriceResponse(BaseModel):
     scaled_price: float | None = None
     computed_at: datetime | None = None
     constituent_count: int | None = None
+    status: str = "active"
+    is_tradeable: bool = True
 
 
 class BasketHistoryResponse(BaseModel):

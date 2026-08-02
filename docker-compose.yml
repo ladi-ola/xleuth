@@ -20,7 +20,9 @@ services:
       - xleuth_net
 
   data-ingestion:
-    build: ./data-ingestion
+    build:
+      context: .
+      dockerfile: data-ingestion/Dockerfile
     env_file:
       - .env
     depends_on:

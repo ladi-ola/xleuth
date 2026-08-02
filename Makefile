@@ -1,7 +1,7 @@
 .PHONY: test test-contracts test-api test-all check-secrets install-hooks run-ingestion run-api deploy-testnet deploy-config-baskets up down
 
 test:
-	PYTHONPATH=data-ingestion/src .venv/bin/pytest data-ingestion/tests/ -v
+	PYTHONPATH=data-ingestion/src:shared .venv/bin/pytest data-ingestion/tests/ -v
 
 test-contracts:
 	cd contracts && forge test --gas-report
@@ -20,7 +20,7 @@ install-hooks:
 	@echo "pre-commit hook installed."
 
 run-ingestion:
-	PYTHONPATH=data-ingestion/src .venv/bin/python -m xleuth_ingestion
+	PYTHONPATH=data-ingestion/src:shared .venv/bin/python -m xleuth_ingestion
 
 run-api:
 	PYTHONPATH=backend-api/src:shared .venv/bin/uvicorn xleuth_api.main:app --reload --host 0.0.0.0 --port 8000
