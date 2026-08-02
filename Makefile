@@ -1,12 +1,15 @@
-.PHONY: test run-ingestion run-api up down check-secrets install-hooks
+.PHONY: test test-contracts test-api test-all check-secrets install-hooks run-ingestion run-api deploy-testnet deploy-config-baskets up down
 
 test:
 	PYTHONPATH=data-ingestion/src .venv/bin/pytest data-ingestion/tests/ -v
 
+test-contracts:
+	cd contracts && forge test --gas-report
+
 test-api:
 	PYTHONPATH=backend-api/src:shared .venv/bin/pytest backend-api/tests/ -v
 
-test-all: test test-api
+test-all: test test-contracts test-api
 
 check-secrets:
 	scripts/check-env-examples.sh
@@ -27,3 +30,16 @@ up:
 
 down:
 	docker compose down
+
+# ── Contracts (Week 3) ────────────────────────────────────────────────────
+# Reads contracts/.env (gitignored); never hardcode RPC/key/addresses.
+deploy-testnet:
+	cd contracts && forge script script/DeployAmoy.s.sol:DeployAmoy \
+		--rpc-url $$(grep '^RPC_URL=' .env | cut -d= -f2) \
+		--private-key $$(grep '^DEPLOYER_PRIVATE_KEY=' .env | cut -d= -f2) \
+		--broadcast
+
+deploy-config-baskets:
+	cd contracts && forge script script/ConfigureBaskets.s.sol:ConfigureBaskets \
+		--rpc-url $$(grep '^RPC_URL=' .env | cut -d= -f2) \
+		--broadcast

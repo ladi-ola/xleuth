@@ -19,6 +19,12 @@ build/
 # VS Code
 .vscode/
 
+# Foundry (contracts/)
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+contracts/.env
+
 #PLAN FOR AGENTIC CODER
 PLAN.md
 
