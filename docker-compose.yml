@@ -45,6 +45,19 @@ services:
     networks:
       - xleuth_net
 
+  oracle-service:
+    build:
+      context: .
+      dockerfile: oracle-service/Dockerfile
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+      - data-ingestion
+    networks:
+      - xleuth_net
+
 networks:
   xleuth_net:
     driver: bridge

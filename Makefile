@@ -1,4 +1,4 @@
-.PHONY: test test-contracts test-api test-all check-secrets install-hooks run-ingestion run-api deploy-testnet deploy-config-baskets up down
+.PHONY: test test-contracts test-api test-oracle test-all check-secrets install-hooks run-ingestion run-api run-oracle deploy-testnet deploy-upgrade deploy-config-baskets deploy-settle-basket deploy-open-position up down
 
 test:
 	PYTHONPATH=data-ingestion/src:shared .venv/bin/pytest data-ingestion/tests/ -v
@@ -9,7 +9,14 @@ test-contracts:
 test-api:
 	PYTHONPATH=backend-api/src:shared .venv/bin/pytest backend-api/tests/ -v
 
-test-all: test test-contracts test-api
+test-oracle:
+	PYTHONPATH=oracle-service/src:shared .venv/bin/pytest oracle-service/tests/ -v
+
+test-all: test test-contracts test-api test-oracle
+
+run-oracle:
+	PYTHONPATH=oracle-service/src:shared .venv/bin/python -m xleuth_oracle
+
 
 check-secrets:
 	scripts/check-env-examples.sh
@@ -39,7 +46,27 @@ deploy-testnet:
 		--private-key $$(grep '^DEPLOYER_PRIVATE_KEY=' .env | cut -d= -f2) \
 		--broadcast
 
+# Gas-lean upgrade of an existing Week-3 stack: fresh PositionManager +
+# SettlementEngine, re-points the deployed vault, reuses the oracle consumer.
+deploy-upgrade:
+	cd contracts && forge script script/UpgradeAmoy.s.sol:UpgradeAmoy \
+		--rpc-url $$(grep '^RPC_URL=' .env | cut -d= -f2) \
+		--private-key $$(grep '^DEPLOYER_PRIVATE_KEY=' .env | cut -d= -f2) \
+		--broadcast
+
 deploy-config-baskets:
 	cd contracts && forge script script/ConfigureBaskets.s.sol:ConfigureBaskets \
 		--rpc-url $$(grep '^RPC_URL=' .env | cut -d= -f2) \
+		--broadcast
+
+deploy-settle-basket:
+	cd contracts && forge script script/SettleBasket.s.sol:SettleBasket \
+		--rpc-url $$(grep '^RPC_URL=' .env | cut -d= -f2) \
+		--private-key $$(grep '^DEPLOYER_PRIVATE_KEY=' .env | cut -d= -f2) \
+		--broadcast
+
+deploy-open-position:
+	cd contracts && forge script script/OpenPosition.s.sol:OpenPosition \
+		--rpc-url $$(grep '^RPC_URL=' .env | cut -d= -f2) \
+		--private-key $$(grep '^TRADER_PRIVATE_KEY=' .env | cut -d= -f2 || grep '^DEPLOYER_PRIVATE_KEY=' .env | cut -d= -f2) \
 		--broadcast

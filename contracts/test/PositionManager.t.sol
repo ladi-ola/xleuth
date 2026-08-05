@@ -32,7 +32,9 @@ contract PositionManagerTest is Test {
         usdc = new MockUSDC("Test USDC", "USDC");
         vault = new CollateralVault(address(usdc), owner);
         oracle = new IndexOracleConsumer(owner, oracleSigner, PRICE_SCALE, STALENESS);
-        pm = new PositionManager(owner, address(vault), address(oracle), MAX_LEVERAGE, STALENESS);
+        pm = new PositionManager(
+            owner, address(vault), address(oracle), MAX_LEVERAGE, STALENESS, 125, 50
+        );
 
         vm.prank(owner);
         vault.setPositionManager(address(pm));
@@ -306,5 +308,131 @@ contract PositionManagerTest is Test {
         vm.warp(1_000 + 90);
         vm.prank(alice);
         pm.openPosition(basketA, PositionManager.Side.Long, 1_000, 5);
+    }
+
+    // ── Liquidation ──────────────────────────────────────────────────────
+    // PositionManager constructed with maintenanceMarginRatioBps=125,
+    // liquidationFeeBps=50. liquidate() triggers when a position's margin ratio
+    //   equity * 1e4 / notional  <  maintenanceMarginRatioBps  (exact: == NOT liquidated).
+    // At open leverage L the ratio is exactly 10000/L bps regardless of price,
+    // so with L=5 the open ratio is 2000 bps (20%).
+
+    function _openLongAt(address who, uint256 price, uint256 size, uint256 lev) internal {
+        _pushPrice(price, 1_000);
+        vm.prank(who);
+        pm.openPosition(basketA, PositionManager.Side.Long, size, lev);
+    }
+
+    function test_Liquidate_PaysLiquidatorAndRemovesPosition() public {
+        vm.prank(owner);
+        pm.setMaintenanceMarginRatio(2_000);
+
+        // Open at 50, 5x, size 1000 -> margin 10k, notional 50k, ratio 2000 == 2000
+        // not liquidatable at the boundary; drop price to 41 to run it under.
+        _openLongAt(alice, 50, 1_000, 5);
+        assertEq(pm.getPosition(alice, basketA).lockedMargin, 10_000, "margin 10k");
+        assertEq(
+            pm.equityOf(alice, basketA) * 1e4, 50 * 1_000 * 2_000,
+            "open ratio == 2000 bps"
+        );
+        assertEq(pm.getOpenUserCount(basketA), 1);
+
+        // Price 41: pnl = (41-50)*1000 = -9000, equity = 10 000 - 9 000 = 1 000,
+        // ratio = 1000*1e4/41000 = 243.9 < 2000 -> liquidatable.
+        vm.warp(2_000);
+        _pushPrice(41, 2_000);
+
+        uint256 notional = 41 * 1_000;
+        uint256 reward = (notional * 50) / 1e4; // 41000*50/1e4 = 205
+
+        vm.prank(bob);
+        pm.liquidate(alice, basketA);
+
+        // reward 205 < equity 1000 -> bob paid 205, alice keeps 795.
+        assertEq(vault.lockedBalance(alice), 0, "margin consumed");
+        assertEq(vault.freeBalance(bob), reward, "bob earned liquidator reward");
+        assertEq(
+            vault.freeBalance(alice),
+            100_000 * USD - 10_000 + 1_000 - reward,
+            "alice keeps equity minus fee"
+        );
+        assertEq(pm.getPosition(alice, basketA).size, 0, "position closed");
+        assertEq(pm.getOpenUserCount(basketA), 0, "removed from open list");
+    }
+
+    function test_Liquidate_BelowThreshold_NotLiquidatable() public {
+        // Default maintenance 125 bps. Open at 50 5x -> ratio 2000 >= 125, safe.
+        _openLongAt(alice, 50, 1_000, 5);
+        vm.warp(2_000);
+        _pushPrice(50, 2_000);
+        vm.prank(bob);
+        vm.expectRevert(PositionManager.NotLiquidatable.selector);
+        pm.liquidate(alice, basketA);
+
+        // Even after a small drop the ratio stays above 125.
+        vm.warp(3_000);
+        _pushPrice(49, 3_000);
+        vm.prank(bob);
+        vm.expectRevert(PositionManager.NotLiquidatable.selector);
+        pm.liquidate(alice, basketA);
+    }
+
+    // Exact boundary: ratio exactly equal to threshold must NOT liquidate;
+    // one unit lower MUST. At 5x leverage the open ratio is 2000 bps, so we set
+    // maintenance 2000 bps -> boundary sits at the entry price.
+    function test_Liquidate_Boundary_ExactThresholdNotLiquidatable() public {
+        vm.prank(owner);
+        pm.setMaintenanceMarginRatio(2_000);
+
+        _openLongAt(alice, 50, 1_000, 5);
+        assertEq(
+            pm.equityOf(alice, basketA) * 1e4,
+            50 * 1_000 * 2_000,
+            "ratio == threshold exactly"
+        );
+
+        vm.warp(2_000);
+        _pushPrice(50, 2_000);
+        vm.prank(bob);
+        vm.expectRevert(PositionManager.NotLiquidatable.selector);
+        pm.liquidate(alice, basketA);
+    }
+
+    function test_Liquidate_Boundary_OneUnitBelowTriggers() public {
+        vm.prank(owner);
+        pm.setMaintenanceMarginRatio(2_000);
+
+        _openLongAt(alice, 50, 1_000, 5);
+
+        // Price 49: equity = 10k + (49-50)*1000 = 9k, notional = 49k
+        // ratio = 9000*1e4/49000 = 1836.7 bps < 2000 -> liquidatable.
+        vm.warp(2_000);
+        _pushPrice(49, 2_000);
+        vm.prank(bob);
+        pm.liquidate(alice, basketA);
+
+        PositionManager.Position memory pos = pm.getPosition(alice, basketA);
+        assertEq(pos.size, 0, "liquidated one unit below the boundary");
+    }
+
+    function test_Liquidate_WipedOut_NoReward() public {
+        vm.prank(owner);
+        pm.setMaintenanceMarginRatio(2_000);
+
+        _openLongAt(alice, 50, 1_000, 5);
+
+        // Price 40: pnl = (40-50)*1000 = -10k, equity = 0 -> liquidator fee
+        // capped at 0, no reward paid out.
+        vm.warp(2_000);
+        _pushPrice(40, 2_000);
+        vm.prank(bob);
+        pm.liquidate(alice, basketA);
+
+        assertEq(vault.freeBalance(bob), 0, "equity wiped -> no liquidator reward");
+        assertEq(
+            vault.freeBalance(alice),
+            100_000 * USD - 10_000,
+            "alice keeps nothing from wiped position"
+        );
     }
 }

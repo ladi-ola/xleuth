@@ -202,6 +202,106 @@ contract CollateralVaultTest is Test {
         vault.withdraw(8_000 * USD);
     }
 
+    // ── Settlement / liquidation position closing ──────────────────────────
+
+    function _openWithMargin(address who, uint256 deposit) internal {
+        vm.startPrank(who);
+        usdc.approve(address(vault), type(uint256).max);
+        vault.deposit(deposit);
+        vm.stopPrank();
+        vm.prank(pm);
+        vault.lockMargin(who, deposit / 2);
+    }
+
+    function test_SettlePosition_ProfitCreditsFree() public {
+        _openWithMargin(alice, 10_000 * USD);
+        uint256 lockedBefore = vault.lockedBalance(alice);
+        uint256 freeBefore = vault.freeBalance(alice);
+
+        vm.prank(pm);
+        vault.settlePosition(alice, lockedBefore, 1_000);
+
+        assertEq(vault.lockedBalance(alice), 0);
+        assertEq(vault.freeBalance(alice), freeBefore + lockedBefore + 1_000);
+        assertEq(usdc.balanceOf(address(vault)), 10_000 * USD, "tokens stay in vault");
+    }
+
+    function test_settlePosition_Loss_ConsumesMarginToZero() public {
+        _openWithMargin(alice, 10_000 * USD);
+        uint256 locked = vault.lockedBalance(alice);
+
+        vm.prank(pm);
+        vault.settlePosition(alice, locked, -int256(locked));
+
+        assertEq(vault.lockedBalance(alice), 0);
+        assertEq(vault.freeBalance(alice), 5_000 * USD, "credit floored at zero");
+    }
+
+    function test_settlePosition_LossBeyondMargin_FloorsAtZero() public {
+        _openWithMargin(alice, 10_000 * USD);
+        uint256 locked = vault.lockedBalance(alice);
+        uint256 freeBefore = vault.freeBalance(alice);
+
+        // pnl = -2 * locked -> total is negative; user is NOT pushed negative.
+        vm.prank(pm);
+        vault.settlePosition(alice, locked, -int256(locked) * 2);
+
+        assertEq(vault.lockedBalance(alice), 0);
+        assertEq(vault.freeBalance(alice), freeBefore, "free balance untouched (floored at 0)");
+        assertEq(vault.balanceOf(alice), freeBefore);
+    }
+
+    function test_settlePosition_NonPositionManager_Reverts() public {
+        vm.prank(bob);
+        vm.expectRevert(CollateralVault.NotPositionManager.selector);
+        vault.settlePosition(alice, 1, 0);
+    }
+
+    function test_LiquidatePosition_PaysLiquidatorAndReturnsEquity() public {
+        _openWithMargin(alice, 10_000 * USD);
+        uint256 locked = vault.lockedBalance(alice); // 5_000 USD
+        uint256 reward = 500 * USD;
+        int256 pnl = 0;
+
+        vm.prank(pm);
+        vault.liquidatePosition(alice, bob, locked, pnl, reward);
+
+        // equity = locked + 0 = 5_000 USD; bob gets 500, alice gets 4_500.
+        assertEq(vault.lockedBalance(alice), 0);
+        assertEq(vault.freeBalance(bob), reward);
+        assertEq(vault.freeBalance(alice), 5_000 * USD + (5_000 * USD - reward));
+        assertEq(usdc.balanceOf(address(vault)), 10_000 * USD, "tokens stay in vault");
+    }
+
+    function test_liquidatePosition_NegativeEquity_NoRefundToUser() public {
+        _openWithMargin(alice, 10_000 * USD);
+        uint256 locked = vault.lockedBalance(alice); // 5_000 USD
+        vm.prank(pm);
+        // pnl = -6_000, equity = -1_000: nothing for user, nothing for liquidator.
+        vault.liquidatePosition(alice, bob, locked, -6_000 * int256(USD), 100 * USD);
+
+        assertEq(vault.lockedBalance(alice), 0);
+        assertEq(vault.freeBalance(bob), 0, "no equity so no liquidator reward");
+        assertEq(vault.freeBalance(alice), 5_000 * USD, "user keeps original free only");
+    }
+
+    function test_liquidatePosition_RewardCappedByEquity() public {
+        _openWithMargin(alice, 10_000 * USD);
+        uint256 locked = vault.lockedBalance(alice);
+        // Reward larger than equity: payout floored at equity.
+        vm.prank(pm);
+        vault.liquidatePosition(alice, bob, locked, 0, locked + 1_000 * USD);
+
+        assertEq(vault.freeBalance(bob), locked, "reward capped at equity");
+        assertEq(vault.freeBalance(alice), 5_000 * USD, "nothing left beyond capped reward");
+    }
+
+    function test_LiquidatePosition_OnlyPositionManager() public {
+        vm.prank(bob);
+        vm.expectRevert(CollateralVault.NotPositionManager.selector);
+        vault.liquidatePosition(alice, bob, 1, 0, 0);
+    }
+
     // ── Access control ─────────────────────────────────────────────────────
 
     function test_SetPositionManager_OnlyOwner() public {

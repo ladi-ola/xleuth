@@ -27,6 +27,14 @@ contract CollateralVault is Ownable, ReentrancyGuard {
     event Withdraw(address indexed user, uint256 amount);
     event MarginLocked(address indexed user, address indexed caller, uint256 amount);
     event MarginReleased(address indexed user, address indexed caller, uint256 amount);
+    event PositionSettled(address indexed user, uint256 lockedReleased, uint256 credited);
+    event PositionLiquidated(
+        address indexed user,
+        address indexed liquidator,
+        uint256 lockedAmount,
+        uint256 equity,
+        uint256 liquidatorReward
+    );
     event PositionManagerSet(address indexed caller, address indexed positionManager);
 
     error NotPositionManager();
@@ -81,6 +89,49 @@ contract CollateralVault is Ownable, ReentrancyGuard {
         lockedBalance[user] -= amount;
         freeBalance[user] += amount;
         emit MarginReleased(user, msg.sender, amount);
+    }
+
+    /// @notice PositionManager-only: close a settled position's locked margin and
+    ///         credit the realized total (`lockedAmount + pnl`) to free balance.
+    ///         When `pnl` is negative, the remaining locked margin is debited and
+    ///         the credit is floored at zero — the account balance is never pushed
+    ///         negative, and the residual shortfall is absorbed by the platform.
+    ///         PnL units are `(settledPrice - entryPrice) * size`, consistent with
+    ///         PositionManager's `notional = price * size` convention.
+    function settlePosition(address user, uint256 lockedAmount, int256 pnl) external nonReentrant {
+        if (msg.sender != positionManager) revert NotPositionManager();
+        if (lockedBalance[user] < lockedAmount) revert InsufficientLockedBalance();
+        lockedBalance[user] -= lockedAmount;
+
+        int256 total = int256(lockedAmount) + pnl;
+        uint256 credited = total > 0 ? uint256(total) : 0;
+        if (credited > 0) freeBalance[user] += credited;
+        emit PositionSettled(user, lockedAmount, credited);
+    }
+
+    /// @notice PositionManager-only: close a position during liquidation. Fully
+    ///         consumes the position's locked margin, pays the caller's liquidation
+    ///         fee from the position's realized equity (floored at zero equity), and
+    ///         returns any remaining equity to the user's free balance.
+    function liquidatePosition(
+        address user,
+        address liquidator,
+        uint256 lockedAmount,
+        int256 pnl,
+        uint256 fee
+    ) external nonReentrant {
+        if (msg.sender != positionManager) revert NotPositionManager();
+        if (lockedBalance[user] < lockedAmount) revert InsufficientLockedBalance();
+        lockedBalance[user] -= lockedAmount;
+
+        int256 equity = int256(lockedAmount) + pnl;
+        uint256 equityPos = equity > 0 ? uint256(equity) : 0;
+        uint256 paidToLiquidator = fee > equityPos ? equityPos : fee;
+        uint256 paidToUser = equityPos - paidToLiquidator;
+
+        if (paidToUser > 0) freeBalance[user] += paidToUser;
+        if (paidToLiquidator > 0) freeBalance[liquidator] += paidToLiquidator;
+        emit PositionLiquidated(user, liquidator, lockedAmount, equityPos, paidToLiquidator);
     }
 
     /// @notice Total collateral held by the vault (free + locked across all users).

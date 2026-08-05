@@ -1,0 +1,8 @@
+web3>=7.0.0
+eth-account>=0.13.0
+eth-utils>=4.0.0
+python-dotenv>=1.0.0
+asyncpg>=0.29.0
+redis>=5.0.0
+pytest>=8.0.0
+pytest-asyncio>=0.24.0
