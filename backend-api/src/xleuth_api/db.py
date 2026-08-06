@@ -1,3 +1,4 @@
+import json
 import logging
 from datetime import datetime, timezone
 from typing import Any
@@ -117,16 +118,21 @@ class Database:
         if not self.pool:
             return []
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
+            row = await conn.fetchrow(
                 """
-                SELECT DISTINCT ON (market_id) ts, market_id, basket_name, question, price, volume, event_id
-                FROM market_prices
+                SELECT constituents
+                FROM index_prices
                 WHERE basket_name = $1
-                ORDER BY market_id, ts DESC
+                ORDER BY ts DESC
+                LIMIT 1
                 """,
                 basket_name,
             )
-            return [dict(r) for r in rows]
+            if not row or not row["constituents"]:
+                return []
+            raw = row["constituents"]
+            data = json.loads(raw) if isinstance(raw, str) else raw
+            return [dict(c) for c in data]
 
     async def list_baskets(self) -> list[dict]:
         if not self.pool:

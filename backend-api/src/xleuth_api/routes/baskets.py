@@ -98,11 +98,15 @@ async def get_basket_constituents(
     constituents_raw = await db.get_basket_constituents(basket_name)
     constituents = [
         ConstituentMarket(
-            market_id=r.get("market_id"),
+            condition_id=r.get("condition_id"),
+            clob_token_id=r.get("clob_token_id"),
+            event_id=r.get("event_id"),
             question=r.get("question"),
+            end_date=r.get("end_date"),
             price=r.get("price"),
             volume=r.get("volume", 0.0),
-            event_id=r.get("event_id"),
+            price_source=r.get("price_source"),
+            market_id=r.get("market_id"),
         )
         for r in constituents_raw
     ]

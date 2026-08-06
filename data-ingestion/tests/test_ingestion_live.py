@@ -239,6 +239,7 @@ async def test_build_basket_produces_sane_output(client):
         assert "condition_id" in c
         assert "clob_token_id" in c
         assert "question" in c
+        assert c.get("market_id"), "constituent missing market_id (breaks /baskets/{name}/constituents)"
         if c["price"] is not None:
             assert 0.0 <= c["price"] <= 1.0
     print(f"\nBasket TOP5-JULY: index_price={result['index_price']:.6f} "

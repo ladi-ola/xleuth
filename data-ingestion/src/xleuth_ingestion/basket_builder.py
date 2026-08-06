@@ -128,6 +128,7 @@ async def build_basket(
         volume = volume_map.get(cond_id, PolymarketClient.get_volume(market))
 
         constituents.append({
+            "market_id": str(market.get("id") or market.get("conditionId", "")),
             "condition_id": cond_id,
             "clob_token_id": yes_token,
             "event_id": event_id,

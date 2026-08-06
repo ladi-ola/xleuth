@@ -111,10 +111,6 @@ class Storage:
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 await conn.execute(
-                    "DELETE FROM index_prices WHERE basket_name = $1",
-                    basket_result["basket_name"],
-                )
-                await conn.execute(
                     """
                     INSERT INTO index_prices (ts, basket_name, index_price, scaled_price, constituent_count, constituents)
                     VALUES ($1, $2, $3, $4, $5, $6::jsonb)
@@ -130,10 +126,6 @@ class Storage:
     async def _save_market_prices(self, basket_result: dict[str, Any]) -> None:
         async with self.pool.acquire() as conn:
             async with conn.transaction():
-                await conn.execute(
-                    "DELETE FROM market_prices WHERE basket_name = $1",
-                    basket_result["basket_name"],
-                )
                 for c in basket_result["constituents"]:
                     await conn.execute(
                         """
