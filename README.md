@@ -68,10 +68,13 @@ xleuth/
 │   ├── src/
 │   │   ├── xleuth_matching/
 │   │   │   ├── __init__.py
-│   │   │   ├── orderbook.py            # extends order-matching / dyn4mik3-OrderBook
-│   │   │   ├── margin_check.py         # reads on-chain margin state before accepting orders
-│   │   │   └── settlement_bridge.py    # submits matched fills to PositionManager
-│   ├── tests/
+│   │   │   ├── config.py              # env config: chain, risk params, trader keys
+│   │   │   ├── orderbook.py           # extends order-matching (price-time priority books)
+│   │   │   ├── margin_check.py        # reads on-chain margin/oracle state before accepting orders
+│   │   │   ├── settlement.py          # submits matched fills to PositionManager (trader-signed)
+│   │   │   ├── api.py                 # FastAPI service: place/cancel/query/book, JWT auth
+│   │   │   └── main.py                # uvicorn entry point
+│   ├── tests/                         # 45 unit + 2 live Amoy integration tests
 │   ├── .env.example
 │   ├── requirements.txt
 │   └── Dockerfile

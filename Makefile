@@ -1,4 +1,4 @@
-.PHONY: test test-contracts test-api test-oracle test-all check-secrets install-hooks run-ingestion run-api run-oracle deploy-testnet deploy-upgrade deploy-config-baskets deploy-settle-basket deploy-open-position up down
+.PHONY: test test-contracts test-api test-oracle test-matching test-all check-secrets install-hooks run-ingestion run-api run-oracle run-matching deploy-testnet deploy-upgrade deploy-config-baskets deploy-settle-basket deploy-open-position up down
 
 test:
 	PYTHONPATH=data-ingestion/src:shared .venv/bin/pytest data-ingestion/tests/ -v
@@ -12,10 +12,16 @@ test-api:
 test-oracle:
 	PYTHONPATH=oracle-service/src:shared .venv/bin/pytest oracle-service/tests/ -v
 
-test-all: test test-contracts test-api test-oracle
+test-matching:
+	PYTHONPATH=matching-engine/src:shared .venv/bin/pytest matching-engine/tests/ -v
+
+test-all: test test-contracts test-api test-oracle test-matching
 
 run-oracle:
 	PYTHONPATH=oracle-service/src:shared .venv/bin/python -m xleuth_oracle
+
+run-matching:
+	PYTHONPATH=matching-engine/src:shared .venv/bin/uvicorn xleuth_matching.main:app --host 0.0.0.0 --port 8001
 
 
 check-secrets:

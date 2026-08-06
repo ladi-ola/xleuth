@@ -58,6 +58,20 @@ services:
     networks:
       - xleuth_net
 
+  matching-engine:
+    build:
+      context: .
+      dockerfile: matching-engine/Dockerfile
+    ports:
+      - "${ENGINE_PORT:-8001}:8001"
+    env_file:
+      - .env
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - xleuth_net
+
 networks:
   xleuth_net:
     driver: bridge

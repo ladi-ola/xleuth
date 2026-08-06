@@ -12,6 +12,33 @@ router = APIRouter()
 
 POLL_INTERVAL = 5.0
 
+BOOK_CHANNEL = "xleuth:basket:{basket}:book"
+
+
+def _client_loop(websocket: WebSocket, send_queue: asyncio.Queue[str | None]) -> None:
+    """Shared client-message handling: ping/pong, subscribe ack, errors."""
+
+    async def listen_client():
+        while True:
+            data = await websocket.receive_text()
+            try:
+                msg = json.loads(data)
+                if msg.get("action") == "ping":
+                    await websocket.send_json({"type": "pong"})
+                elif msg.get("action") == "subscribe" and msg.get("basket_name"):
+                    await websocket.send_json({"type": "subscribed", "basket_name": msg["basket_name"]})
+            except (json.JSONDecodeError, KeyError):
+                await websocket.send_json({"type": "error", "message": "Invalid message format"})
+
+    async def listen_queue():
+        while True:
+            msg = await send_queue.get()
+            if msg is None:
+                break
+            await websocket.send_text(msg)
+
+    return listen_client, listen_queue
+
 
 @router.websocket("/ws/price/{basket_name}")
 async def websocket_price_stream(websocket: WebSocket, basket_name: str) -> None:
@@ -62,25 +89,7 @@ async def websocket_price_stream(websocket: WebSocket, basket_name: str) -> None
 
             poll_task = asyncio.create_task(listen_redis())
 
-        async def listen_client():
-            while True:
-                data = await websocket.receive_text()
-                try:
-                    msg = json.loads(data)
-                    if msg.get("action") == "ping":
-                        await websocket.send_json({"type": "pong"})
-                    elif msg.get("action") == "subscribe" and msg.get("basket_name"):
-                        await websocket.send_json({"type": "subscribed", "basket_name": msg["basket_name"]})
-                except (json.JSONDecodeError, KeyError):
-                    await websocket.send_json({"type": "error", "message": "Invalid message format"})
-
-        async def listen_queue():
-            while True:
-                msg = await send_queue.get()
-                if msg is None:
-                    break
-                await websocket.send_text(msg)
-
+        listen_client, listen_queue = _client_loop(websocket, send_queue)
         client_task = asyncio.create_task(listen_client())
         queue_task = asyncio.create_task(listen_queue())
 
@@ -94,3 +103,57 @@ async def websocket_price_stream(websocket: WebSocket, basket_name: str) -> None
         logger.info("WebSocket disconnected for basket %s", basket_name)
     except Exception:
         logger.exception("WebSocket error for basket %s", basket_name)
+
+
+@router.websocket("/ws/orderbook/{basket_name}")
+async def websocket_orderbook_stream(websocket: WebSocket, basket_name: str) -> None:
+    """Forwards the matching engine's order book depth updates.
+
+    The engine publishes a JSON depth snapshot on Redis channel
+    `xleuth:basket:{basket}:book` after every accepted/cancelled order;
+    this endpoint relays it to the frontend. Without Redis the connection
+    still works for ping/subscribe but carries no book updates.
+    """
+    await websocket.accept()
+    redis = getattr(websocket.app.state, "redis", None)
+
+    logger.info("Order book WebSocket connected for basket %s", basket_name)
+
+    send_queue: asyncio.Queue[str | None] = asyncio.Queue()
+
+    try:
+        if redis is None:
+            logger.info("Redis not available; order book WS degraded for %s", basket_name)
+
+            async def idle():
+                while True:
+                    await asyncio.sleep(3600)
+
+            feed_task = asyncio.create_task(idle())
+        else:
+            channel = BOOK_CHANNEL.format(basket=basket_name)
+            pubsub = redis.pubsub()
+            await pubsub.subscribe(channel)
+
+            async def listen_book():
+                while True:
+                    msg = await pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
+                    if msg and msg["type"] == "message":
+                        await send_queue.put(msg["data"])
+
+            feed_task = asyncio.create_task(listen_book())
+
+        listen_client, listen_queue = _client_loop(websocket, send_queue)
+        client_task = asyncio.create_task(listen_client())
+        queue_task = asyncio.create_task(listen_queue())
+
+        done, pending = await asyncio.wait(
+            [feed_task, client_task, queue_task],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
+        for task in pending:
+            task.cancel()
+    except WebSocketDisconnect:
+        logger.info("Order book WebSocket disconnected for basket %s", basket_name)
+    except Exception:
+        logger.exception("Order book WebSocket error for basket %s", basket_name)

@@ -435,4 +435,221 @@ contract PositionManagerTest is Test {
             "alice keeps nothing from wiped position"
         );
     }
+
+    // ── updatePosition (Week 5: open / increase / flatten) ────────────────
+
+    function _updateAt(address who, PositionManager.Side side, uint256 size, uint256 lev)
+        internal
+    {
+        vm.prank(who);
+        pm.updatePosition(basketA, side, size, lev);
+    }
+
+    function test_UpdatePosition_NoPosition_OpensNew() public {
+        vm.warp(1_000);
+        _pushPrice(50, 1_000);
+        _updateAt(alice, PositionManager.Side.Long, 1_000, 5);
+
+        PositionManager.Position memory pos = pm.getPosition(alice, basketA);
+        assertEq(uint256(pos.side), uint256(PositionManager.Side.Long));
+        assertEq(pos.size, 1_000);
+        assertEq(pos.entryPrice, 50);
+        assertEq(pos.leverage, 5);
+        assertEq(pos.lockedMargin, 10_000);
+        assertEq(vault.freeBalance(alice), 100_000 * USD - 10_000);
+        assertEq(pm.getOpenUserCount(basketA), 1);
+    }
+
+    function test_UpdatePosition_SameSide_IncreasesAndReaverages() public {
+        vm.warp(1_000);
+        _pushPrice(50, 1_000);
+        _updateAt(alice, PositionManager.Side.Long, 1_000, 5);
+
+        vm.warp(2_000);
+        _pushPrice(60, 2_000);
+        _updateAt(alice, PositionManager.Side.Long, 1_000, 5);
+
+        // entry = (50*1000 + 60*1000)/2000 = 55; margin += 60*1000/5 = 12,000.
+        PositionManager.Position memory pos = pm.getPosition(alice, basketA);
+        assertEq(pos.size, 2_000);
+        assertEq(pos.entryPrice, 55);
+        assertEq(pos.lockedMargin, 22_000);
+        assertEq(vault.freeBalance(alice), 100_000 * USD - 22_000);
+        assertEq(pm.getOpenUserCount(basketA), 1, "still one open user");
+    }
+
+    function test_UpdatePosition_SameSide_DifferentLeverage_Weighted() public {
+        vm.warp(1_000);
+        _pushPrice(50, 1_000);
+        _updateAt(alice, PositionManager.Side.Long, 1_000, 5);
+
+        vm.warp(2_000);
+        _pushPrice(50, 2_000);
+        _updateAt(alice, PositionManager.Side.Long, 1_000, 2);
+
+        PositionManager.Position memory pos = pm.getPosition(alice, basketA);
+        assertEq(pos.size, 2_000);
+        assertEq(pos.leverage, 3, "(5*1000 + 2*1000)/2000");
+        assertEq(pos.lockedMargin, 10_000 + 25_000);
+    }
+
+    function test_UpdatePosition_OppositeSide_PartialClose_CreditsPnl() public {
+        vm.warp(1_000);
+        _pushPrice(50, 1_000);
+        _updateAt(alice, PositionManager.Side.Long, 1_000, 5);
+
+        // Price 60: closed portion 400 -> pnl (60-50)*400 = 4,000; proportional
+        // margin released 10,000*400/1000 = 4,000 -> credit 8,000 to free.
+        vm.warp(2_000);
+        _pushPrice(60, 2_000);
+        _updateAt(alice, PositionManager.Side.Short, 400, 5);
+
+        PositionManager.Position memory pos = pm.getPosition(alice, basketA);
+        assertEq(pos.size, 600, "400 of 1000 closed");
+        assertEq(pos.entryPrice, 50, "entry unchanged for remaining");
+        assertEq(pos.lockedMargin, 6_000, "remaining 600/1000 of margin");
+        assertEq(vault.freeBalance(alice), 100_000 * USD - 10_000 + 8_000);
+    }
+
+    function test_UpdatePosition_OppositeSide_PartialClose_LossFloorsAtZero() public {
+        vm.warp(1_000);
+        _pushPrice(50, 1_000);
+        _updateAt(alice, PositionManager.Side.Long, 1_000, 5);
+
+        // Price 40: closed portion 400 -> pnl (40-50)*400 = -4,000 vs 4,000
+        // proportional margin released -> net credit floored at 0.
+        vm.warp(2_000);
+        _pushPrice(40, 2_000);
+        _updateAt(alice, PositionManager.Side.Short, 400, 5);
+
+        PositionManager.Position memory pos = pm.getPosition(alice, basketA);
+        assertEq(pos.size, 600);
+        assertEq(pos.lockedMargin, 6_000);
+        assertEq(vault.freeBalance(alice), 100_000 * USD - 10_000, "zero net credit");
+    }
+
+    function test_UpdatePosition_OppositeSide_FullClose_RemovesPosition() public {
+        vm.warp(1_000);
+        _pushPrice(50, 1_000);
+        _updateAt(alice, PositionManager.Side.Long, 1_000, 5);
+
+        vm.warp(2_000);
+        _pushPrice(60, 2_000);
+        _updateAt(alice, PositionManager.Side.Short, 1_000, 5);
+
+        // pnl (60-50)*1000 = 10,000; credited 10,000 + 10,000 = 20,000.
+        PositionManager.Position memory pos = pm.getPosition(alice, basketA);
+        assertEq(pos.size, 0, "fully closed");
+        assertEq(vault.freeBalance(alice), 100_000 * USD - 10_000 + 20_000);
+        assertEq(pm.getOpenUserCount(basketA), 0);
+    }
+
+    function test_UpdatePosition_OppositeSide_Larger_FlipsRemainder() public {
+        vm.warp(1_000);
+        _pushPrice(50, 1_000);
+        _updateAt(alice, PositionManager.Side.Long, 1_000, 5);
+
+        // Sell 1500: closes all 1000 (credits 10k margin + 10k pnl), then opens
+        // SHORT 500 @60 5x -> margin 60*500/5 = 6,000.
+        vm.warp(2_000);
+        _pushPrice(60, 2_000);
+        _updateAt(alice, PositionManager.Side.Short, 1_500, 5);
+
+        PositionManager.Position memory pos = pm.getPosition(alice, basketA);
+        assertEq(uint256(pos.side), uint256(PositionManager.Side.Short));
+        assertEq(pos.size, 500);
+        assertEq(pos.entryPrice, 60);
+        assertEq(pos.lockedMargin, 6_000);
+        assertEq(vault.freeBalance(alice), 100_000 * USD - 10_000 + 20_000 - 6_000);
+        assertEq(pm.getOpenUserCount(basketA), 1, "one net position remains");
+    }
+
+    function test_UpdatePosition_Short_IncreaseAndFlatten() public {
+        vm.warp(1_000);
+        _pushPrice(80, 1_000);
+        _updateAt(alice, PositionManager.Side.Short, 2_000, 4);
+
+        vm.warp(2_000);
+        _pushPrice(80, 2_000);
+        _updateAt(alice, PositionManager.Side.Short, 500, 4);
+
+        PositionManager.Position memory pos = pm.getPosition(alice, basketA);
+        assertEq(pos.size, 2_500);
+        assertEq(pos.lockedMargin, 40_000 + 10_000);
+
+        vm.warp(3_000);
+        _pushPrice(70, 3_000);
+        _updateAt(alice, PositionManager.Side.Long, 2_500, 4);
+        // short pnl (80-70)*2500 = 25,000 -> credited 50,000 + 25,000.
+        assertEq(pm.getPosition(alice, basketA).size, 0);
+        assertEq(vault.freeBalance(alice), 100_000 * USD - 50_000 + 75_000);
+    }
+
+    function test_UpdatePosition_ZeroSize_Reverts() public {
+        vm.warp(1_000);
+        _pushPrice(50, 1_000);
+        vm.prank(alice);
+        vm.expectRevert(PositionManager.ZeroSize.selector);
+        pm.updatePosition(basketA, PositionManager.Side.Long, 0, 5);
+    }
+
+    function test_UpdatePosition_LeverageAboveCap_Reverts() public {
+        vm.warp(1_000);
+        _pushPrice(50, 1_000);
+        vm.prank(alice);
+        vm.expectRevert(PositionManager.InvalidLeverage.selector);
+        pm.updatePosition(basketA, PositionManager.Side.Long, 1_000, 6);
+    }
+
+    function test_UpdatePosition_StaleOraclePrice_Reverts() public {
+        vm.warp(1_000);
+        _pushPrice(50, 1_000);
+        vm.warp(1_000 + STALENESS + 1);
+        vm.prank(alice);
+        vm.expectRevert(PositionManager.PriceNotFresh.selector);
+        pm.updatePosition(basketA, PositionManager.Side.Long, 1_000, 5);
+    }
+
+    function test_UpdatePosition_Increase_Undercollateralized_Reverts() public {
+        vm.warp(1_000);
+        _pushPrice(50, 1_000);
+        _updateAt(alice, PositionManager.Side.Long, 1_000, 5);
+
+        vm.warp(2_000);
+        _pushPrice(90, 2_000);
+        vm.prank(alice);
+        // 90*3e9/2 = 135e9 >> ~1e11 free balance -> vault reverts, and the
+        // existing position must be untouched.
+        vm.expectRevert(CollateralVault.InsufficientFreeBalance.selector);
+        pm.updatePosition(basketA, PositionManager.Side.Long, 3_000_000_000, 2);
+
+        PositionManager.Position memory pos = pm.getPosition(alice, basketA);
+        assertEq(pos.size, 1_000);
+        assertEq(pos.lockedMargin, 10_000);
+    }
+
+    function testFuzz_UpdatePosition_FullClose_RoundTrip(uint8 price, uint128 size, uint8 leverage)
+        public
+    {
+        vm.assume(price > 0 && price <= PRICE_SCALE);
+        vm.assume(size > 0 && size <= 100_000);
+        vm.assume(leverage >= 1 && leverage <= MAX_LEVERAGE);
+        vm.assume((uint256(price) * size) / leverage > 0);
+        vm.assume((uint256(price) * size) / leverage <= 50_000 * USD);
+
+        vm.warp(1_000);
+        _pushPrice(price, 1_000);
+        _updateAt(alice, PositionManager.Side.Long, size, leverage);
+
+        // Close the full position against the same price: deposit restored.
+        vm.warp(2_000);
+        _pushPrice(price, 2_000);
+        _updateAt(alice, PositionManager.Side.Short, size, leverage);
+
+        assertEq(pm.getPosition(alice, basketA).size, 0);
+        assertEq(vault.freeBalance(alice), 100_000 * USD, "deposit fully restored");
+        assertEq(vault.lockedBalance(alice), 0);
+        assertEq(usdc.balanceOf(address(vault)), 100_000 * USD, "vault token balance conserved");
+        assertEq(pm.getOpenUserCount(basketA), 0);
+    }
 }

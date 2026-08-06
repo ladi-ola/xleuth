@@ -100,9 +100,9 @@ class Storage:
         async with self.pool.acquire() as conn:
             for table in ("index_prices", "market_prices"):
                 result = await conn.execute(
-                    "DELETE FROM {} "
+                    f"DELETE FROM {table} "
                     "WHERE basket_name != ALL($1::text[]) "
-                    "AND basket_name !~ '^[A-Z]+[0-9]+-[A-Z]+(-[0-9]{4})?$'".format(table),
+                    "AND basket_name !~ '^[A-Z]+[0-9]+-[A-Z]+(-[0-9]{4})?$'",
                     active_baskets,
                 )
                 logger.info("Cleaned up stale rows from %s (active=%s)", table, active_baskets)
