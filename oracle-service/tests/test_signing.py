@@ -3,9 +3,12 @@ from eth_account.messages import encode_typed_data
 from eth_utils import keccak
 
 from xleuth_oracle.signing import (
+    SETTLE_DOMAIN_NAME,
+    SETTLE_DOMAIN_VERSION,
     basket_id_from_name,
     price_to_scale,
     sign_price_update,
+    sign_settle_basket,
 )
 
 CONTRACT = "0x0000000000000000000000000000000000000001"
@@ -82,3 +85,63 @@ def test_signature_encoding_changes_with_every_field():
     assert sig1 != sig2
     assert sig1 != sig3
     assert len(sig1) == len(sig2) == len(sig3) == 65
+
+
+# ── SettlementEngine SettleBasket signing ────────────────────────────────
+
+
+def _settle_typed_data(realized: int, ts: int, chain_id: int = 80002):
+    return {
+        "types": {
+            "EIP712Domain": [
+                {"name": "name", "type": "string"},
+                {"name": "version", "type": "string"},
+                {"name": "chainId", "type": "uint256"},
+                {"name": "verifyingContract", "type": "address"},
+            ],
+            "SettleBasket": [
+                {"name": "basketId", "type": "bytes32"},
+                {"name": "realizedPrice", "type": "uint256"},
+                {"name": "timestamp", "type": "uint256"},
+            ],
+        },
+        "primaryType": "SettleBasket",
+        "domain": {
+            "name": SETTLE_DOMAIN_NAME,
+            "version": SETTLE_DOMAIN_VERSION,
+            "chainId": chain_id,
+            "verifyingContract": CONTRACT,
+        },
+        "message": {
+            "basketId": "0x" + basket_id_from_name("TOP20-JULY").hex(),
+            "realizedPrice": int(realized),
+            "timestamp": int(ts),
+        },
+    }
+
+
+def test_settle_signature_is_65_bytes_r_v():
+    sig = sign_settle_basket(KEY, CONTRACT, 80002, "TOP20-JULY", 60, 1_000_000)
+    assert len(sig) == 65
+    assert sig[64] in (27, 28)
+
+
+def test_settle_signature_recovery_matches_signer():
+    """Same EIP-712 reconstruction the Solidity SettlementEngine performs."""
+    account = Account.from_key(KEY)
+    realized, ts, chain = 60, 1234, 80002
+    sig = sign_settle_basket(KEY, CONTRACT, chain, "TOP20-JULY", realized, ts)
+
+    recovered = Account.recover_message(
+        encode_typed_data(full_message=_settle_typed_data(realized, ts, chain)),
+        signature=sig,
+    )
+    assert recovered.lower() == account.address.lower()
+
+
+def test_settle_signature_changes_with_every_field():
+    sig1 = sign_settle_basket(KEY, CONTRACT, 80002, "TOP20-JULY", 60, 100)
+    sig2 = sign_settle_basket(KEY, CONTRACT, 80002, "TOP20-JULY", 60, 101)
+    sig3 = sign_settle_basket(KEY, CONTRACT, 80002, "TOP20-JULY", 61, 100)
+    sig4 = sign_settle_basket(KEY, CONTRACT, 80002, "TOP20-AUGUST", 60, 100)
+    assert len({sig1, sig2, sig3, sig4}) == 4

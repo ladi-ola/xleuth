@@ -1,4 +1,4 @@
-.PHONY: test test-contracts test-api test-oracle test-matching test-all check-secrets install-hooks run-ingestion run-api run-oracle run-matching deploy-testnet deploy-upgrade deploy-config-baskets deploy-settle-basket deploy-open-position up down
+.PHONY: test test-contracts test-api test-oracle test-matching test-e2e test-all check-secrets install-hooks run-ingestion run-api run-oracle run-matching deploy-testnet deploy-upgrade deploy-config-baskets deploy-settle-basket deploy-open-position up down
 
 test:
 	PYTHONPATH=data-ingestion/src:shared .venv/bin/pytest data-ingestion/tests/ -v
@@ -13,7 +13,13 @@ test-oracle:
 	PYTHONPATH=oracle-service/src:shared .venv/bin/pytest oracle-service/tests/ -v
 
 test-matching:
-	PYTHONPATH=matching-engine/src:shared .venv/bin/pytest matching-engine/tests/ -v
+	PYTHONPATH=matching-engine/src:shared .venv/bin/pytest matching-engine/tests/ -v --ignore=matching-engine/tests/test_e2e_live.py
+
+# Week-6 full end-to-end live test (real Polymarket data -> Amoy settlement).
+# Requires live network access and the deployed Amoy contracts; the dedicated
+# test basket is settled permanently, so run once per basket name.
+test-e2e:
+	PYTHONPATH=data-ingestion/src:oracle-service/src:matching-engine/src:shared .venv/bin/pytest matching-engine/tests/test_e2e_live.py -v -s
 
 test-all: test test-contracts test-api test-oracle test-matching
 
