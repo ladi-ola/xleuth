@@ -1,0 +1,1178 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Xleuth API",
+    "description": "Backend API for Xleuth index futures",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/auth/nonce/{wallet_address}": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get Nonce",
+        "operationId": "get_nonce_auth_nonce__wallet_address__get",
+        "parameters": [
+          {
+            "name": "wallet_address",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Wallet Address"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NonceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Login",
+        "operationId": "login_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Get Me",
+        "operationId": "get_me_auth_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserInfo"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/baskets": {
+      "get": {
+        "tags": [
+          "baskets"
+        ],
+        "summary": "List Baskets",
+        "operationId": "list_baskets_baskets_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BasketListResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/baskets/{basket_name}/price": {
+      "get": {
+        "tags": [
+          "baskets"
+        ],
+        "summary": "Get Basket Price",
+        "operationId": "get_basket_price_baskets__basket_name__price_get",
+        "parameters": [
+          {
+            "name": "basket_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Basket Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BasketPriceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/baskets/{basket_name}/history": {
+      "get": {
+        "tags": [
+          "baskets"
+        ],
+        "summary": "Get Basket History",
+        "operationId": "get_basket_history_baskets__basket_name__history_get",
+        "parameters": [
+          {
+            "name": "basket_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Basket Name"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10000,
+              "default": 1000,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BasketHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/baskets/{basket_name}/constituents": {
+      "get": {
+        "tags": [
+          "baskets"
+        ],
+        "summary": "Get Basket Constituents",
+        "operationId": "get_basket_constituents_baskets__basket_name__constituents_get",
+        "parameters": [
+          {
+            "name": "basket_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Basket Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BasketDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/accounts/me": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Get Account",
+        "operationId": "get_account_accounts_me_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserInfo"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/accounts/alias": {
+      "put": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Update Alias",
+        "operationId": "update_alias_accounts_alias_put",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "alias",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Alias"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserInfo"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/accounts/transactions": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Get Transactions",
+        "operationId": "get_transactions_accounts_transactions_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TransactionHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BasketDetail": {
+        "properties": {
+          "basket_name": {
+            "type": "string",
+            "title": "Basket Name"
+          },
+          "total_constituents": {
+            "type": "integer",
+            "title": "Total Constituents"
+          },
+          "index_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index Price"
+          },
+          "index_price_scaled": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index Price Scaled"
+          },
+          "computed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "active"
+          },
+          "is_tradeable": {
+            "type": "boolean",
+            "title": "Is Tradeable",
+            "default": true
+          },
+          "constituents": {
+            "items": {
+              "$ref": "#/components/schemas/ConstituentMarket"
+            },
+            "type": "array",
+            "title": "Constituents",
+            "default": []
+          },
+          "markets_filtered_out": {
+            "type": "integer",
+            "title": "Markets Filtered Out",
+            "default": 0
+          },
+          "excluded_markets": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Excluded Markets",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "basket_name",
+          "total_constituents"
+        ],
+        "title": "BasketDetail"
+      },
+      "BasketHistoryResponse": {
+        "properties": {
+          "basket_name": {
+            "type": "string",
+            "title": "Basket Name"
+          },
+          "prices": {
+            "items": {
+              "$ref": "#/components/schemas/PricePoint"
+            },
+            "type": "array",
+            "title": "Prices",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "basket_name"
+        ],
+        "title": "BasketHistoryResponse"
+      },
+      "BasketInfo": {
+        "properties": {
+          "basket_name": {
+            "type": "string",
+            "title": "Basket Name"
+          },
+          "total_constituents": {
+            "type": "integer",
+            "title": "Total Constituents"
+          },
+          "index_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index Price"
+          },
+          "index_price_scaled": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index Price Scaled"
+          },
+          "computed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed At"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "active"
+          },
+          "is_tradeable": {
+            "type": "boolean",
+            "title": "Is Tradeable",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "basket_name",
+          "total_constituents"
+        ],
+        "title": "BasketInfo"
+      },
+      "BasketListResponse": {
+        "properties": {
+          "baskets": {
+            "items": {
+              "$ref": "#/components/schemas/BasketInfo"
+            },
+            "type": "array",
+            "title": "Baskets",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "BasketListResponse"
+      },
+      "BasketPriceResponse": {
+        "properties": {
+          "basket_name": {
+            "type": "string",
+            "title": "Basket Name"
+          },
+          "index_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index Price"
+          },
+          "scaled_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scaled Price"
+          },
+          "computed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Computed At"
+          },
+          "constituent_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Constituent Count"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "default": "active"
+          },
+          "is_tradeable": {
+            "type": "boolean",
+            "title": "Is Tradeable",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "basket_name"
+        ],
+        "title": "BasketPriceResponse"
+      },
+      "ConstituentMarket": {
+        "properties": {
+          "condition_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condition Id"
+          },
+          "clob_token_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clob Token Id"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Question"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "volume": {
+            "type": "number",
+            "title": "Volume",
+            "default": 0.0
+          },
+          "price_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Source"
+          },
+          "sub_markets": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ConstituentSubMarket"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Markets"
+          },
+          "sub_market_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sub Market Count"
+          },
+          "market_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Market Id"
+          }
+        },
+        "type": "object",
+        "title": "ConstituentMarket"
+      },
+      "ConstituentSubMarket": {
+        "properties": {
+          "condition_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Condition Id"
+          },
+          "clob_token_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Clob Token Id"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "volume": {
+            "type": "number",
+            "title": "Volume",
+            "default": 0.0
+          }
+        },
+        "type": "object",
+        "title": "ConstituentSubMarket"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "LoginRequest": {
+        "properties": {
+          "wallet_address": {
+            "type": "string",
+            "title": "Wallet Address"
+          },
+          "signature": {
+            "type": "string",
+            "title": "Signature"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "nonce": {
+            "type": "string",
+            "title": "Nonce"
+          }
+        },
+        "type": "object",
+        "required": [
+          "wallet_address",
+          "signature",
+          "message",
+          "nonce"
+        ],
+        "title": "LoginRequest"
+      },
+      "NonceResponse": {
+        "properties": {
+          "nonce": {
+            "type": "string",
+            "title": "Nonce"
+          },
+          "wallet_address": {
+            "type": "string",
+            "title": "Wallet Address"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "nonce",
+          "wallet_address",
+          "message"
+        ],
+        "title": "NonceResponse"
+      },
+      "PricePoint": {
+        "properties": {
+          "ts": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Ts"
+          },
+          "basket_name": {
+            "type": "string",
+            "title": "Basket Name"
+          },
+          "index_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Index Price"
+          },
+          "scaled_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scaled Price"
+          },
+          "constituent_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Constituent Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ts",
+          "basket_name"
+        ],
+        "title": "PricePoint"
+      },
+      "TokenResponse": {
+        "properties": {
+          "access_token": {
+            "type": "string",
+            "title": "Access Token"
+          },
+          "token_type": {
+            "type": "string",
+            "title": "Token Type",
+            "default": "Bearer"
+          },
+          "expires_in_minutes": {
+            "type": "integer",
+            "title": "Expires In Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "access_token",
+          "expires_in_minutes"
+        ],
+        "title": "TokenResponse"
+      },
+      "TransactionHistoryResponse": {
+        "properties": {
+          "wallet_address": {
+            "type": "string",
+            "title": "Wallet Address"
+          },
+          "transactions": {
+            "items": {
+              "$ref": "#/components/schemas/TransactionInfo"
+            },
+            "type": "array",
+            "title": "Transactions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "wallet_address"
+        ],
+        "title": "TransactionHistoryResponse"
+      },
+      "TransactionInfo": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "wallet_address": {
+            "type": "string",
+            "title": "Wallet Address"
+          },
+          "tx_type": {
+            "type": "string",
+            "title": "Tx Type"
+          },
+          "amount": {
+            "type": "number",
+            "title": "Amount"
+          },
+          "tx_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tx Hash"
+          },
+          "timestamp": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timestamp"
+          },
+          "related_position_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Related Position Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "wallet_address",
+          "tx_type",
+          "amount"
+        ],
+        "title": "TransactionInfo"
+      },
+      "UserInfo": {
+        "properties": {
+          "wallet_address": {
+            "type": "string",
+            "title": "Wallet Address"
+          },
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias"
+          },
+          "balance": {
+            "type": "number",
+            "title": "Balance",
+            "default": 0.0
+          },
+          "realized_pnl": {
+            "type": "number",
+            "title": "Realized Pnl",
+            "default": 0.0
+          },
+          "unrealized_pnl": {
+            "type": "number",
+            "title": "Unrealized Pnl",
+            "default": 0.0
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "wallet_address"
+        ],
+        "title": "UserInfo"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    },
+    "securitySchemes": {
+      "HTTPBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

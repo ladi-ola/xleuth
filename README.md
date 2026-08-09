@@ -2,7 +2,7 @@
 
 ```
 xleuth/
-├── .env.example                        # union of all service .env.example files, for docker-compose
+├── .env                                 # root env consumed by docker-compose (see per-service .env.example)
 ├── .gitignore
 ├── README.md
 ├── LICENSE
@@ -11,10 +11,12 @@ xleuth/
 ├── Makefile                            # common tasks: make up, make test, make deploy-testnet
 │
 ├── docs/
-│   ├── architecture.md                 # module boundaries, data flow diagram (Week 6 deliverable)
-│   ├── api-contract.md                 # generated from FastAPI OpenAPI spec, for frontend handoff
-│   ├── security-review.md              # Week 6 self-review checklist output
-│   └── scope.md                        # what's live vs. simulated vs. explicitly descoped
+│   ├── architecture.md                 # module boundaries, data flow diagram
+│   ├── architecturev1.1.md             # v1.1: live-data ingestion design notes
+│   ├── api-contract.md                 # plain-English API/WS contract for frontend handoff
+│   ├── security-review.md              # Week 6 contract security self-review
+│   ├── deployment-status.md            # what's live vs. simulated vs. explicitly descoped
+│   └── openapi/                        # generated OpenAPI JSON: xleuth-api.json, xleuth-matching.json
 │
 ├── data-ingestion/
 │   ├── src/
