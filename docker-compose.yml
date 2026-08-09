@@ -2,9 +2,9 @@ services:
   postgres:
     image: timescale/timescaledb:latest-pg16
     environment:
-      POSTGRES_DB: xleuth
-      POSTGRES_USER: xleuth_app
-      POSTGRES_PASSWORD: changeme
+      POSTGRES_DB: ${POSTGRES_DB:-xleuth}
+      POSTGRES_USER: ${POSTGRES_USER:-xleuth_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     ports:
       - "5432:5432"
     volumes:
@@ -25,6 +25,9 @@ services:
       dockerfile: data-ingestion/Dockerfile
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-xleuth_app}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-xleuth}
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       - postgres
       - redis
@@ -39,6 +42,10 @@ services:
       - "${API_PORT:-8000}:8000"
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-xleuth_app}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-xleuth}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
     depends_on:
       - postgres
       - redis
@@ -51,6 +58,9 @@ services:
       dockerfile: oracle-service/Dockerfile
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-xleuth_app}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-xleuth}
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       - postgres
       - redis
@@ -66,6 +76,9 @@ services:
       - "${ENGINE_PORT:-8001}:8001"
     env_file:
       - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-xleuth_app}:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-xleuth}
+      REDIS_URL: redis://redis:6379/0
     depends_on:
       - redis
       - postgres
