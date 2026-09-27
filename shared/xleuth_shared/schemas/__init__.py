@@ -10,6 +10,7 @@ from .baskets import (
     ConstituentSubMarket,
     PricePoint,
 )
+from .faucet import FaucetClaimRequest, FaucetClaimResponse, FaucetCooldownResponse
 from .websocket import WsPriceUpdate
 
 __all__ = [
@@ -29,4 +30,7 @@ __all__ = [
     "TransactionInfo",
     "TransactionHistoryResponse",
     "WsPriceUpdate",
+    "FaucetClaimRequest",
+    "FaucetClaimResponse",
+    "FaucetCooldownResponse",
 ]

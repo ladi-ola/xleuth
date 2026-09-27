@@ -28,6 +28,11 @@ CREATE TABLE IF NOT EXISTS transactions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_transactions_wallet ON transactions(wallet_address);
+
+CREATE TABLE IF NOT EXISTS faucet_claims (
+    wallet_address TEXT PRIMARY KEY,
+    last_claim_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 """
 
 
@@ -228,3 +233,28 @@ class Database:
                 related_position_id,
             )
             return dict(row) if row else None
+
+    # ── Faucet ──────────────────────────────────────────────────────────
+
+    async def get_last_faucet_claim(self, wallet_address: str) -> datetime | None:
+        if not self.pool:
+            return None
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT last_claim_at FROM faucet_claims WHERE wallet_address = $1",
+                wallet_address,
+            )
+            return row["last_claim_at"] if row else None
+
+    async def record_faucet_claim(self, wallet_address: str) -> None:
+        if not self.pool:
+            return
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO faucet_claims (wallet_address, last_claim_at)
+                VALUES ($1, NOW())
+                ON CONFLICT (wallet_address) DO UPDATE SET last_claim_at = NOW()
+                """,
+                wallet_address,
+            )

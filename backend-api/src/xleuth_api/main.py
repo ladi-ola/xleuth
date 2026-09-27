@@ -13,6 +13,7 @@ from xleuth_api.db import Database
 from xleuth_api.routes.accounts import router as accounts_router
 from xleuth_api.routes.auth import router as auth_router
 from xleuth_api.routes.baskets import router as baskets_router
+from xleuth_api.routes.faucet import router as faucet_router
 from xleuth_api.routes.websocket import router as websocket_router
 
 load_dotenv()
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(baskets_router)
     app.include_router(accounts_router)
+    app.include_router(faucet_router)
     app.include_router(websocket_router)
 
     return app
