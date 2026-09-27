@@ -1,0 +1,23 @@
+Script started on 2026-09-26 22:41:26-05:00 [TERM="xterm-256color" TTY="/dev/pts/2" COLUMNS="211" LINES="52"]
+[?2004h]0;lxdi@LadiOre: ~/xleuth[01;32mlxdi@LadiOre[00m:[01;34m~/xleuth[00m$ git status
+[?2004lOn branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	[31msession_log.txt[m
+
+nothing added to commit but untracked files present (use "git add" to track)
+[?2004h]0;lxdi@LadiOre: ~/xleuth[01;32mlxdi@LadiOre[00m:[01;34m~/xleuth[00m$ (reverse-i-search)`': [Kg': [7mg[27mit status[1@i': [7mgi[27m[1@t': [7mgit[27m[1@ ': [7mgit [27m[1@s': [7mgit s[27m[1@t': [7mgit st[27m[1@a': [7mgit sta[27m[1@t': [7mgit stat[27m[1@u': [7mgit statu[27ms': [7mgit status[27m[9P]0;lxdi@LadiOre: ~/xleuth[01;32mlxdi@LadiOre[00m:[01;34m~/xleuth[00m$ git status
+[?2004lOn branch main
+Your branch is up to date with 'origin/main'.
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	[31msession_log.txt[m
+
+nothing added to commit but untracked files present (use "git add" to track)
+[?2004h]0;lxdi@LadiOre: ~/xleuth[01;32mlxdi@LadiOre[00m:[01;34m~/xleuth[00m$ exit
+[?2004lexit
+
+Script done on 2026-09-26 22:42:24-05:00 [COMMAND_EXIT_CODE="0"]
