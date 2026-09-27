@@ -41,7 +41,8 @@ def test_config_defaults(monkeypatch):
     monkeypatch.setenv("RPC_URL", "http://localhost:8545")
     monkeypatch.setenv("INDEX_ORACLE_CONSUMER_ADDRESS", "0x" + "11" * 20)
     monkeypatch.setenv("ORACLE_SIGNER_PRIVATE_KEY", "0x" + "12" * 32)
-    monkeypatch.setenv("ACTIVE_BASKETS", "TOP20-AUGUST")
+    # Use a future month to ensure basket is tradeable
+    monkeypatch.setenv("ACTIVE_BASKETS", "TOP20-OCTOBER")
 
     cfg = OracleConfig.load()
     assert cfg.chain_id == 80002
@@ -50,8 +51,8 @@ def test_config_defaults(monkeypatch):
     assert cfg.push_interval_seconds == 15
     assert cfg.retry_max_attempts == 5
     assert cfg.retry_backoff_seconds == 2
-    # TOP20-AUGUST is a literal dated basket — resolves to itself.
-    assert "TOP20-AUGUST" in cfg.baskets
+    # TOP20-OCTOBER is a literal dated basket — resolves to itself.
+    assert "TOP20-OCTOBER" in cfg.baskets
 
 
 def test_config_prefers_amoy_rpc(monkeypatch):

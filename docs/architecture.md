@@ -1,6 +1,8 @@
-# Xleuth — V1 MVP Master Plan
+# Xleuth — MVP Master Plan (API-source correction applied)
 **Scope:** Full-scope build, 6-week timeline, solo founder + agentic coder, 6–8 dev hours/day
 **Goal:** A working testnet MVP suitable for early adopters and pre-seed fundraising
+
+**Changelog (applied after Week 1 build):** Corrected the data-ingestion source-of-truth for market discovery, live price, and live volume after Week 1 surfaced stale/incomplete data (1 of 50 markets returned, prices not matching polymarket.com). Root cause was API-selection, not the ingestion prompt or basket logic itself — see Section 2 and Week 1 below for the specifics. Changes are scoped to data-ingestion; Weeks 2, 3, and 5 are unaffected since they consume ingestion output generically. Week 4 has one downstream dependency noted at the end of its section.
 
 ---
 

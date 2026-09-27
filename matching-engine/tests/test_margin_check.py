@@ -44,7 +44,7 @@ def make_config(**overrides) -> MatchingConfig:
         vault_address="0x0000000000000000000000000000000000000001",
         position_manager_address="0x0000000000000000000000000000000000000002",
         oracle_consumer_address="0x0000000000000000000000000000000000000003",
-        jwt_secret="test",
+        dynamic_environment_id="test-env-id",
         chain_id=80002,
         price_scale=100,
         max_leverage=5,
@@ -52,7 +52,7 @@ def make_config(**overrides) -> MatchingConfig:
         tick_size=0.01,
         trading_fee_bps=10,
         max_price_staleness_seconds=60,
-        baskets=["TOP20-AUGUST", "TOP20-SEPTEMBER", "TOP20-JULY"],
+        baskets=["TOP20-SEPTEMBER", "TOP20-OCTOBER", "TOP20-NOVEMBER", "TOP20-JULY"],
         trader_keys={},
     )
     base.update(overrides)
@@ -64,7 +64,7 @@ def check(**kwargs):
     chain = FakeChain(oracle=(50, _now()))
     mc = MarginCheck(cfg, chain)
     return mc.validate(
-        basket_name=kwargs.pop("basket_name", "TOP20-AUGUST"),
+        basket_name=kwargs.pop("basket_name", "TOP20-SEPTEMBER"),
         wallet=kwargs.pop("wallet", "0xalice"),
         side=kwargs.pop("side", Side.BUY),
         price=kwargs.pop("price", 50.0),
@@ -124,7 +124,7 @@ def test_leverage_above_live_cap_rejected():
     cfg = make_config(max_leverage=5)
     chain = FakeChain(oracle=(50, _now()), max_lev=4)
     mc = MarginCheck(cfg, chain)
-    result = mc.validate("TOP20-AUGUST", "0xalice", Side.BUY, 50.0, 100.0, 5)
+    result = mc.validate("TOP20-SEPTEMBER", "0xalice", Side.BUY, 50.0, 100.0, 5)
     assert not result.ok
     assert result.reason == "leverage_above_cap"
     assert result.details == {"requested": 5, "cap": 4}
@@ -135,7 +135,7 @@ def test_oracle_stale_rejected_with_age():
     assert result.ok
     stale_chain = FakeChain(oracle=(50, NOW - 61))
     mc = MarginCheck(make_config(), stale_chain)
-    result = mc.validate("TOP20-AUGUST", "0xalice", Side.BUY, 50.0, 100.0, 5)
+    result = mc.validate("TOP20-SEPTEMBER", "0xalice", Side.BUY, 50.0, 100.0, 5)
     assert not result.ok
     assert result.reason == "oracle_price_stale"
     assert result.details["age_seconds"] >= 61
@@ -144,14 +144,14 @@ def test_oracle_stale_rejected_with_age():
 def test_oracle_unreadable_rejected():
     chain = FakeChain(oracle=None)
     mc = MarginCheck(make_config(), chain)
-    result = mc.validate("TOP20-AUGUST", "0xalice", Side.BUY, 50.0, 100.0, 5)
+    result = mc.validate("TOP20-SEPTEMBER", "0xalice", Side.BUY, 50.0, 100.0, 5)
     assert result.reason == "oracle_unreadable"
 
 
 def test_oracle_zero_price_rejected():
     chain = FakeChain(oracle=(0, NOW))
     mc = MarginCheck(make_config(), chain)
-    result = mc.validate("TOP20-AUGUST", "0xalice", Side.BUY, 50.0, 100.0, 5)
+    result = mc.validate("TOP20-SEPTEMBER", "0xalice", Side.BUY, 50.0, 100.0, 5)
     assert result.reason == "oracle_price_zero"
 
 

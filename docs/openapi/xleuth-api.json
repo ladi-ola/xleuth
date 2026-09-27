@@ -6,60 +6,18 @@
     "version": "0.1.0"
   },
   "paths": {
-    "/auth/nonce/{wallet_address}": {
-      "get": {
-        "tags": [
-          "auth"
-        ],
-        "summary": "Get Nonce",
-        "operationId": "get_nonce_auth_nonce__wallet_address__get",
-        "parameters": [
-          {
-            "name": "wallet_address",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Wallet Address"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/NonceResponse"
-                }
-              }
-            }
-          },
-          "422": {
-            "description": "Validation Error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/auth/login": {
+    "/auth/verify": {
       "post": {
         "tags": [
           "auth"
         ],
-        "summary": "Login",
-        "operationId": "login_auth_login_post",
+        "summary": "Verify Dynamic Token",
+        "operationId": "verify_dynamic_token_auth_verify_post",
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/LoginRequest"
+                "$ref": "#/components/schemas/DynamicVerifyRequest"
               }
             }
           },
@@ -102,7 +60,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserInfo"
+                  "$ref": "#/components/schemas/xleuth_shared__schemas__auth__UserInfo"
                 }
               }
             }
@@ -320,7 +278,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserInfo"
+                  "$ref": "#/components/schemas/xleuth_shared__schemas__accounts__UserInfo"
                 }
               }
             }
@@ -362,7 +320,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/UserInfo"
+                  "$ref": "#/components/schemas/xleuth_shared__schemas__accounts__UserInfo"
                 }
               }
             }
@@ -414,6 +372,63 @@
                 }
               }
             }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/faucet/claim": {
+      "post": {
+        "tags": [
+          "faucet"
+        ],
+        "summary": "Claim Faucet",
+        "operationId": "claim_faucet_faucet_claim_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FaucetClaimRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FaucetClaimResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid address format"
+          },
+          "429": {
+            "description": "Cooldown active",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FaucetCooldownResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Blockchain transaction failed"
           },
           "422": {
             "description": "Validation Error",
@@ -848,6 +863,63 @@
         "type": "object",
         "title": "ConstituentSubMarket"
       },
+      "DynamicVerifyRequest": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "DynamicVerifyRequest"
+      },
+      "FaucetClaimRequest": {
+        "properties": {
+          "smart_account_address": {
+            "type": "string",
+            "title": "Smart Account Address"
+          }
+        },
+        "type": "object",
+        "required": [
+          "smart_account_address"
+        ],
+        "title": "FaucetClaimRequest"
+      },
+      "FaucetClaimResponse": {
+        "properties": {
+          "tx_hash": {
+            "type": "string",
+            "title": "Tx Hash"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tx_hash",
+          "status"
+        ],
+        "title": "FaucetClaimResponse"
+      },
+      "FaucetCooldownResponse": {
+        "properties": {
+          "retry_after": {
+            "type": "integer",
+            "title": "Retry After"
+          }
+        },
+        "type": "object",
+        "required": [
+          "retry_after"
+        ],
+        "title": "FaucetCooldownResponse"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -860,57 +932,6 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
-      },
-      "LoginRequest": {
-        "properties": {
-          "wallet_address": {
-            "type": "string",
-            "title": "Wallet Address"
-          },
-          "signature": {
-            "type": "string",
-            "title": "Signature"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message"
-          },
-          "nonce": {
-            "type": "string",
-            "title": "Nonce"
-          }
-        },
-        "type": "object",
-        "required": [
-          "wallet_address",
-          "signature",
-          "message",
-          "nonce"
-        ],
-        "title": "LoginRequest"
-      },
-      "NonceResponse": {
-        "properties": {
-          "nonce": {
-            "type": "string",
-            "title": "Nonce"
-          },
-          "wallet_address": {
-            "type": "string",
-            "title": "Wallet Address"
-          },
-          "message": {
-            "type": "string",
-            "title": "Message"
-          }
-        },
-        "type": "object",
-        "required": [
-          "nonce",
-          "wallet_address",
-          "message"
-        ],
-        "title": "NonceResponse"
       },
       "PricePoint": {
         "properties": {
@@ -1076,7 +1097,47 @@
         ],
         "title": "TransactionInfo"
       },
-      "UserInfo": {
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "xleuth_shared__schemas__accounts__UserInfo": {
         "properties": {
           "wallet_address": {
             "type": "string",
@@ -1127,45 +1188,55 @@
         ],
         "title": "UserInfo"
       },
-      "ValidationError": {
+      "xleuth_shared__schemas__auth__UserInfo": {
         "properties": {
-          "loc": {
-            "items": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "integer"
-                }
-              ]
-            },
-            "type": "array",
-            "title": "Location"
-          },
-          "msg": {
+          "wallet_address": {
             "type": "string",
-            "title": "Message"
+            "title": "Wallet Address"
           },
-          "type": {
-            "type": "string",
-            "title": "Error Type"
+          "alias": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Alias"
           },
-          "input": {
-            "title": "Input"
+          "balance": {
+            "type": "number",
+            "title": "Balance",
+            "default": 0.0
           },
-          "ctx": {
-            "type": "object",
-            "title": "Context"
+          "realized_pnl": {
+            "type": "number",
+            "title": "Realized Pnl",
+            "default": 0.0
+          },
+          "unrealized_pnl": {
+            "type": "number",
+            "title": "Unrealized Pnl",
+            "default": 0.0
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
           }
         },
         "type": "object",
         "required": [
-          "loc",
-          "msg",
-          "type"
+          "wallet_address"
         ],
-        "title": "ValidationError"
+        "title": "UserInfo"
       }
     },
     "securitySchemes": {

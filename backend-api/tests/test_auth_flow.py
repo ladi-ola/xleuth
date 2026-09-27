@@ -1,60 +1,78 @@
-from eth_account.messages import encode_defunct
 from fastapi.testclient import TestClient
-from web3 import Web3
+from unittest.mock import patch, MagicMock
+from xleuth_shared.auth.dynamic_jwt import DynamicJWTError
 
-w3 = Web3()
+
+class MockDynamicAuthHandler:
+    """Mock Dynamic auth handler for testing."""
+    
+    def __init__(self):
+        self.valid_tokens = {
+            "valid-dynamic-token": "0x" + "a" * 40,
+            "another-valid-token": "0x" + "b" * 40,
+        }
+        self.internal_secret = "test-secret"
+        self.internal_expiry_minutes = 60
+    
+    def verify_dynamic_token(self, token: str) -> str:
+        if token in self.valid_tokens:
+            return self.valid_tokens[token]
+        raise DynamicJWTError("Invalid Dynamic token", "INVALID_TOKEN")
+    
+    def issue_internal_token(self, wallet_address: str) -> str:
+        import jwt as pyjwt
+        from datetime import datetime, timezone, timedelta
+        now = datetime.now(timezone.utc)
+        payload = {
+            "sub": wallet_address.lower(),
+            "iat": now,
+            "exp": now + timedelta(minutes=self.internal_expiry_minutes),
+        }
+        return pyjwt.encode(payload, self.internal_secret, algorithm="HS256")
+    
+    def verify_internal_token(self, token: str) -> str | None:
+        import jwt as pyjwt
+        try:
+            payload = pyjwt.decode(token, self.internal_secret, algorithms=["HS256"])
+            return payload.get("sub")
+        except pyjwt.ExpiredSignatureError:
+            return None
+        except pyjwt.InvalidTokenError:
+            return None
 
 
-def test_auth_flow_full(client: TestClient):
-    acct = w3.eth.account.create("test_wallet_for_xleuth_testing")
-    wallet = acct.address
-
-    resp = client.get(f"/auth/nonce/{wallet}")
-    assert resp.status_code == 200
-    nonce_data = resp.json()
-    assert nonce_data["nonce"]
-    assert nonce_data["wallet_address"] == wallet
-    assert nonce_data["message"]
-
-    message = nonce_data["message"]
-    message_hash = encode_defunct(text=message)
-    signed = w3.eth.account.sign_message(message_hash, private_key=acct.key)
-    signature = signed.signature.hex()
-
-    login_resp = client.post(
-        "/auth/login",
-        json={
-            "wallet_address": wallet,
-            "signature": signature,
-            "message": message,
-            "nonce": nonce_data["nonce"],
-        },
+def test_auth_flow_dynamic_verify(client: TestClient):
+    """Test the new Dynamic JWT verification flow."""
+    # The client fixture should have the mock auth handler
+    # Verify Dynamic token -> get internal JWT
+    dynamic_token = "valid-dynamic-token"
+    
+    resp = client.post(
+        "/auth/verify",
+        json={"token": dynamic_token},
     )
-    assert login_resp.status_code == 200, f"Login failed: {login_resp.text}"
-    token_data = login_resp.json()
+    assert resp.status_code == 200, f"Verify failed: {resp.text}"
+    token_data = resp.json()
     assert token_data["access_token"]
     assert token_data["token_type"] == "Bearer"
     assert token_data["expires_in_minutes"] == 60
-    print(f"\nAuth flow transcript:")
-    print(f"  Wallet address: {wallet}")
-    print(f"  Nonce: {nonce_data['nonce']}")
-    print(f"  Signature: {signature[:64]}...")
-    print(f"  JWT: {token_data['access_token'][:32]}...")
-
+    
+    # Use internal token to access /auth/me
     me_resp = client.get(
         "/auth/me",
         headers={"Authorization": f"Bearer {token_data['access_token']}"},
     )
     assert me_resp.status_code == 200, f"/auth/me failed: {me_resp.text}"
     me_data = me_resp.json()
-    assert me_data["wallet_address"] == wallet.lower()
-    print(f"  Authenticated user: {me_data['wallet_address']}")
+    assert me_data["wallet_address"] == "0x" + "a" * 40
 
-    bad_token_resp = client.get(
-        "/auth/me",
-        headers={"Authorization": "Bearer invalid_token"},
+
+def test_auth_invalid_dynamic_token(client: TestClient):
+    resp = client.post(
+        "/auth/verify",
+        json={"token": "invalid-dynamic-token"},
     )
-    assert bad_token_resp.status_code == 401
+    assert resp.status_code == 401
 
 
 def test_auth_no_token(client: TestClient):
@@ -68,20 +86,9 @@ def test_auth_no_token(client: TestClient):
     assert resp.status_code == 401
 
 
-def test_auth_invalid_signature(client: TestClient):
-    wallet = "0x1234567890123456789012345678901234567890"
-
-    resp = client.get(f"/auth/nonce/{wallet}")
-    assert resp.status_code == 200
-    data = resp.json()
-
-    login_resp = client.post(
-        "/auth/login",
-        json={
-            "wallet_address": wallet,
-            "signature": "0x" + "ab" * 65,
-            "message": data["message"],
-            "nonce": data["nonce"],
-        },
+def test_auth_invalid_internal_token(client: TestClient):
+    resp = client.get(
+        "/auth/me",
+        headers={"Authorization": "Bearer invalid_internal_token"},
     )
-    assert login_resp.status_code == 401
+    assert resp.status_code == 401

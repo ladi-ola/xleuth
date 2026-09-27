@@ -114,6 +114,7 @@ class Web3ChainState(ChainState):
                 {"internalType": "uint256", "name": "lockedMargin", "type": "uint256"},
             ],
             "stateMutability": "view",
+            "stateMutability": "view",
             "type": "function",
         },
     ]
@@ -180,16 +181,18 @@ class MarginCheck:
         basket_name: str,
         wallet: str,
         side: Side,
-        price: float,
+        price: float | None,  # None for market orders
         size: float,
         leverage: int,
     ) -> CheckResult:
         checks = [
             self._check_basket(basket_name),
-            self._check_price(price),
             self._check_size(size),
             self._check_leverage(leverage),
         ]
+        # Only validate price for limit orders
+        if price is not None:
+            checks.append(self._check_price(price))
         for check in checks:
             if not check.ok:
                 return check

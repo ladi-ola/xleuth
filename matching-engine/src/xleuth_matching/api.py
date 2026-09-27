@@ -2,25 +2,29 @@
 
 Endpoints:
 
-  POST   /orders                     place a limit order (margin pre-checked)
+  POST   /orders                     place a limit, market, or stop order (margin pre-checked)
   DELETE /orders/{order_id}          cancel a resting order
   GET    /orders/{order_id}          query an order's status / fills
   GET    /baskets/{basket_name}/book order book depth snapshot
 
-Auth: bearer JWT issued by the backend-api /auth/login (shared JWT_SECRET);
-the wallet from the token's `sub` is the trader on the order and must have a
-TRADER{1,2,...}_PRIVATE_KEY configured for on-chain settlement.
+Auth: bearer JWT issued by Dynamic.xyz (verified via JWKS);
+the wallet from the token's `wallet_address` or `sub` claim is the trader
+on the order and must have a TRADER{1,2,...}_PRIVATE_KEY configured
+for on-chain settlement.
 
 Place flow (Week-5 spec 2 and 3):
 
   1. margin pre-check against live on-chain state (oracle freshness,
      leverage cap, free balance) — rejected with a code-path `reason`
-  2. price-time priority placement in the basket's book
+  2. price-time priority placement in the basket's book (limit)
+     or FOK execution with slippage guard (market)
+     or GTC stop order placement (stop)
   3. any fills are settled on-chain via SettlementBridge (trader-signed
      PositionManager.updatePosition); the fill is confirmed to the caller
      ONLY when the transaction is mined (receipt status 1)
   4. every accepted/cancelled order re-publishes the depth snapshot on
      Redis channel `xleuth:basket:{basket}:book` for the WS feed
+  5. background task evaluates stop order triggers against mark/index price
 
 The engine runs one instance (uvicorn on ENGINE_PORT), so placement/cancel
 are naturally serialized.
@@ -28,6 +32,7 @@ are naturally serialized.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -35,7 +40,6 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-import jwt as pyjwt
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
@@ -48,9 +52,11 @@ from xleuth_matching.orderbook import (
     OrderBookManager,
     OrderRecord,
     OrderStatus,
+    OrderType,
     Side,
 )
 from xleuth_matching.settlement import SettlementBridge, SettlementOutcome
+from xleuth_shared.auth.dynamic_jwt import DynamicJWTConfig, DynamicJWTVerifier, DynamicJWTError
 
 logger = logging.getLogger("xleuth_matching.api")
 
@@ -62,9 +68,14 @@ bearer = HTTPBearer(auto_error=False)
 class OrderRequest(BaseModel):
     basket_name: str
     side: Side
-    price: float = Field(gt=0)
     size: float = Field(gt=0)
     leverage: int = Field(ge=1)
+    order_type: OrderType = OrderType.LIMIT
+    price: float | None = Field(default=None, gt=0)  # Required for limit, not for market/stop/SL-TP
+    max_slippage_bps: int = Field(default=0, ge=0, le=10000)  # For market/stop/SL-TP orders
+    trigger_price: float | None = Field(default=None, gt=0)  # Required for stop/SL-TP orders
+    position_id: str | None = Field(default=None)  # Required for SL/TP orders
+    oco_group_id: str | None = Field(default=None)  # For OCO pairing
 
 
 class Engine:
@@ -82,9 +93,108 @@ class Engine:
         self.books = OrderBookManager(self.config.baskets)
         self.bridge = bridge or SettlementBridge(self.config)
         self._redis = self.bridge.redis  # shared optional redis client
+        # Dynamic JWT verifier
+        self.dynamic_verifier = DynamicJWTVerifier(
+            DynamicJWTConfig(environment_id=self.config.dynamic_environment_id)
+        )
+        # Background task for stop order trigger evaluation
+        self._trigger_task: asyncio.Task | None = None
+        self._trigger_interval = int(os.getenv("STOP_TRIGGER_CHECK_INTERVAL_SECONDS", "5"))
 
     def book(self, basket_name: str) -> BasketOrderBook:
         return self.books.get(basket_name)
+
+    async def start_trigger_evaluation(self) -> None:
+        """Start the background task for stop order trigger evaluation."""
+        if self._trigger_task is not None:
+            return
+        self._trigger_task = asyncio.create_task(self._trigger_evaluation_loop())
+        logger.info("Started stop order trigger evaluation task")
+
+    async def stop_trigger_evaluation(self) -> None:
+        """Stop the background task for stop order trigger evaluation."""
+        if self._trigger_task is not None:
+            self._trigger_task.cancel()
+            try:
+                await self._trigger_task
+            except asyncio.CancelledError:
+                pass
+            self._trigger_task = None
+            logger.info("Stopped stop order trigger evaluation task")
+
+    async def _trigger_evaluation_loop(self) -> None:
+        """Periodically check stop order triggers against mark/index price."""
+        while True:
+            try:
+                await asyncio.sleep(self._trigger_interval)
+                await self._evaluate_all_triggers()
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.exception("Error in trigger evaluation loop")
+
+    async def _evaluate_all_triggers(self) -> None:
+        """Evaluate stop order and SL/TP triggers for all baskets."""
+        for basket_name in self.config.baskets:
+            try:
+                # Get current mark/index price from oracle
+                oracle_result = self.chain.oracle_price(basket_name)
+                if oracle_result is None:
+                    continue
+                price_int, _ = oracle_result
+                if price_int <= 0:
+                    continue
+                # Oracle price is in 0-100 scale (price_scale=100)
+                # Convert to float: price_int / 100.0 gives the 0-100 float value
+                mark_price = price_int / 100.0
+                
+                book = self.books.get(basket_name)
+                
+                # Check stop order triggers
+                triggered_results = book.check_triggers(mark_price)
+                
+                for result in triggered_results:
+                    # Handle fills from triggered stop orders
+                    fills = result.fills
+                    if fills:
+                        outcomes = self.bridge.settle_fills(fills)
+                        confirmed, failed = _confirm_fills(self, fills, outcomes)
+                        _publish_book(self, basket_name)
+                        
+                        # Log trigger execution
+                        if confirmed:
+                            logger.info(
+                                "Stop order triggered and filled: basket=%s order_id=%s fills=%d",
+                                basket_name, result.order.order_id, len(confirmed)
+                            )
+                        if failed:
+                            logger.warning(
+                                "Stop order triggered but settlement failed: basket=%s order_id=%s error=%s",
+                                basket_name, result.order.order_id, failed[0].get("error")
+                            )
+                
+                # Check SL/TP triggers
+                sltp_results = book.check_sltp_triggers(mark_price)
+                
+                for result in sltp_results:
+                    fills = result.fills
+                    if fills:
+                        outcomes = self.bridge.settle_fills(fills)
+                        confirmed, failed = _confirm_fills(self, fills, outcomes)
+                        _publish_book(self, basket_name)
+                        
+                        if confirmed:
+                            logger.info(
+                                "SL/TP order triggered and filled: basket=%s order_id=%s type=%s fills=%d",
+                                basket_name, result.order.order_id, result.order.order_type.value, len(confirmed)
+                            )
+                        if failed:
+                            logger.warning(
+                                "SL/TP order triggered but settlement failed: basket=%s order_id=%s error=%s",
+                                basket_name, result.order.order_id, failed[0].get("error")
+                            )
+            except Exception:
+                logger.exception("Error evaluating triggers for basket %s", basket_name)
 
 
 def get_engine(request: Request) -> Engine:
@@ -98,19 +208,24 @@ def get_wallet(
     if credentials is None:
         raise HTTPException(status_code=401, detail="missing bearer token")
     try:
-        payload = pyjwt.decode(
-            credentials.credentials, engine.config.jwt_secret, algorithms=["HS256"]
-        )
-    except pyjwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="invalid or expired token")
-    wallet = (payload.get("sub") or "").lower()
-    if not wallet:
-        raise HTTPException(status_code=401, detail="token has no wallet subject")
+        wallet = engine.dynamic_verifier.verify_token(credentials.credentials)
+    except DynamicJWTError as e:
+        raise HTTPException(status_code=401, detail=e.code.lower().replace("_", " "))
     return wallet
 
 
 def create_app(config: MatchingConfig | None = None, chain=None, bridge: SettlementBridge | None = None) -> FastAPI:
-    app = FastAPI(title="Xleuth Matching Engine", version="0.1.0")
+    from contextlib import asynccontextmanager
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        # Startup
+        await app.state.engine.start_trigger_evaluation()
+        yield
+        # Shutdown
+        await app.state.engine.stop_trigger_evaluation()
+
+    app = FastAPI(title="Xleuth Matching Engine", version="0.1.0", lifespan=lifespan)
     engine = Engine(config, chain=chain, bridge=bridge)
     app.state.engine = engine
 
@@ -120,15 +235,63 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         wallet: str = Depends(get_wallet),
         engine: Engine = Depends(get_engine),
     ) -> dict[str, Any]:
-        check = engine.margin.validate(
-            basket_name=body.basket_name,
-            wallet=wallet,
-            side=body.side,
-            price=body.price,
-            size=body.size,
-            leverage=body.leverage,
-        )
+        # Validate request based on order type
+        if body.order_type == OrderType.LIMIT:
+            if body.price is None:
+                raise HTTPException(status_code=422, detail="price required for limit orders")
+        elif body.order_type == OrderType.MARKET:
+            if body.max_slippage_bps == 0:
+                raise HTTPException(status_code=422, detail="max_slippage_bps required for market orders")
+        elif body.order_type == OrderType.STOP:
+            if body.trigger_price is None:
+                raise HTTPException(status_code=422, detail="trigger_price required for stop orders")
+            if body.max_slippage_bps == 0:
+                raise HTTPException(status_code=422, detail="max_slippage_bps required for stop orders")
+        elif body.order_type in (OrderType.STOP_LOSS, OrderType.TAKE_PROFIT):
+            if body.trigger_price is None:
+                raise HTTPException(status_code=422, detail="trigger_price required for SL/TP orders")
+            if body.max_slippage_bps == 0:
+                raise HTTPException(status_code=422, detail="max_slippage_bps required for SL/TP orders")
+            if body.position_id is None:
+                raise HTTPException(status_code=422, detail="position_id required for SL/TP orders")
+        else:
+            raise HTTPException(status_code=422, detail=f"unsupported order type: {body.order_type}")
+
+        # Margin check: for market/stop orders, pass None for price to skip price validation
+        # The validate method uses oracle price for margin calculation
+        # For SL/TP, no additional margin check needed (position already has margin)
+        if body.order_type in (OrderType.STOP_LOSS, OrderType.TAKE_PROFIT):
+            # Skip margin check for SL/TP orders
+            check = CheckResult(True, details={"oracle_price": 0, "required_usdc": 0.0})
+        else:
+            check = engine.margin.validate(
+                basket_name=body.basket_name,
+                wallet=wallet,
+                side=body.side,
+                price=body.price,  # None for market/stop orders, float for limit orders
+                size=body.size,
+                leverage=body.leverage,
+            )
         if not check.ok:
+            # For stop/SL-TP orders, return rejected order (like limit self-trade) instead of 422
+            if body.order_type in (OrderType.STOP, OrderType.STOP_LOSS, OrderType.TAKE_PROFIT):
+                order = OrderRecord(
+                    order_id=uuid.uuid4().hex,
+                    basket_name=body.basket_name,
+                    trader=wallet,
+                    side=body.side,
+                    price=body.price if body.price is not None else 0.0,
+                    size=body.size,
+                    leverage=body.leverage,
+                    order_type=body.order_type,
+                    max_slippage_bps=body.max_slippage_bps,
+                    trigger_price=body.trigger_price if body.trigger_price is not None else 0.0,
+                    position_id=body.position_id or "",
+                    oco_group_id=body.oco_group_id or "",
+                )
+                order.status = OrderStatus.REJECTED
+                order.rejection_reason = check.message
+                return _order_response(order, confirmed=[], failed=[], check=check)
             raise HTTPException(status_code=422, detail=check.message)
 
         order = OrderRecord(
@@ -136,13 +299,30 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
             basket_name=body.basket_name,
             trader=wallet,
             side=body.side,
-            price=body.price,
+            price=body.price if body.price is not None else 0.0,
             size=body.size,
             leverage=body.leverage,
+            order_type=body.order_type,
+            max_slippage_bps=body.max_slippage_bps,
+            trigger_price=body.trigger_price if body.trigger_price is not None else 0.0,
+            position_id=body.position_id or "",
+            oco_group_id=body.oco_group_id or "",
         )
-        placement = engine.book(body.basket_name).place(order)
+
+        book = engine.book(body.basket_name)
+        if body.order_type == OrderType.MARKET:
+            placement = book.place_market(order)
+        elif body.order_type == OrderType.STOP:
+            placement = book.place_stop(order)
+        elif body.order_type in (OrderType.STOP_LOSS, OrderType.TAKE_PROFIT):
+            placement = book.place_sltp(order)
+        else:
+            placement = book.place(order)
+
         if placement.error is not None:
-            raise HTTPException(status_code=422, detail=f"rejected: {placement.error}")
+            # Return order with rejected status (like limit order self-trade)
+            _publish_book(engine, body.basket_name)
+            return _order_response(placement.order, confirmed=[], failed=[], check=check)
 
         fills = placement.fills
         outcomes = engine.bridge.settle_fills(fills) if fills else []
@@ -276,7 +456,9 @@ def _order_response(
         "basket_name": order.basket_name,
         "trader": order.trader,
         "side": order.side.value,
+        "order_type": order.order_type.value,
         "price": order.price,
+        "trigger_price": order.trigger_price if order.trigger_price > 0 else None,
         "size": order.size,
         "leverage": order.leverage,
         "status": order.status.value,
@@ -284,6 +466,8 @@ def _order_response(
         "remaining": order.remaining,
         "rejection_reason": order.rejection_reason,
         "created_at": order.created_at.isoformat(),
+        "position_id": order.position_id if order.position_id else None,
+        "oco_group_id": order.oco_group_id if order.oco_group_id else None,
     }
     if confirmed is not None:
         resp["fills"] = confirmed

@@ -1,5 +1,5 @@
 from .accounts import TransactionHistoryResponse, TransactionInfo, UserInfo
-from .auth import LoginRequest, NonceResponse, SIWEMessage, TokenResponse
+from .auth import DynamicVerifyRequest, TokenResponse, UserInfo as AuthUserInfo
 from .baskets import (
     BasketDetail,
     BasketHistoryResponse,
@@ -11,6 +11,19 @@ from .baskets import (
     PricePoint,
 )
 from .faucet import FaucetClaimRequest, FaucetClaimResponse, FaucetCooldownResponse
+from .orders import (
+    FillResponse,
+    LimitOrderRequest,
+    MarketOrderRequest,
+    MarginCheckResponse,
+    OrderRequest,
+    OrderResponse,
+    OrderSide,
+    OrderStatus,
+    OrderType,
+    SLTPOrderRequest,
+    StopOrderRequest,
+)
 from .websocket import WsPriceUpdate
 
 __all__ = [
@@ -22,10 +35,8 @@ __all__ = [
     "PricePoint",
     "ConstituentMarket",
     "ConstituentSubMarket",
-    "NonceResponse",
-    "LoginRequest",
+    "DynamicVerifyRequest",
     "TokenResponse",
-    "SIWEMessage",
     "UserInfo",
     "TransactionInfo",
     "TransactionHistoryResponse",
@@ -33,4 +44,15 @@ __all__ = [
     "FaucetClaimRequest",
     "FaucetClaimResponse",
     "FaucetCooldownResponse",
+    "OrderType",
+    "OrderSide",
+    "OrderStatus",
+    "OrderRequest",
+    "OrderResponse",
+    "LimitOrderRequest",
+    "MarketOrderRequest",
+    "StopOrderRequest",
+    "SLTPOrderRequest",
+    "FillResponse",
+    "MarginCheckResponse",
 ]

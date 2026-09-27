@@ -29,7 +29,7 @@ def make_config() -> MatchingConfig:
         vault_address="0x0000000000000000000000000000000000000001",
         position_manager_address="0x0000000000000000000000000000000000000002",
         oracle_consumer_address="0x0000000000000000000000000000000000000003",
-        jwt_secret="test",
+        dynamic_environment_id="test-env-id",
         chain_id=80002,
         price_scale=100,
         max_leverage=5,
@@ -37,13 +37,13 @@ def make_config() -> MatchingConfig:
         tick_size=0.01,
         trading_fee_bps=10,
         max_price_staleness_seconds=60,
-        baskets=["TOP20-AUGUST"],
+        baskets=["TOP20-SEPTEMBER"],
         trader_keys={ALICE: "0x" + "a" * 64, BOB: "0x" + "b" * 64},
     )
 
 
 def make_fill(size, taker=ALICE, maker=BOB, taker_side=Side.BUY, price=50.0,
-              taker_lev=5, maker_lev=5, basket="TOP20-AUGUST", trade_id=None):
+              taker_lev=5, maker_lev=5, basket="TOP20-SEPTEMBER", trade_id=None):
     return Fill(
         trade_id=trade_id or f"t{size}{taker[-2:]}{maker[-2:]}",
         basket_name=basket,
@@ -78,7 +78,7 @@ def test_single_fill_settles_both_sides():
     assert by_wallet[ALICE].update.size_int == 100
     assert by_wallet[ALICE].update.leverage == 5
     assert by_wallet[BOB].update.side is Side.SELL
-    assert by_wallet[BOB].update.basket_name == "TOP20-AUGUST"
+    assert by_wallet[BOB].update.basket_name == "TOP20-SEPTEMBER"
 
 
 def test_same_trader_both_sides_nets_to_one_update():

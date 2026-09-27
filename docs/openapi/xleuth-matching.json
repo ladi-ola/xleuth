@@ -206,11 +206,6 @@
           "side": {
             "$ref": "#/components/schemas/Side"
           },
-          "price": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
-            "title": "Price"
-          },
           "size": {
             "type": "number",
             "exclusiveMinimum": 0.0,
@@ -220,17 +215,84 @@
             "type": "integer",
             "minimum": 1.0,
             "title": "Leverage"
+          },
+          "order_type": {
+            "$ref": "#/components/schemas/OrderType",
+            "default": "limit"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "max_slippage_bps": {
+            "type": "integer",
+            "maximum": 10000.0,
+            "minimum": 0.0,
+            "title": "Max Slippage Bps",
+            "default": 0
+          },
+          "trigger_price": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Price"
+          },
+          "position_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Id"
+          },
+          "oco_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oco Group Id"
           }
         },
         "type": "object",
         "required": [
           "basket_name",
           "side",
-          "price",
           "size",
           "leverage"
         ],
         "title": "OrderRequest"
+      },
+      "OrderType": {
+        "type": "string",
+        "enum": [
+          "limit",
+          "market",
+          "stop",
+          "stop_loss",
+          "take_profit"
+        ],
+        "title": "OrderType"
       },
       "Side": {
         "type": "string",

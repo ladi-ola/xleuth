@@ -5,7 +5,7 @@ Required:
   COLLATERAL_VAULT_ADDRESS
   POSITION_MANAGER_ADDRESS
   INDEX_ORACLE_CONSUMER_ADDRESS
-  JWT_SECRET                    (same as backend-api, for order auth)
+  DYNAMIC_ENVIRONMENT_ID        (for Dynamic.xyz JWT verification via JWKS)
   TRADER_PRIVATE_KEY            (testnet trader EOA keys the engine signs
                                  on-chain position txs with; TRADER2_...,
                                  TRADER3_... etc. are also scanned)
@@ -40,7 +40,7 @@ class MatchingConfig:
     vault_address: str
     position_manager_address: str
     oracle_consumer_address: str
-    jwt_secret: str
+    dynamic_environment_id: str
     chain_id: int
     price_scale: int
     max_leverage: int
@@ -93,12 +93,14 @@ class MatchingConfig:
         templates = os.getenv("ACTIVE_BASKETS", "TOP20-{MONTH}").split(",")
         baskets = active_basket_names(templates)
 
+        dynamic_env_id = os.getenv("DYNAMIC_ENVIRONMENT_ID", "938a93a5-ee1f-4da2-86cf-27326bd01885")
+
         return MatchingConfig(
             rpc_url=rpc,
             vault_address=MatchingConfig._addr("COLLATERAL_VAULT_ADDRESS"),
             position_manager_address=MatchingConfig._addr("POSITION_MANAGER_ADDRESS"),
             oracle_consumer_address=MatchingConfig._addr("INDEX_ORACLE_CONSUMER_ADDRESS"),
-            jwt_secret=os.getenv("JWT_SECRET", ""),
+            dynamic_environment_id=dynamic_env_id,
             chain_id=chain_id,
             price_scale=price_scale,
             max_leverage=max_leverage,

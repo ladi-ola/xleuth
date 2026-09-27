@@ -7,8 +7,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from xleuth_api.auth.jwt import JWTHandler
-from xleuth_api.auth.siwe import SIWEHandler
+from xleuth_api.auth.dynamic_jwt import DynamicAuthHandler
 from xleuth_api.db import Database
 from xleuth_api.routes.accounts import router as accounts_router
 from xleuth_api.routes.auth import router as auth_router
@@ -65,21 +64,25 @@ def create_app() -> FastAPI:
     )
 
     database_url = os.getenv("DATABASE_URL")
-    jwt_secret = os.getenv("JWT_SECRET", "changeme-generate-a-real-256bit-secret")
-    jwt_expiry = int(os.getenv("JWT_EXPIRY_MINUTES", "60"))
-    nonce_ttl = int(os.getenv("SIWE_NONCE_TTL_SECONDS", "300"))
+    dynamic_env_id = os.getenv("DYNAMIC_ENVIRONMENT_ID", "938a93a5-ee1f-4da2-86cf-27326bd01885")
+    internal_jwt_secret = os.getenv("JWT_SECRET", "changeme-generate-a-real-256bit-secret")
+    internal_jwt_expiry = int(os.getenv("JWT_EXPIRY_MINUTES", "60"))
+    jwks_cache_ttl = int(os.getenv("DYNAMIC_JWKS_CACHE_TTL", "3600"))
 
     redis_host = os.getenv("REDIS_HOST", "localhost")
     redis_port = int(os.getenv("REDIS_PORT", "6379"))
     redis_db = int(os.getenv("REDIS_DB", "0"))
 
     db = Database(dsn=database_url)
-    jwt_handler = JWTHandler(secret=jwt_secret, expiry_minutes=jwt_expiry)
-    siwe_handler = SIWEHandler(nonce_ttl=nonce_ttl)
+    dynamic_auth_handler = DynamicAuthHandler(
+        environment_id=dynamic_env_id,
+        internal_jwt_secret=internal_jwt_secret,
+        internal_jwt_expiry_minutes=internal_jwt_expiry,
+        jwks_cache_ttl=jwks_cache_ttl,
+    )
 
     app.state.db = db
-    app.state.jwt_handler = jwt_handler
-    app.state.siwe_handler = siwe_handler
+    app.state.dynamic_auth_handler = dynamic_auth_handler
     app.state.redis = None
 
     app.include_router(auth_router)

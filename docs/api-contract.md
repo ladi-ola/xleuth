@@ -31,21 +31,23 @@ chain id 80002).
 
 ## 1. Auth flow (backend API)
 
-Wallet-native SIWE (Sign-In With Ethereum) → short-lived JWT. No passwords.
+Dynamic.xyz JWT verification → internal HS256 JWT. No passwords, no SIWE.
 
-1. `GET /auth/nonce/{wallet_address}`
-   Returns `{ nonce, wallet_address, message }` where `message` is the full
-   SIWE message the wallet must sign.
-2. Wallet signs `message` (EIP-191 personal_sign) → `POST /auth/login`
-   Body: `{ wallet_address, signature, message, nonce }`.
-   The backend verifies the signature against the nonce and the SIWE message,
-   upserts the user, and returns:
+1. Frontend authenticates user via Dynamic.xyz SDK → receives Dynamic JWT
+2. `POST /auth/verify` with Dynamic JWT
+   Body: `{ "token": "<dynamic_jwt>" }`
+   Backend verifies against Dynamic's JWKS (`https://app.dynamicauth.com/api/v0/sdk/{env_id}/.well-known/jwks`),
+   upserts the user, and returns an internal HS256 JWT:
    `{ access_token, token_type: "Bearer", expires_in_minutes }`.
-3. Every authenticated endpoint takes the token as an `Authorization: Bearer
+3. Every authenticated endpoint takes the **internal** token as an `Authorization: Bearer
    <token>` header. The token's `sub` is the wallet address (lowercased);
    that wallet is the acting user everywhere (orders, account data).
 
 Endpoints: `GET /auth/me` returns the current user's profile.
+
+**Note**: The old SIWE flow (`GET /auth/nonce/{wallet}`, `POST /auth/login`) has been removed.
+
+---
 
 ## 2. Backend API (port 8000)
 
@@ -70,40 +72,70 @@ month is `resolved` / `is_tradeable: false`.
 | `PUT /accounts/alias?alias=<name>` | Set display alias (query param). |
 | `GET /accounts/transactions?limit=50` | Transaction history: `{ id, wallet_address, tx_type, amount, tx_hash, timestamp, related_position_id }`. |
 
+---
+
 ## 3. Matching engine (port 8001)
 
-Trading lives here; auth is the same shared JWT (matching engine validates the
-same secret, `sub` = wallet).
+Trading lives here; auth uses Dynamic JWT verification (same env ID as backend).
 
 | Endpoint | Description |
 |---|---|
-| `POST /orders` | Place a limit order (JWT required). Body: `{ basket_name, side: "buy"\|"sell", price, size, leverage }`. |
+| `POST /orders` | Place a limit, market, stop, stop-loss, or take-profit order (JWT required). |
 | `GET /orders/{order_id}` | Order status + fills (JWT, owner only). |
 | `DELETE /orders/{order_id}` | Cancel a resting order (JWT, owner only). |
 | `GET /baskets/{name}/book` | Order book depth snapshot (public). |
 
-### Order placement contract
+### Order Types
+
+| Type | Description | Required Fields |
+|---|---|---|
+| `limit` | Price-time priority, rests in book GTC | `price`, `size`, `leverage` |
+| `market` | Fill-or-kill with slippage guard | `size`, `leverage`, `max_slippage_bps` |
+| `stop` | Standalone GTC, converts to market on trigger | `trigger_price`, `size`, `leverage`, `max_slippage_bps` |
+| `stop_loss` | Attached to position, OCO with TP, full close | `position_id`, `trigger_price`, `max_slippage_bps` |
+| `take_profit` | Attached to position, OCO with SL, full close | `position_id`, `trigger_price`, `max_slippage_bps` |
+
+### Common Order Fields
+
+- `basket_name`: string (e.g., `TOP20-SEPTEMBER`)
+- `side`: `"buy"` | `"sell"`
+- `size`: float (> 0, ≥ `min_order_size` = 10)
+- `leverage`: int (1–`max_leverage` = 5)
+- `order_type`: `"limit"` | `"market"` | `"stop"` | `"stop_loss"` | `"take_profit"` (default: `"limit"`)
+- `price`: float (> 0, on tick 0.01) — **required for limit only**
+- `max_slippage_bps`: int (0–10000) — **required for market, stop, stop_loss, take_profit**
+- `trigger_price`: float (> 0) — **required for stop, stop_loss, take_profit**
+- `position_id`: string — **required for stop_loss, take_profit**
+- `oco_group_id`: string (optional) — links stop_loss + take_profit for OCO
+
+### Order Placement Contract
 
 - Price is in 0–100 index points, must be on `tick_size` (0.01); `size` must
   be ≥ `min_order_size` (10); leverage 1–`max_leverage`.
 - Before accepting, the engine pre-checks against **live on-chain state**:
   basket tradeable, oracle price fresh, leverage cap, and free vault balance
-  ≥ required margin (`price * size / leverage` USDC).
+  ≥ required margin (`oracle_price * size / leverage` USDC).
 - Rejections return HTTP 422 with a machine-readable `detail`, e.g.:
   - `oracle_price_stale`
   - `insufficient_margin`
   - `basket_not_tradeable`
   - `price_not_on_tick`, `size_below_min`, `leverage_out_of_range`,
     `leverage_above_cap`, `oracle_price_zero`, `unknown_basket`
+  - `max_slippage_bps required`, `trigger_price required`, `position_id required`
+  - `price required for limit orders`
+- **Margin**: Uses on-chain oracle price (not order price). For stop/SL-TP orders,
+  margin is reserved at placement (stop) or no additional margin (SL-TP, position
+  already has margin).
 - Placement returns HTTP 201 with the order and its fills:
   ```json
   {
-    "order_id": "…", "basket_name": "TOP20-AUGUST", "trader": "0x…",
-    "side": "buy", "price": 30.0, "size": 20.0, "leverage": 5,
+    "order_id": "…", "basket_name": "TOP20-SEPTEMBER", "trader": "0x…",
+    "side": "buy", "order_type": "market", "price": 30.0, "size": 20.0, "leverage": 5,
+    "trigger_price": 55.0, "position_id": "pos-1", "oco_group_id": "oco-1",
     "status": "filled", "filled_size": 20.0, "remaining": 0.0,
     "rejection_reason": null, "created_at": "…",
     "fills": [{
-      "trade_id": "…", "basket_name": "TOP20-AUGUST",
+      "trade_id": "…", "basket_name": "TOP20-SEPTEMBER",
       "price": 30.0, "size": 20.0,
       "taker_order_id": "…", "maker_order_id": "…",
       "taker_trader": "0x…", "maker_trader": "0x…",
@@ -111,6 +143,7 @@ same secret, `sub` = wallet).
       "notional": 600.0, "confirmed": true,
       "tx_hash": "0x…", "error": null, "ts": "…"
     }],
+    "failed_fills": [],
     "margin_check": { "ok": true, "reason": null, "details": {"oracle_price": 24, "required_usdc": 96.0} }
   }
   ```
@@ -122,11 +155,32 @@ same secret, `sub` = wallet).
   `rejection_reason: "settlement failed: …"` and the fill has `confirmed:
   false` + `error`.
 
+### Order Behavior by Type
+
+**Limit** (existing): Price-time priority, rests in book GTC, can be partially filled.
+
+**Market**: Fill-or-kill with slippage guard. Walks the book (best price first)
+until full size filled or rejected. Rejected if insufficient liquidity within
+`max_slippage_bps` (BUY: `best_ask * (1 + bps/10000)`, SELL: `best_bid * (1 - bps/10000)`).
+Self-trade guard applies.
+
+**Stop**: GTC, rests off-book. Triggers when mark/index price crosses
+`trigger_price` (BUY stop: price ≥ trigger, SELL stop: price ≤ trigger).
+Converts to market order (same FOK + slippage semantics). Margin reserved at
+placement. Evaluated every 5s (configurable) against `IndexOracleConsumer` price.
+
+**Stop-Loss / Take-Profit**: Attached to a `position_id`, full-close only.
+OCO (one-cancels-other): same `oco_group_id` links SL and TP.
+- Long position: SL sell triggers at price ≤ trigger, TP sell triggers at price ≥ trigger
+- Short position: SL buy triggers at price ≥ trigger, TP buy triggers at price ≤ trigger
+No additional margin (position already has margin locked). Evaluated same as stop orders.
+On trigger: converts to market order, executes FOK, cancels sibling via OCO.
+
 ### Order book depth (`GET /baskets/{name}/book`)
 
 ```json
 {
-  "basket_name": "TOP20-AUGUST",
+  "basket_name": "TOP20-SEPTEMBER",
   "bids": [[30.0, 20.0], [29.5, 5.0]],
   "asks": [[31.0, 15.0]],
   "best_bid": 30.0, "best_ask": 31.0,
@@ -137,11 +191,13 @@ same secret, `sub` = wallet).
 Levels are `[price, total_size]`, best price first, per-basket, price-time
 priority matching, limit orders only, GTC.
 
+---
+
 ## 4. WebSocket streams (backend API, port 8000)
 
 | Endpoint | Message you send | What you get |
 |---|---|---|
-| `ws://localhost:8000/ws/price/{basket_name}` | `{"action":"ping"}` → `{"type":"pong"}`; `{"action":"subscribe","basket_name":"TOP20-AUGUST"}` → `{"type":"subscribed",...}` | Server pushes `{"type":"price_update","basket_name":…,"index_price":…,"scaled_price":…,"computed_at":…,"constituent_count":…}` every time a new index price is computed (Redis pub/sub `xleuth:basket:{name}:price`; DB-poll fallback every 5s if Redis is down). |
+| `ws://localhost:8000/ws/price/{basket_name}` | `{"action":"ping"}` → `{"type":"pong"}`; `{"action":"subscribe","basket_name":"TOP20-SEPTEMBER"}` → `{"type":"subscribed",...}` | Server pushes `{"type":"price_update","basket_name":…,"index_price":…,"scaled_price":…,"computed_at":…,"constituent_count":…}` every time a new index price is computed (Redis pub/sub `xleuth:basket:{name}:price`; DB-poll fallback every 5s if Redis is down). |
 | `ws://localhost:8000/ws/orderbook/{basket_name}` | same ping/subscribe pattern | Server pushes the **depth snapshot** (same shape as the REST book endpoint) after every accepted/cancelled order (Redis `xleuth:basket:{name}:book`). |
 
 Malformed client messages get `{"type":"error","message":"Invalid message
