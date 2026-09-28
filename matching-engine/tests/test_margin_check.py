@@ -34,6 +34,12 @@ class FakeChain(ChainState):
         self.position_reads += 1
         return self.pos
 
+    def get_position(self, wallet, basket_name):
+        if self.pos == 0:
+            return None
+        # Return (side, size, leverage) - side: 0=Long, 1=Short
+        return (0, self.pos, self.max_lev)
+
 
 NOW = _now()
 
@@ -44,7 +50,7 @@ def make_config(**overrides) -> MatchingConfig:
         vault_address="0x0000000000000000000000000000000000000001",
         position_manager_address="0x0000000000000000000000000000000000000002",
         oracle_consumer_address="0x0000000000000000000000000000000000000003",
-        dynamic_environment_id="test-env-id",
+        jwt_secret="test-secret",
         chain_id=80002,
         price_scale=100,
         max_leverage=5,

@@ -7,10 +7,9 @@ Endpoints:
   GET    /orders/{order_id}          query an order's status / fills
   GET    /baskets/{basket_name}/book order book depth snapshot
 
-Auth: bearer JWT issued by Dynamic.xyz (verified via JWKS);
-the wallet from the token's `wallet_address` or `sub` claim is the trader
-on the order and must have a TRADER{1,2,...}_PRIVATE_KEY configured
-for on-chain settlement.
+Auth: bearer internal HS256 JWT issued by backend-api /auth/verify;
+the wallet from the token's `sub` claim is the trader on the order
+and must have a TRADER{1,2,...}_PRIVATE_KEY configured for on-chain settlement.
 
 Place flow (Week-5 spec 2 and 3):
 
@@ -41,6 +40,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, Field
 
@@ -56,7 +56,15 @@ from xleuth_matching.orderbook import (
     Side,
 )
 from xleuth_matching.settlement import SettlementBridge, SettlementOutcome
-from xleuth_shared.auth.dynamic_jwt import DynamicJWTConfig, DynamicJWTVerifier, DynamicJWTError
+from xleuth_shared.auth.internal_jwt import InternalJWTConfig, InternalJWTVerifier, InternalJWTError
+from xleuth_shared.schemas.orders import (
+    OrderResponse,
+    CancelResponse,
+    BookSnapshot,
+    RejectionCode,
+    OrderListResponse,
+    PositionsResponse,
+)
 
 logger = logging.getLogger("xleuth_matching.api")
 
@@ -67,9 +75,9 @@ bearer = HTTPBearer(auto_error=False)
 
 class OrderRequest(BaseModel):
     basket_name: str
-    side: Side
-    size: float = Field(gt=0)
-    leverage: int = Field(ge=1)
+    side: Side | None = Field(default=None)
+    size: float | None = Field(default=None, gt=0)
+    leverage: int | None = Field(default=None, ge=1)
     order_type: OrderType = OrderType.LIMIT
     price: float | None = Field(default=None, gt=0)  # Required for limit, not for market/stop/SL-TP
     max_slippage_bps: int = Field(default=0, ge=0, le=10000)  # For market/stop/SL-TP orders
@@ -93,9 +101,9 @@ class Engine:
         self.books = OrderBookManager(self.config.baskets)
         self.bridge = bridge or SettlementBridge(self.config)
         self._redis = self.bridge.redis  # shared optional redis client
-        # Dynamic JWT verifier
-        self.dynamic_verifier = DynamicJWTVerifier(
-            DynamicJWTConfig(environment_id=self.config.dynamic_environment_id)
+        # Internal JWT verifier (HS256 token issued by backend-api)
+        self.internal_verifier = InternalJWTVerifier(
+            InternalJWTConfig(secret=self.config.jwt_secret)
         )
         # Background task for stop order trigger evaluation
         self._trigger_task: asyncio.Task | None = None
@@ -206,12 +214,32 @@ def get_wallet(
     engine: Engine = Depends(get_engine),
 ) -> str:
     if credentials is None:
-        raise HTTPException(status_code=401, detail="missing bearer token")
+        raise HTTPException(status_code=401, detail="token_missing")
     try:
-        wallet = engine.dynamic_verifier.verify_token(credentials.credentials)
-    except DynamicJWTError as e:
-        raise HTTPException(status_code=401, detail=e.code.lower().replace("_", " "))
+        wallet = engine.internal_verifier.verify_token(credentials.credentials)
+    except InternalJWTError as e:
+        raise HTTPException(status_code=401, detail=e.code)
     return wallet
+
+
+def _get_position_from_chain(engine: Engine, wallet: str, basket_name: str, position_id: str) -> tuple[Side, float, int] | None:
+    """Get position details from chain. Returns (side, size, leverage) or None if not found."""
+    try:
+        position = engine.chain.get_position(wallet, basket_name)
+        if position is None:
+            return None
+        side_enum, size, leverage = position
+        if size == 0:
+            return None
+        
+        position_side = Side.BUY if side_enum == 0 else Side.SELL
+        # For closing a position, the order side is opposite of position side
+        close_side = position_side.opposite()
+        
+        return close_side, float(size), leverage
+    except Exception as e:
+        logger.warning("Failed to get position from chain: %s", e)
+        return None
 
 
 def create_app(config: MatchingConfig | None = None, chain=None, bridge: SettlementBridge | None = None) -> FastAPI:
@@ -226,10 +254,22 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         await app.state.engine.stop_trigger_evaluation()
 
     app = FastAPI(title="Xleuth Matching Engine", version="0.1.0", lifespan=lifespan)
+    
+    # CORS middleware
+    config_obj = config or MatchingConfig.load()
+    if config_obj.cors_allowed_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=config_obj.cors_allowed_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+    
     engine = Engine(config, chain=chain, bridge=bridge)
     app.state.engine = engine
 
-    @app.post("/orders", status_code=201)
+    @app.post("/orders", status_code=201, response_model=OrderResponse)
     def place_order(
         body: OrderRequest,
         wallet: str = Depends(get_wallet),
@@ -239,14 +279,32 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         if body.order_type == OrderType.LIMIT:
             if body.price is None:
                 raise HTTPException(status_code=422, detail="price required for limit orders")
+            if body.side is None:
+                raise HTTPException(status_code=422, detail="side required for limit orders")
+            if body.size is None:
+                raise HTTPException(status_code=422, detail="size required for limit orders")
+            if body.leverage is None:
+                raise HTTPException(status_code=422, detail="leverage required for limit orders")
         elif body.order_type == OrderType.MARKET:
             if body.max_slippage_bps == 0:
                 raise HTTPException(status_code=422, detail="max_slippage_bps required for market orders")
+            if body.side is None:
+                raise HTTPException(status_code=422, detail="side required for market orders")
+            if body.size is None:
+                raise HTTPException(status_code=422, detail="size required for market orders")
+            if body.leverage is None:
+                raise HTTPException(status_code=422, detail="leverage required for market orders")
         elif body.order_type == OrderType.STOP:
             if body.trigger_price is None:
                 raise HTTPException(status_code=422, detail="trigger_price required for stop orders")
             if body.max_slippage_bps == 0:
                 raise HTTPException(status_code=422, detail="max_slippage_bps required for stop orders")
+            if body.side is None:
+                raise HTTPException(status_code=422, detail="side required for stop orders")
+            if body.size is None:
+                raise HTTPException(status_code=422, detail="size required for stop orders")
+            if body.leverage is None:
+                raise HTTPException(status_code=422, detail="leverage required for stop orders")
         elif body.order_type in (OrderType.STOP_LOSS, OrderType.TAKE_PROFIT):
             if body.trigger_price is None:
                 raise HTTPException(status_code=422, detail="trigger_price required for SL/TP orders")
@@ -254,8 +312,33 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
                 raise HTTPException(status_code=422, detail="max_slippage_bps required for SL/TP orders")
             if body.position_id is None:
                 raise HTTPException(status_code=422, detail="position_id required for SL/TP orders")
+            
+            # For SL/TP, derive side, size, leverage from position if not provided
+            position_data = _get_position_from_chain(engine, wallet, body.basket_name, body.position_id)
+            if position_data is None:
+                raise HTTPException(status_code=422, detail="position_not_found")
+            
+            derived_side, derived_size, derived_leverage = position_data
+            
+            # If client provided values, validate they match derived values
+            if body.side is not None and body.side != derived_side:
+                raise HTTPException(status_code=422, detail="sl_tp_field_mismatch")
+            if body.size is not None and abs(body.size - derived_size) > 1e-9:
+                raise HTTPException(status_code=422, detail="sl_tp_field_mismatch")
+            if body.leverage is not None and body.leverage != derived_leverage:
+                raise HTTPException(status_code=422, detail="sl_tp_field_mismatch")
+            
+            # Use derived values
+            body.side = derived_side
+            body.size = derived_size
+            body.leverage = derived_leverage
         else:
             raise HTTPException(status_code=422, detail=f"unsupported order type: {body.order_type}")
+
+        # At this point, side, size, leverage are guaranteed to be set for all order types
+        assert body.side is not None
+        assert body.size is not None
+        assert body.leverage is not None
 
         # Margin check: for market/stop orders, pass None for price to skip price validation
         # The validate method uses oracle price for margin calculation
@@ -331,7 +414,7 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
 
         return _order_response(order, confirmed=confirmed, failed=failed, check=check)
 
-    @app.delete("/orders/{order_id}")
+    @app.delete("/orders/{order_id}", response_model=CancelResponse)
     def cancel_order(
         order_id: str,
         wallet: str = Depends(get_wallet),
@@ -351,9 +434,13 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         except ValueError as exc:
             raise HTTPException(status_code=409, detail=str(exc))
         _publish_book(engine, order.basket_name)
-        return _order_response(order)
+        return {
+            "order_id": order.order_id,
+            "status": order.status,
+            "message": f"Order {order_id} cancelled"
+        }
 
-    @app.get("/orders/{order_id}")
+    @app.get("/orders/{order_id}", response_model=OrderResponse)
     def get_order(
         order_id: str,
         wallet: str = Depends(get_wallet),
@@ -370,14 +457,263 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
             raise HTTPException(status_code=403, detail="not your order")
         return _order_response(order)
 
-    @app.get("/baskets/{basket_name}/book")
+    @app.get("/baskets/{basket_name}/book", response_model=BookSnapshot)
     def book_depth(
         basket_name: str,
         engine: Engine = Depends(get_engine),
     ) -> dict[str, Any]:
         if basket_name not in engine.config.baskets:
             raise HTTPException(status_code=404, detail="unknown basket")
-        return engine.book(basket_name).snapshot()
+        snap = engine.book(basket_name).snapshot()
+        # Convert to BookSnapshot format
+        return {
+            "basket_name": snap["basket_name"],
+            "bids": [{"price": p, "size": s} for p, s in snap["bids"]],
+            "asks": [{"price": p, "size": s} for p, s in snap["asks"]],
+            "best_bid": snap["best_bid"],
+            "best_ask": snap["best_ask"],
+            "mid_price": snap["mid_price"],
+            "spread": snap["spread"],
+            "ts": snap["ts"],
+        }
+
+    @app.get("/orders", response_model=OrderListResponse)
+    def list_orders(
+        status: str | None = None,  # "open" | "history" | "all"
+        basket_name: str | None = None,
+        limit: int = 50,
+        cursor: str | None = None,
+        wallet: str = Depends(get_wallet),
+        engine: Engine = Depends(get_engine),
+    ) -> dict[str, Any]:
+        """List orders for the authenticated trader.
+        
+        Query params:
+        - status: "open" (default) = open, partially_filled, plus resting stop/SL/TP
+                  "history" = filled, cancelled, rejected, triggered
+                  "all" = all orders
+        - basket_name: optional filter by basket
+        - limit: max results (default 50, max 200)
+        - cursor: order_id for pagination (returns orders older than this)
+        """
+        if limit > 200:
+            limit = 200
+        if limit < 1:
+            limit = 1
+        
+        # Determine status filter
+        if status is None or status == "open":
+            status_filter = "open"
+        elif status == "history":
+            status_filter = "history"
+        elif status == "all":
+            status_filter = "all"
+        else:
+            raise HTTPException(status_code=422, detail="status must be 'open', 'history', or 'all'")
+        
+        # Collect all orders for this trader
+        all_orders: list[OrderRecord] = []
+        for name in engine.books.names() or (engine.config.baskets or []):
+            if basket_name and name != basket_name:
+                continue
+            book = engine.books.get(name)
+            for order in book._orders.values():
+                if order.trader.lower() != wallet:
+                    continue
+                all_orders.append(order)
+            # Also check stop orders
+            for order in book._stop_orders.values():
+                if order.trader.lower() != wallet:
+                    continue
+                all_orders.append(order)
+            # Also check SL/TP orders
+            for order in book._sltp_orders.values():
+                if order.trader.lower() != wallet:
+                    continue
+                all_orders.append(order)
+        
+        # Filter by status
+        def matches_status(order: OrderRecord) -> bool:
+            if status_filter == "open":
+                return order.status in (OrderStatus.OPEN, OrderStatus.PARTIALLY_FILLED)
+            elif status_filter == "history":
+                return order.status in (OrderStatus.FILLED, OrderStatus.CANCELLED, OrderStatus.REJECTED, OrderStatus.TRIGGERED)
+            return True  # "all"
+        
+        filtered = [o for o in all_orders if matches_status(o)]
+        
+        # Sort by created_at descending (newest first)
+        filtered.sort(key=lambda o: o.created_at, reverse=True)
+        
+        # Apply cursor pagination
+        if cursor:
+            cursor_idx = next((i for i, o in enumerate(filtered) if o.order_id == cursor), None)
+            if cursor_idx is not None:
+                filtered = filtered[cursor_idx + 1:]
+        
+        # Apply limit
+        has_more = len(filtered) > limit
+        page_orders = filtered[:limit]
+        
+        # Convert to response format
+        next_cursor = page_orders[-1].order_id if has_more and page_orders else None
+        
+        items = []
+        for order in page_orders:
+            items.append({
+                "order_id": order.order_id,
+                "basket_name": order.basket_name,
+                "side": order.side.value,
+                "order_type": order.order_type,
+                "price": order.price,
+                "trigger_price": order.trigger_price if order.trigger_price > 0 else None,
+                "size": order.size,
+                "filled_size": order.filled_size,
+                "remaining": order.remaining,
+                "leverage": order.leverage,
+                "status": order.status,
+                "rejection_reason": order.rejection_reason,
+                "created_at": order.created_at.isoformat(),
+                "updated_at": order.created_at.isoformat(),  # No separate updated_at field
+                "position_id": order.position_id if order.position_id else None,
+                "oco_group_id": order.oco_group_id if order.oco_group_id else None,
+                "average_fill_price": None,
+            })
+        
+        return {
+            "orders": items,
+            "cursor": next_cursor,
+            "has_more": has_more,
+        }
+
+    @app.get("/positions", response_model=PositionsResponse)
+    def list_positions(
+        wallet: str = Depends(get_wallet),
+        engine: Engine = Depends(get_engine),
+    ) -> dict[str, Any]:
+        """List open positions for the authenticated trader."""
+        positions: list[dict] = []
+        
+        # Get positions from on-chain for each basket
+        for basket_name in engine.config.baskets:
+            position = engine.chain.get_position(wallet, basket_name)
+            if position is None:
+                continue
+            side_enum, size, leverage = position
+            if size == 0:
+                continue
+            
+            position_side = Side.BUY if side_enum == 0 else Side.SELL
+            side_str = "long" if side_enum == 0 else "short"
+            
+            # Get mark price from oracle
+            oracle_result = engine.chain.oracle_price(basket_name)
+            if oracle_result is None:
+                continue
+            price_int, _ = oracle_result
+            mark_price = price_int / 100.0
+            
+            # Get entry price from position
+            # Need to call getPosition again for entry price
+            try:
+                from web3 import Web3
+                from eth_utils import keccak
+                
+                w3 = Web3(Web3.HTTPProvider(engine.config.rpc_url, request_kwargs={"timeout": 15}))
+                checksum_wallet = Web3.to_checksum_address(wallet)
+                
+                PM_ABI = [
+                    {
+                        "inputs": [
+                            {"internalType": "address", "name": "user", "type": "address"},
+                            {"internalType": "bytes32", "name": "basketId", "type": "bytes32"},
+                        ],
+                        "name": "getPosition",
+                        "outputs": [
+                            {"internalType": "enum PositionManager.Side", "name": "side", "type": "uint8"},
+                            {"internalType": "uint256", "name": "size", "type": "uint256"},
+                            {"internalType": "uint256", "name": "entryPrice", "type": "uint256"},
+                            {"internalType": "uint256", "name": "leverage", "type": "uint256"},
+                            {"internalType": "uint256", "name": "lockedMargin", "type": "uint256"},
+                        ],
+                        "stateMutability": "view",
+                        "type": "function",
+                    },
+                ]
+                
+                basket_id = keccak(text=basket_name)
+                pm = w3.eth.contract(address=engine.config.position_manager_address, abi=PM_ABI)
+                result = pm.functions.getPosition(checksum_wallet, basket_id).call()
+                
+                entry_price = int(result[2]) / 100.0
+                locked_margin = int(result[4]) / 1e6
+            except Exception:
+                entry_price = mark_price  # fallback
+                locked_margin = (mark_price * size) / leverage  # fallback
+            
+            # Calculate unrealized PnL
+            if position_side == Side.BUY:
+                unrealized_pnl_abs = (mark_price - entry_price) * size
+            else:
+                unrealized_pnl_abs = (entry_price - mark_price) * size
+            unrealized_pnl_pct = (unrealized_pnl_abs / (entry_price * size)) * 100 if entry_price * size > 0 else 0
+            
+            # Get SL/TP prices from resting orders
+            sl_price = None
+            tp_price = None
+            sl_order_id = None
+            tp_order_id = None
+            oco_group_id = None
+            
+            for name in engine.books.names() or (engine.config.baskets or []):
+                book = engine.books.get(name)
+                for order in book._sltp_orders.values():
+                    if order.trader.lower() == wallet and order.basket_name == basket_name:
+                        if order.order_type == OrderType.STOP_LOSS:
+                            sl_price = order.trigger_price
+                            sl_order_id = order.order_id
+                            oco_group_id = order.oco_group_id
+                        elif order.order_type == OrderType.TAKE_PROFIT:
+                            tp_price = order.trigger_price
+                            tp_order_id = order.order_id
+                            oco_group_id = order.oco_group_id
+                # Also check triggered SL/TP orders in _orders
+                for order in book._orders.values():
+                    if order.trader.lower() == wallet and order.basket_name == basket_name:
+                        if order.order_type == OrderType.STOP_LOSS and order.status in (OrderStatus.OPEN, OrderStatus.TRIGGERED):
+                            sl_price = order.trigger_price
+                            sl_order_id = order.order_id
+                            oco_group_id = order.oco_group_id
+                        elif order.order_type == OrderType.TAKE_PROFIT and order.status in (OrderStatus.OPEN, OrderStatus.TRIGGERED):
+                            tp_price = order.trigger_price
+                            tp_order_id = order.order_id
+                            oco_group_id = order.oco_group_id
+            
+            # Use position_id format: wallet_basket_name (or similar)
+            position_id = f"{wallet.lower()}_{basket_name}"
+            
+            positions.append({
+                "position_id": position_id,
+                "basket_name": basket_name,
+                "side": side_str,
+                "size": float(size),
+                "leverage": leverage,
+                "entry_price": entry_price,
+                "mark_price": mark_price,
+                "margin_usdc": locked_margin,
+                "liquidation_price": None,  # Not derivable without maintenance margin param
+                "unrealized_pnl_abs": unrealized_pnl_abs,
+                "unrealized_pnl_pct": unrealized_pnl_pct,
+                "stop_loss_price": sl_price,
+                "take_profit_price": tp_price,
+                "stop_loss_order_id": sl_order_id,
+                "take_profit_order_id": tp_order_id,
+                "oco_group_id": oco_group_id,
+                "fee_paid": None,  # Not tracked
+                "opened_at": datetime.now(timezone.utc).isoformat(),  # Not available on-chain
+            })
+        
+        return {"positions": positions}
 
     return app
 
@@ -468,6 +804,7 @@ def _order_response(
         "created_at": order.created_at.isoformat(),
         "position_id": order.position_id if order.position_id else None,
         "oco_group_id": order.oco_group_id if order.oco_group_id else None,
+        "average_fill_price": None,  # Not tracked yet
     }
     if confirmed is not None:
         resp["fills"] = confirmed

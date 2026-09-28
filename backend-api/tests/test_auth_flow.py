@@ -1,6 +1,7 @@
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock
 from xleuth_shared.auth.dynamic_jwt import DynamicJWTError
+from xleuth_shared.auth.internal_jwt import InternalJWTError, InternalJWTVerifier, InternalJWTConfig
 
 
 class MockDynamicAuthHandler:
@@ -13,6 +14,7 @@ class MockDynamicAuthHandler:
         }
         self.internal_secret = "test-secret"
         self.internal_expiry_minutes = 60
+        self.internal_verifier = InternalJWTVerifier(InternalJWTConfig(secret=self.internal_secret))
     
     def verify_dynamic_token(self, token: str) -> str:
         if token in self.valid_tokens:
@@ -29,16 +31,6 @@ class MockDynamicAuthHandler:
             "exp": now + timedelta(minutes=self.internal_expiry_minutes),
         }
         return pyjwt.encode(payload, self.internal_secret, algorithm="HS256")
-    
-    def verify_internal_token(self, token: str) -> str | None:
-        import jwt as pyjwt
-        try:
-            payload = pyjwt.decode(token, self.internal_secret, algorithms=["HS256"])
-            return payload.get("sub")
-        except pyjwt.ExpiredSignatureError:
-            return None
-        except pyjwt.InvalidTokenError:
-            return None
 
 
 def test_auth_flow_dynamic_verify(client: TestClient):
@@ -78,12 +70,15 @@ def test_auth_invalid_dynamic_token(client: TestClient):
 def test_auth_no_token(client: TestClient):
     resp = client.get("/auth/me")
     assert resp.status_code == 401
+    assert resp.json()["detail"] == "token_missing"
 
     resp = client.get("/accounts/me")
     assert resp.status_code == 401
+    assert resp.json()["detail"] == "token_missing"
 
     resp = client.get("/accounts/transactions")
     assert resp.status_code == 401
+    assert resp.json()["detail"] == "token_missing"
 
 
 def test_auth_invalid_internal_token(client: TestClient):
@@ -92,3 +87,23 @@ def test_auth_invalid_internal_token(client: TestClient):
         headers={"Authorization": "Bearer invalid_internal_token"},
     )
     assert resp.status_code == 401
+    assert resp.json()["detail"] == "token_invalid"
+
+
+def test_auth_expired_internal_token(client: TestClient):
+    import jwt as pyjwt
+    from datetime import datetime, timezone, timedelta
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": "0x" + "a" * 40,
+        "iat": now - timedelta(minutes=120),
+        "exp": now - timedelta(minutes=60),
+    }
+    expired_token = pyjwt.encode(payload, "test-secret", algorithm="HS256")
+    
+    resp = client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {expired_token}"},
+    )
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "token_expired"

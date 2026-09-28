@@ -152,6 +152,78 @@ class Database:
             )
             return [dict(r) for r in rows]
 
+    async def get_price_24h_ago(self, basket_name: str) -> float | None:
+        """Get the scaled_price closest to 24 hours ago for 24h change calculation."""
+        if not self.pool:
+            return None
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT scaled_price
+                FROM index_prices
+                WHERE basket_name = $1 AND ts <= NOW() - INTERVAL '24 hours'
+                ORDER BY ts DESC
+                LIMIT 1
+                """,
+                basket_name,
+            )
+            if row and row["scaled_price"] is not None:
+                return float(row["scaled_price"])
+            return None
+
+    async def get_candles(
+        self, basket_name: str, interval: str, limit: int = 1000, start: datetime | None = None, end: datetime | None = None
+    ) -> list[dict]:
+        """Get OHLC candles using TimescaleDB time_bucket.
+        
+        Interval format: '1m', '5m', '15m', '1h', '4h', '1d', etc.
+        """
+        if not self.pool:
+            return []
+        async with self.pool.acquire() as conn:
+            # Build time_bucket query
+            interval_mapping = {
+                '1m': '1 minute',
+                '5m': '5 minutes',
+                '15m': '15 minutes',
+                '30m': '30 minutes',
+                '1h': '1 hour',
+                '4h': '4 hours',
+                '1d': '1 day',
+                '1w': '1 week',
+            }
+            pg_interval = interval_mapping.get(interval, '15 minutes')
+            
+            query = f"""
+                SELECT 
+                    time_bucket('{pg_interval}', ts) AS bucket,
+                    FIRST(index_price, ts) AS open,
+                    MAX(index_price) AS high,
+                    MIN(index_price) AS low,
+                    LAST(index_price, ts) AS close
+                FROM index_prices
+                WHERE basket_name = $1
+            """
+            params = [basket_name]
+            
+            if start:
+                query += " AND ts >= $2"
+                params.append(start)
+            if end:
+                query += f" AND ts <= ${len(params) + 1}"
+                params.append(end)
+            
+            query += f"""
+                GROUP BY bucket
+                HAVING COUNT(*) > 0
+                ORDER BY bucket ASC
+                LIMIT ${len(params) + 1}
+            """
+            params.append(limit)
+            
+            rows = await conn.fetch(query, *params)
+            return [dict(r) for r in rows]
+
     # ── User / Transaction CRUD ────────────────────────────────────────
 
     async def upsert_user(self, wallet_address: str, alias: str | None = None) -> dict | None:

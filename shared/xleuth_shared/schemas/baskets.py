@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional, List
 from pydantic import BaseModel
 
 
@@ -57,6 +58,11 @@ class BasketPriceResponse(BaseModel):
     is_tradeable: bool = True
 
 
+class BasketPriceResponseWithChange(BasketPriceResponse):
+    change_24h_abs: float | None = None
+    change_24h_pct: float | None = None
+
+
 class BasketHistoryResponse(BaseModel):
     basket_name: str
     prices: list[PricePoint] = []
@@ -64,3 +70,18 @@ class BasketHistoryResponse(BaseModel):
 
 class BasketListResponse(BaseModel):
     baskets: list[BasketInfo] = []
+
+
+# Candles
+class Candle(BaseModel):
+    time: int
+    open: float
+    high: float
+    low: float
+    close: float
+
+
+class CandlesResponse(BaseModel):
+    basket_name: str
+    interval: str
+    candles: list[Candle] = []

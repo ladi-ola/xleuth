@@ -67,6 +67,11 @@ class ChainState(ABC):
     def position_size(self, wallet: str, basket_name: str) -> int:
         """Current on-chain position size of the user on the basket (0 if none)."""
 
+    @abstractmethod
+    def get_position(self, wallet: str, basket_name: str) -> tuple[int, int, int] | None:
+        """Get full position details: (side, size, leverage). Side: 0=Long(BUY), 1=Short(SELL).
+        Returns None if no position exists."""
+
 
 class Web3ChainState(ChainState):
     """web3.py reads against the deployed vault / PositionManager / oracle."""
@@ -169,6 +174,23 @@ class Web3ChainState(ChainState):
         except Exception:
             logger.warning("getPosition read failed for %s/%s", wallet, basket_name, exc_info=True)
             return 0
+
+    def get_position(self, wallet: str, basket_name: str) -> tuple[int, int, int] | None:
+        """Get full position details: (side, size, leverage).
+        Side: 0=Long(BUY), 1=Short(SELL). Returns None if no position or error."""
+        try:
+            result = self._pm.functions.getPosition(
+                self._checksum(wallet), self.basket_id(basket_name)
+            ).call()
+            side = int(result[0])
+            size = int(result[1])
+            leverage = int(result[3])
+            if size == 0:
+                return None
+            return (side, size, leverage)
+        except Exception:
+            logger.warning("getPosition read failed for %s/%s", wallet, basket_name, exc_info=True)
+            return None
 
 
 @dataclass

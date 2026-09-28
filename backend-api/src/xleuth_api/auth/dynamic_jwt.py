@@ -10,6 +10,7 @@ from xleuth_shared.auth.dynamic_jwt import (
     DynamicJWTVerifier,
     DynamicJWTError,
 )
+from xleuth_shared.auth.internal_jwt import InternalJWTConfig, InternalJWTVerifier, InternalJWTError
 
 logger = logging.getLogger("xleuth_api.auth.dynamic_jwt")
 
@@ -30,7 +31,8 @@ class DynamicAuthHandler:
             environment_id=environment_id,
             jwks_cache_ttl=jwks_cache_ttl,
         )
-        self.verifier = DynamicJWTVerifier(self.config)
+        self.dynamic_verifier = DynamicJWTVerifier(self.config)
+        self.internal_verifier = InternalJWTVerifier(InternalJWTConfig(secret=internal_jwt_secret))
         self.internal_secret = internal_jwt_secret
         self.internal_expiry_minutes = internal_jwt_expiry_minutes
 
@@ -41,7 +43,7 @@ class DynamicAuthHandler:
         Raises:
             DynamicJWTError: If token is invalid.
         """
-        return self.verifier.verify_token(token)
+        return self.dynamic_verifier.verify_token(token)
 
     def issue_internal_token(self, wallet_address: str) -> str:
         """Issue an internal HS256 JWT for use with matching-engine."""
@@ -54,13 +56,9 @@ class DynamicAuthHandler:
         return pyjwt.encode(payload, self.internal_secret, algorithm=ALGORITHM)
 
     def verify_internal_token(self, token: str) -> str | None:
-        """Verify an internal HS256 JWT and return wallet address."""
+        """Verify an internal HS256 JWT and return wallet address, or None if invalid."""
         try:
-            payload = pyjwt.decode(token, self.internal_secret, algorithms=[ALGORITHM])
-            return payload.get("sub")
-        except pyjwt.ExpiredSignatureError:
-            logger.warning("Internal JWT expired")
-            return None
-        except pyjwt.InvalidTokenError:
-            logger.warning("Invalid internal JWT")
+            return self.internal_verifier.verify_token(token)
+        except InternalJWTError as e:
+            logger.warning("Internal JWT verification failed: %s", e.code)
             return None

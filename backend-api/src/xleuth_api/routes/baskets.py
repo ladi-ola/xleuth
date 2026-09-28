@@ -12,6 +12,9 @@ from xleuth_shared.schemas.baskets import (
     BasketInfo,
     BasketListResponse,
     BasketPriceResponse,
+    BasketPriceResponseWithChange,
+    CandlesResponse,
+    Candle,
     ConstituentMarket,
     PricePoint,
 )
@@ -24,6 +27,31 @@ def _lifecycle(basket_name: str) -> tuple[str, bool]:
     return basket_status(basket_name, now), is_tradeable(basket_name, now)
 
 
+async def _add_24h_change(db: Database, basket_name: str, response: BasketPriceResponse) -> BasketPriceResponseWithChange:
+    """Add 24h change fields to a basket price response."""
+    price_24h_ago = await db.get_price_24h_ago(basket_name)
+    current_price = response.scaled_price
+    
+    change_24h_abs = None
+    change_24h_pct = None
+    
+    if current_price is not None and price_24h_ago is not None and price_24h_ago > 0:
+        change_24h_abs = current_price - price_24h_ago
+        change_24h_pct = (change_24h_abs / price_24h_ago) * 100
+    
+    return BasketPriceResponseWithChange(
+        basket_name=response.basket_name,
+        index_price=response.index_price,
+        scaled_price=response.scaled_price,
+        computed_at=response.computed_at,
+        constituent_count=response.constituent_count,
+        status=response.status,
+        is_tradeable=response.is_tradeable,
+        change_24h_abs=change_24h_abs,
+        change_24h_pct=change_24h_pct,
+    )
+
+
 @router.get("", response_model=BasketListResponse)
 async def list_baskets(
     db: Database = Depends(get_db),
@@ -32,21 +60,42 @@ async def list_baskets(
     baskets = []
     for r in rows:
         status, tradeable = _lifecycle(r["basket_name"])
-        baskets.append(
-            BasketInfo(
-                basket_name=r["basket_name"],
-                total_constituents=r.get("constituent_count") or 0,
-                index_price=r.get("index_price"),
-                index_price_scaled=r.get("scaled_price"),
-                computed_at=r.get("ts"),
-                status=status,
-                is_tradeable=tradeable,
-            )
+        # Create base response
+        base = BasketInfo(
+            basket_name=r["basket_name"],
+            total_constituents=r.get("constituent_count") or 0,
+            index_price=r.get("index_price"),
+            index_price_scaled=r.get("scaled_price"),
+            computed_at=r.get("ts"),
+            status=status,
+            is_tradeable=tradeable,
         )
+        # Add 24h change
+        price_24h_ago = await db.get_price_24h_ago(r["basket_name"])
+        current_price = r.get("scaled_price")
+        
+        change_24h_abs = None
+        change_24h_pct = None
+        
+        if current_price is not None and price_24h_ago is not None and price_24h_ago > 0:
+            change_24h_abs = current_price - price_24h_ago
+            change_24h_pct = (change_24h_abs / price_24h_ago) * 100
+        
+        baskets.append({
+            "basket_name": base.basket_name,
+            "total_constituents": base.total_constituents,
+            "index_price": base.index_price,
+            "index_price_scaled": base.index_price_scaled,
+            "computed_at": base.computed_at,
+            "status": base.status,
+            "is_tradeable": base.is_tradeable,
+            "change_24h_abs": change_24h_abs,
+            "change_24h_pct": change_24h_pct,
+        })
     return BasketListResponse(baskets=baskets)
 
 
-@router.get("/{basket_name}/price", response_model=BasketPriceResponse)
+@router.get("/{basket_name}/price", response_model=BasketPriceResponseWithChange)
 async def get_basket_price(
     basket_name: str,
     db: Database = Depends(get_db),
@@ -54,10 +103,11 @@ async def get_basket_price(
     row = await db.get_latest_basket_price(basket_name)
     status, tradeable = _lifecycle(basket_name)
     if row is None:
-        return BasketPriceResponse(
+        base = BasketPriceResponse(
             basket_name=basket_name, status=status, is_tradeable=tradeable
         )
-    return BasketPriceResponse(
+        return await _add_24h_change(db, basket_name, base)
+    base = BasketPriceResponse(
         basket_name=row["basket_name"],
         index_price=row.get("index_price"),
         scaled_price=row.get("scaled_price"),
@@ -66,6 +116,7 @@ async def get_basket_price(
         status=status,
         is_tradeable=tradeable,
     )
+    return await _add_24h_change(db, basket_name, base)
 
 
 @router.get("/{basket_name}/history", response_model=BasketHistoryResponse)
@@ -121,4 +172,32 @@ async def get_basket_constituents(
         status=status,
         is_tradeable=tradeable,
         constituents=constituents,
+    )
+
+
+@router.get("/{basket_name}/candles", response_model=CandlesResponse)
+async def get_candles(
+    basket_name: str,
+    interval: str = Query("15m", description="Candle interval (1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w)"),
+    limit: int = Query(200, le=10000),
+    start: Optional[datetime] = Query(None),
+    end: Optional[datetime] = Query(None),
+    db: Database = Depends(get_db),
+):
+    """Get OHLC candles for a basket using TimescaleDB time_bucket."""
+    rows = await db.get_candles(basket_name, interval, limit, start, end)
+    candles = [
+        Candle(
+            time=int(r["bucket"].timestamp()) if hasattr(r["bucket"], 'timestamp') else int(r["bucket"]),
+            open=r["open"],
+            high=r["high"],
+            low=r["low"],
+            close=r["close"],
+        )
+        for r in rows
+    ]
+    return CandlesResponse(
+        basket_name=basket_name,
+        interval=interval,
+        candles=candles,
     )

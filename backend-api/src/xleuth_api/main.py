@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from xleuth_api.auth.dynamic_jwt import DynamicAuthHandler
+from xleuth_api.chain import ChainConfig, Web3ChainStateReader
 from xleuth_api.db import Database
 from xleuth_api.routes.accounts import router as accounts_router
 from xleuth_api.routes.auth import router as auth_router
@@ -73,6 +74,15 @@ def create_app() -> FastAPI:
     redis_port = int(os.getenv("REDIS_PORT", "6379"))
     redis_db = int(os.getenv("REDIS_DB", "0"))
 
+    # Chain config for on-chain reads
+    chain_config = ChainConfig(
+        rpc_url=os.getenv("POLYGON_AMOY_RPC_URL") or os.getenv("RPC_URL", ""),
+        vault_address=os.getenv("COLLATERAL_VAULT_ADDRESS", ""),
+        position_manager_address=os.getenv("POSITION_MANAGER_ADDRESS", ""),
+        oracle_consumer_address=os.getenv("INDEX_ORACLE_CONSUMER_ADDRESS", ""),
+        chain_id=int(os.getenv("CHAIN_ID", "80002")),
+    )
+
     db = Database(dsn=database_url)
     dynamic_auth_handler = DynamicAuthHandler(
         environment_id=dynamic_env_id,
@@ -81,8 +91,11 @@ def create_app() -> FastAPI:
         jwks_cache_ttl=jwks_cache_ttl,
     )
 
+    chain_reader = Web3ChainStateReader(chain_config) if chain_config.rpc_url else None
+
     app.state.db = db
     app.state.dynamic_auth_handler = dynamic_auth_handler
+    app.state.chain_reader = chain_reader
     app.state.redis = None
 
     app.include_router(auth_router)

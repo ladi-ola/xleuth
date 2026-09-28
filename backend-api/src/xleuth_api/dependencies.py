@@ -3,6 +3,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from xleuth_api.auth.dynamic_jwt import DynamicAuthHandler
 from xleuth_api.db import Database
+from xleuth_shared.auth.internal_jwt import InternalJWTError
 
 bearer_scheme = HTTPBearer(auto_error=False)
 
@@ -21,10 +22,11 @@ async def get_current_user(
     db: Database = Depends(get_db),
 ) -> dict:
     if credentials is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing authorization header")
-    wallet_address = auth_handler.verify_internal_token(credentials.credentials)
-    if wallet_address is None:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="token_missing")
+    try:
+        wallet_address = auth_handler.internal_verifier.verify_token(credentials.credentials)
+    except InternalJWTError as e:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=e.code)
     user = await db.get_user(wallet_address)
     if user is None:
         return {"wallet_address": wallet_address, "alias": None, "balance": 0.0, "realized_pnl": 0.0, "unrealized_pnl": 0.0, "created_at": None}

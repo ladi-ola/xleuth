@@ -9,15 +9,20 @@
       "post": {
         "summary": "Place Order",
         "operationId": "place_order_orders_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/OrderRequest"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -25,9 +30,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": true,
-                  "type": "object",
-                  "title": "Response Place Order Orders Post"
+                  "$ref": "#/components/schemas/OrderResponse"
                 }
               }
             }
@@ -42,12 +45,99 @@
               }
             }
           }
-        },
+        }
+      },
+      "get": {
+        "summary": "List Orders",
+        "description": "List orders for the authenticated trader.\n\nQuery params:\n- status: \"open\" (default) = open, partially_filled, plus resting stop/SL/TP\n          \"history\" = filled, cancelled, rejected, triggered\n          \"all\" = all orders\n- basket_name: optional filter by basket\n- limit: max results (default 50, max 200)\n- cursor: order_id for pagination (returns orders older than this)",
+        "operationId": "list_orders_orders_get",
         "security": [
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "basket_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Basket Name"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrderListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/orders/{order_id}": {
@@ -76,9 +166,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Cancel Order Orders  Order Id  Delete"
+                  "$ref": "#/components/schemas/CancelResponse"
                 }
               }
             }
@@ -120,9 +208,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Get Order Orders  Order Id  Get"
+                  "$ref": "#/components/schemas/OrderResponse"
                 }
               }
             }
@@ -161,9 +247,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "title": "Response Book Depth Baskets  Basket Name  Book Get"
+                  "$ref": "#/components/schemas/BookSnapshot"
                 }
               }
             }
@@ -180,10 +264,247 @@
           }
         }
       }
+    },
+    "/positions": {
+      "get": {
+        "summary": "List Positions",
+        "description": "List open positions for the authenticated trader.",
+        "operationId": "list_positions_positions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionsResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
     }
   },
   "components": {
     "schemas": {
+      "BookLevel": {
+        "properties": {
+          "price": {
+            "type": "number",
+            "title": "Price"
+          },
+          "size": {
+            "type": "number",
+            "title": "Size"
+          }
+        },
+        "type": "object",
+        "required": [
+          "price",
+          "size"
+        ],
+        "title": "BookLevel"
+      },
+      "BookSnapshot": {
+        "properties": {
+          "basket_name": {
+            "type": "string",
+            "title": "Basket Name"
+          },
+          "bids": {
+            "items": {
+              "$ref": "#/components/schemas/BookLevel"
+            },
+            "type": "array",
+            "title": "Bids"
+          },
+          "asks": {
+            "items": {
+              "$ref": "#/components/schemas/BookLevel"
+            },
+            "type": "array",
+            "title": "Asks"
+          },
+          "best_bid": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Bid"
+          },
+          "best_ask": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Best Ask"
+          },
+          "mid_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mid Price"
+          },
+          "spread": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spread"
+          },
+          "ts": {
+            "type": "string",
+            "title": "Ts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "basket_name",
+          "bids",
+          "asks",
+          "ts"
+        ],
+        "title": "BookSnapshot"
+      },
+      "CancelResponse": {
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "title": "Order Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_id",
+          "status",
+          "message"
+        ],
+        "title": "CancelResponse"
+      },
+      "FillResponse": {
+        "properties": {
+          "trade_id": {
+            "type": "string",
+            "title": "Trade Id"
+          },
+          "basket_name": {
+            "type": "string",
+            "title": "Basket Name"
+          },
+          "price": {
+            "type": "number",
+            "title": "Price"
+          },
+          "size": {
+            "type": "number",
+            "title": "Size"
+          },
+          "taker_order_id": {
+            "type": "string",
+            "title": "Taker Order Id"
+          },
+          "maker_order_id": {
+            "type": "string",
+            "title": "Maker Order Id"
+          },
+          "taker_trader": {
+            "type": "string",
+            "title": "Taker Trader"
+          },
+          "maker_trader": {
+            "type": "string",
+            "title": "Maker Trader"
+          },
+          "taker_side": {
+            "type": "string",
+            "title": "Taker Side"
+          },
+          "maker_side": {
+            "type": "string",
+            "title": "Maker Side"
+          },
+          "notional": {
+            "type": "number",
+            "title": "Notional"
+          },
+          "confirmed": {
+            "type": "boolean",
+            "title": "Confirmed"
+          },
+          "tx_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tx Hash"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "ts": {
+            "type": "string",
+            "title": "Ts"
+          }
+        },
+        "type": "object",
+        "required": [
+          "trade_id",
+          "basket_name",
+          "price",
+          "size",
+          "taker_order_id",
+          "maker_order_id",
+          "taker_trader",
+          "maker_trader",
+          "taker_side",
+          "maker_side",
+          "notional",
+          "confirmed",
+          "ts"
+        ],
+        "title": "FillResponse"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -197,6 +518,193 @@
         "type": "object",
         "title": "HTTPValidationError"
       },
+      "MarginCheckResponse": {
+        "properties": {
+          "ok": {
+            "type": "boolean",
+            "title": "Ok"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details",
+            "default": {}
+          }
+        },
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "title": "MarginCheckResponse"
+      },
+      "OrderListItem": {
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "title": "Order Id"
+          },
+          "basket_name": {
+            "type": "string",
+            "title": "Basket Name"
+          },
+          "side": {
+            "type": "string",
+            "title": "Side"
+          },
+          "order_type": {
+            "$ref": "#/components/schemas/OrderType"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "trigger_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Price"
+          },
+          "size": {
+            "type": "number",
+            "title": "Size"
+          },
+          "filled_size": {
+            "type": "number",
+            "title": "Filled Size"
+          },
+          "remaining": {
+            "type": "number",
+            "title": "Remaining"
+          },
+          "leverage": {
+            "type": "integer",
+            "title": "Leverage"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "rejection_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejection Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "position_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Id"
+          },
+          "oco_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oco Group Id"
+          },
+          "average_fill_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Fill Price"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_id",
+          "basket_name",
+          "side",
+          "order_type",
+          "size",
+          "filled_size",
+          "remaining",
+          "leverage",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OrderListItem"
+      },
+      "OrderListResponse": {
+        "properties": {
+          "orders": {
+            "items": {
+              "$ref": "#/components/schemas/OrderListItem"
+            },
+            "type": "array",
+            "title": "Orders",
+            "default": []
+          },
+          "cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cursor"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "OrderListResponse"
+      },
       "OrderRequest": {
         "properties": {
           "basket_name": {
@@ -204,16 +712,37 @@
             "title": "Basket Name"
           },
           "side": {
-            "$ref": "#/components/schemas/Side"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Side"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "size": {
-            "type": "number",
-            "exclusiveMinimum": 0.0,
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Size"
           },
           "leverage": {
-            "type": "integer",
-            "minimum": 1.0,
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Leverage"
           },
           "order_type": {
@@ -276,12 +805,174 @@
         },
         "type": "object",
         "required": [
-          "basket_name",
-          "side",
-          "size",
-          "leverage"
+          "basket_name"
         ],
         "title": "OrderRequest"
+      },
+      "OrderResponse": {
+        "properties": {
+          "order_id": {
+            "type": "string",
+            "title": "Order Id"
+          },
+          "basket_name": {
+            "type": "string",
+            "title": "Basket Name"
+          },
+          "trader": {
+            "type": "string",
+            "title": "Trader"
+          },
+          "side": {
+            "type": "string",
+            "title": "Side"
+          },
+          "order_type": {
+            "$ref": "#/components/schemas/OrderType"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "trigger_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trigger Price"
+          },
+          "size": {
+            "type": "number",
+            "title": "Size"
+          },
+          "filled_size": {
+            "type": "number",
+            "title": "Filled Size"
+          },
+          "remaining": {
+            "type": "number",
+            "title": "Remaining"
+          },
+          "leverage": {
+            "type": "integer",
+            "title": "Leverage"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrderStatus"
+          },
+          "rejection_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejection Reason"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "fills": {
+            "items": {
+              "$ref": "#/components/schemas/FillResponse"
+            },
+            "type": "array",
+            "title": "Fills",
+            "default": []
+          },
+          "failed_fills": {
+            "items": {
+              "$ref": "#/components/schemas/FillResponse"
+            },
+            "type": "array",
+            "title": "Failed Fills",
+            "default": []
+          },
+          "margin_check": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarginCheckResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "position_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position Id"
+          },
+          "oco_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oco Group Id"
+          },
+          "average_fill_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Average Fill Price"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order_id",
+          "basket_name",
+          "trader",
+          "side",
+          "order_type",
+          "size",
+          "filled_size",
+          "remaining",
+          "leverage",
+          "status",
+          "created_at"
+        ],
+        "title": "OrderResponse"
+      },
+      "OrderStatus": {
+        "type": "string",
+        "enum": [
+          "open",
+          "partially_filled",
+          "filled",
+          "cancelled",
+          "rejected",
+          "triggered"
+        ],
+        "title": "OrderStatus"
       },
       "OrderType": {
         "type": "string",
@@ -293,6 +984,160 @@
           "take_profit"
         ],
         "title": "OrderType"
+      },
+      "PositionResponse": {
+        "properties": {
+          "position_id": {
+            "type": "string",
+            "title": "Position Id"
+          },
+          "basket_name": {
+            "type": "string",
+            "title": "Basket Name"
+          },
+          "side": {
+            "type": "string",
+            "title": "Side"
+          },
+          "size": {
+            "type": "number",
+            "title": "Size"
+          },
+          "leverage": {
+            "type": "integer",
+            "title": "Leverage"
+          },
+          "entry_price": {
+            "type": "number",
+            "title": "Entry Price"
+          },
+          "mark_price": {
+            "type": "number",
+            "title": "Mark Price"
+          },
+          "margin_usdc": {
+            "type": "number",
+            "title": "Margin Usdc"
+          },
+          "liquidation_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Liquidation Price"
+          },
+          "unrealized_pnl_abs": {
+            "type": "number",
+            "title": "Unrealized Pnl Abs"
+          },
+          "unrealized_pnl_pct": {
+            "type": "number",
+            "title": "Unrealized Pnl Pct"
+          },
+          "stop_loss_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Loss Price"
+          },
+          "take_profit_price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Take Profit Price"
+          },
+          "stop_loss_order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Loss Order Id"
+          },
+          "take_profit_order_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Take Profit Order Id"
+          },
+          "oco_group_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oco Group Id"
+          },
+          "fee_paid": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fee Paid"
+          },
+          "opened_at": {
+            "type": "string",
+            "title": "Opened At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "position_id",
+          "basket_name",
+          "side",
+          "size",
+          "leverage",
+          "entry_price",
+          "mark_price",
+          "margin_usdc",
+          "unrealized_pnl_abs",
+          "unrealized_pnl_pct",
+          "opened_at"
+        ],
+        "title": "PositionResponse"
+      },
+      "PositionsResponse": {
+        "properties": {
+          "positions": {
+            "items": {
+              "$ref": "#/components/schemas/PositionResponse"
+            },
+            "type": "array",
+            "title": "Positions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "title": "PositionsResponse"
       },
       "Side": {
         "type": "string",

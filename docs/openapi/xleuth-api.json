@@ -118,7 +118,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/BasketPriceResponse"
+                  "$ref": "#/components/schemas/BasketPriceResponseWithChange"
                 }
               }
             }
@@ -265,6 +265,106 @@
         }
       }
     },
+    "/baskets/{basket_name}/candles": {
+      "get": {
+        "tags": [
+          "baskets"
+        ],
+        "summary": "Get Candles",
+        "description": "Get OHLC candles for a basket using TimescaleDB time_bucket.",
+        "operationId": "get_candles_baskets__basket_name__candles_get",
+        "parameters": [
+          {
+            "name": "basket_name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Basket Name"
+            }
+          },
+          {
+            "name": "interval",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Candle interval (1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w)",
+              "default": "15m",
+              "title": "Interval"
+            },
+            "description": "Candle interval (1m, 5m, 15m, 30m, 1h, 4h, 1d, 1w)"
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10000,
+              "default": 200,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandlesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/accounts/me": {
       "get": {
         "tags": [
@@ -384,6 +484,33 @@
             }
           }
         }
+      }
+    },
+    "/accounts/summary": {
+      "get": {
+        "tags": [
+          "accounts"
+        ],
+        "summary": "Get Summary",
+        "description": "Get portfolio summary with margin breakdown.\n\nfree_margin = free vault balance (after resting-order locks)\nused_margin = margin locked by open positions + margin reserved for resting orders\ntotal_balance = free_margin + used_margin\nSL/TP orders carry no separate reservation",
+        "operationId": "get_summary_accounts_summary_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioSummaryResponse"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/faucet/claim": {
@@ -627,7 +754,7 @@
         "type": "object",
         "title": "BasketListResponse"
       },
-      "BasketPriceResponse": {
+      "BasketPriceResponseWithChange": {
         "properties": {
           "basket_name": {
             "type": "string",
@@ -687,13 +814,94 @@
             "type": "boolean",
             "title": "Is Tradeable",
             "default": true
+          },
+          "change_24h_abs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change 24H Abs"
+          },
+          "change_24h_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Change 24H Pct"
           }
         },
         "type": "object",
         "required": [
           "basket_name"
         ],
-        "title": "BasketPriceResponse"
+        "title": "BasketPriceResponseWithChange"
+      },
+      "Candle": {
+        "properties": {
+          "time": {
+            "type": "integer",
+            "title": "Time"
+          },
+          "open": {
+            "type": "number",
+            "title": "Open"
+          },
+          "high": {
+            "type": "number",
+            "title": "High"
+          },
+          "low": {
+            "type": "number",
+            "title": "Low"
+          },
+          "close": {
+            "type": "number",
+            "title": "Close"
+          }
+        },
+        "type": "object",
+        "required": [
+          "time",
+          "open",
+          "high",
+          "low",
+          "close"
+        ],
+        "title": "Candle"
+      },
+      "CandlesResponse": {
+        "properties": {
+          "basket_name": {
+            "type": "string",
+            "title": "Basket Name"
+          },
+          "interval": {
+            "type": "string",
+            "title": "Interval"
+          },
+          "candles": {
+            "items": {
+              "$ref": "#/components/schemas/Candle"
+            },
+            "type": "array",
+            "title": "Candles",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "basket_name",
+          "interval"
+        ],
+        "title": "CandlesResponse"
       },
       "ConstituentMarket": {
         "properties": {
@@ -932,6 +1140,39 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "PortfolioSummaryResponse": {
+        "properties": {
+          "total_balance": {
+            "type": "number",
+            "title": "Total Balance"
+          },
+          "free_margin": {
+            "type": "number",
+            "title": "Free Margin"
+          },
+          "used_margin": {
+            "type": "number",
+            "title": "Used Margin"
+          },
+          "unrealized_pnl": {
+            "type": "number",
+            "title": "Unrealized Pnl"
+          },
+          "realized_pnl": {
+            "type": "number",
+            "title": "Realized Pnl"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total_balance",
+          "free_margin",
+          "used_margin",
+          "unrealized_pnl",
+          "realized_pnl"
+        ],
+        "title": "PortfolioSummaryResponse"
       },
       "PricePoint": {
         "properties": {

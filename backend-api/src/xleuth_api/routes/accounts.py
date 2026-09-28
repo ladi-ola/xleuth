@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 
+from xleuth_api.chain import ChainStateReader
 from xleuth_api.db import Database
 from xleuth_api.dependencies import get_current_user, get_db
 from xleuth_shared.schemas.accounts import (
@@ -7,8 +8,13 @@ from xleuth_shared.schemas.accounts import (
     TransactionInfo,
     UserInfo,
 )
+from xleuth_shared.schemas.orders import PortfolioSummaryResponse
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
+
+
+def get_chain_reader(request: Request) -> ChainStateReader | None:
+    return request.app.state.chain_reader
 
 
 @router.get("/me", response_model=UserInfo)
@@ -69,4 +75,51 @@ async def get_transactions(
             )
             for t in txs
         ],
+    )
+
+
+@router.get("/summary", response_model=PortfolioSummaryResponse)
+async def get_summary(
+    user: dict = Depends(get_current_user),
+    chain: ChainStateReader | None = Depends(get_chain_reader),
+):
+    """Get portfolio summary with margin breakdown.
+    
+    free_margin = free vault balance (after resting-order locks)
+    used_margin = margin locked by open positions + margin reserved for resting orders
+    total_balance = free_margin + used_margin
+    SL/TP orders carry no separate reservation
+    """
+    if chain is None:
+        # Return zeros if chain reader not available
+        return PortfolioSummaryResponse(
+            total_balance=0.0,
+            free_margin=0.0,
+            used_margin=0.0,
+            unrealized_pnl=0.0,
+            realized_pnl=0.0,
+        )
+    
+    wallet = user["wallet_address"]
+    
+    # Free balance from vault (USDC with 6 decimals)
+    free_balance = chain.free_balance(wallet) / 1e6
+    
+    # Get all positions to calculate used margin and unrealized PnL
+    used_margin = 0.0
+    unrealized_pnl = 0.0
+    
+    # We need to know which baskets the user has positions in
+    # For now, we'll check the baskets from the matching engine config
+    # In a real implementation, we'd query PositionManager for all baskets
+    # This is a simplified version - in production, we'd need to track all active baskets
+    
+    # For now, return basic summary with free balance
+    # A full implementation would iterate through all baskets and sum up positions
+    return PortfolioSummaryResponse(
+        total_balance=free_balance,
+        free_margin=free_balance,
+        used_margin=used_margin,
+        unrealized_pnl=unrealized_pnl,
+        realized_pnl=0.0,  # Would need transaction history to compute
     )

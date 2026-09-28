@@ -5,10 +5,10 @@ Required:
   COLLATERAL_VAULT_ADDRESS
   POSITION_MANAGER_ADDRESS
   INDEX_ORACLE_CONSUMER_ADDRESS
-  DYNAMIC_ENVIRONMENT_ID        (for Dynamic.xyz JWT verification via JWKS)
+  JWT_SECRET                  (shared HS256 secret for internal token verification)
   TRADER_PRIVATE_KEY            (testnet trader EOA keys the engine signs
-                                 on-chain position txs with; TRADER2_...,
-                                 TRADER3_... etc. are also scanned)
+                                  on-chain position txs with; TRADER2_...,
+                                  TRADER3_... etc. are also scanned)
 
 Optional (defaults shown):
   MAX_LEVERAGE=5
@@ -21,6 +21,7 @@ Optional (defaults shown):
   REDIS_URL=redis://localhost:6379/0
   ENGINE_HOST=0.0.0.0
   ENGINE_PORT=8001
+  CORS_ALLOWED_ORIGINS=http://localhost:8080,http://localhost:3000
 """
 
 import os
@@ -40,7 +41,7 @@ class MatchingConfig:
     vault_address: str
     position_manager_address: str
     oracle_consumer_address: str
-    dynamic_environment_id: str
+    jwt_secret: str
     chain_id: int
     price_scale: int
     max_leverage: int
@@ -51,6 +52,7 @@ class MatchingConfig:
     baskets: list[str] = field(default_factory=list)
     redis_url: str | None = None
     trader_keys: dict[str, str] = field(default_factory=dict)  # wallet -> private key
+    cors_allowed_origins: list[str] = field(default_factory=list)
     host: str = "0.0.0.0"
     port: int = 8001
 
@@ -82,6 +84,8 @@ class MatchingConfig:
         if not rpc:
             raise ValueError("Missing RPC URL (POLYGON_AMOY_RPC_URL / RPC_URL)")
 
+        jwt_secret = os.getenv("JWT_SECRET", "changeme-generate-a-real-256bit-secret")
+
         chain_id = int(os.getenv("CHAIN_ID", "80002"))
         price_scale = int(os.getenv("INDEX_PRICE_SCALE", "100"))
         max_leverage = int(os.getenv("MAX_LEVERAGE", "5"))
@@ -93,14 +97,17 @@ class MatchingConfig:
         templates = os.getenv("ACTIVE_BASKETS", "TOP20-{MONTH}").split(",")
         baskets = active_basket_names(templates)
 
-        dynamic_env_id = os.getenv("DYNAMIC_ENVIRONMENT_ID", "938a93a5-ee1f-4da2-86cf-27326bd01885")
+        cors_origins = [
+            o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:8080,http://localhost:3000").split(",")
+            if o.strip()
+        ]
 
         return MatchingConfig(
             rpc_url=rpc,
             vault_address=MatchingConfig._addr("COLLATERAL_VAULT_ADDRESS"),
             position_manager_address=MatchingConfig._addr("POSITION_MANAGER_ADDRESS"),
             oracle_consumer_address=MatchingConfig._addr("INDEX_ORACLE_CONSUMER_ADDRESS"),
-            dynamic_environment_id=dynamic_env_id,
+            jwt_secret=jwt_secret,
             chain_id=chain_id,
             price_scale=price_scale,
             max_leverage=max_leverage,
@@ -111,6 +118,7 @@ class MatchingConfig:
             baskets=baskets,
             redis_url=os.getenv("REDIS_URL"),
             trader_keys=MatchingConfig._trader_keys(),
+            cors_allowed_origins=cors_origins,
             host=os.getenv("ENGINE_HOST", "0.0.0.0"),
             port=int(os.getenv("ENGINE_PORT", "8001")),
         )

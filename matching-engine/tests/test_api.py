@@ -5,13 +5,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+import jwt as pyjwt
 
 from xleuth_matching.api import create_app
 from xleuth_matching.config import MatchingConfig
 from xleuth_matching.margin_check import ChainState
 from xleuth_matching.orderbook import OrderType
 from xleuth_matching.settlement import SettlementBridge, TxSubmitter
-from xleuth_shared.auth.dynamic_jwt import DynamicJWTVerifier, DynamicJWTError
+from xleuth_shared.auth.internal_jwt import InternalJWTError
 
 ALICE = "0x" + "a" * 40
 BOB = "0x" + "b" * 40
@@ -22,10 +23,13 @@ def _now() -> int:
 
 
 class FakeChain(ChainState):
-    def __init__(self, oracle=(50, None), free=100_000.0, max_lev=5):
+    def __init__(self, oracle=(50, None), free=100_000.0, max_lev=5, position=None):
         self.oracle = (oracle[0], oracle[1] if oracle[1] is not None else _now())
         self.free = int(free * 1e6)
         self.max_lev = max_lev
+        # position: tuple of (side, size, leverage) or None
+        # side: 0=Long(BUY), 1=Short(SELL)
+        self._position = position
 
     def oracle_price(self, basket_name):
         return self.oracle
@@ -37,7 +41,12 @@ class FakeChain(ChainState):
         return self.max_lev
 
     def position_size(self, wallet, basket_name):
+        if self._position:
+            return self._position[1]
         return 0
+
+    def get_position(self, wallet, basket_name):
+        return self._position
 
 
 class FakeSubmitter(TxSubmitter):
@@ -51,8 +60,8 @@ class FakeSubmitter(TxSubmitter):
         return f"0xtx{len(self.calls):04d}", {"status": status}
 
 
-class MockDynamicVerifier:
-    """Mock Dynamic verifier for testing - accepts tokens with 'test-token-' prefix."""
+class MockInternalVerifier:
+    """Mock internal JWT verifier for testing - accepts tokens with 'test-token-' prefix."""
     
     def __init__(self):
         self.valid_tokens = {
@@ -63,7 +72,7 @@ class MockDynamicVerifier:
     def verify_token(self, token: str) -> str:
         if token in self.valid_tokens:
             return self.valid_tokens[token]
-        raise DynamicJWTError("Invalid test token", "INVALID_TOKEN")
+        raise InternalJWTError("Invalid test token", "token_invalid")
 
 
 def make_config() -> MatchingConfig:
@@ -72,7 +81,7 @@ def make_config() -> MatchingConfig:
         vault_address="0x" + "0" * 40,
         position_manager_address="0x" + "1" * 40,
         oracle_consumer_address="0x" + "2" * 40,
-        dynamic_environment_id="test-env-id",
+        jwt_secret="test-secret",
         chain_id=80002,
         price_scale=100,
         max_leverage=5,
@@ -88,8 +97,8 @@ def make_config() -> MatchingConfig:
 def make_client(chain: ChainState | None = None, submitter: TxSubmitter | None = None):
     config = make_config()
     app = create_app(config, chain=chain or FakeChain(), bridge=SettlementBridge(config, submitter=submitter or FakeSubmitter()))
-    # Replace the dynamic verifier with mock
-    app.state.engine.dynamic_verifier = MockDynamicVerifier()
+    # Replace the internal verifier with mock
+    app.state.engine.internal_verifier = MockInternalVerifier()
     return TestClient(app)
 
 
@@ -846,11 +855,12 @@ def test_sltp_order_requires_position_id():
 
 def test_stop_loss_buy_placed_and_resting():
     """Stop-loss buy (for short position) should be placed and rest until triggered."""
-    client = make_client()
+    # Short position: side=1 (Short), close_side=BUY
+    client = make_client(chain=FakeChain(position=(1, 100, 5)))
     # Place stop-loss buy at 55.0 (above current price ~50, for short position)
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
@@ -860,15 +870,19 @@ def test_stop_loss_buy_placed_and_resting():
     assert body["trigger_price"] == 55.0
     assert body["position_id"] == "pos-1"
     assert body["fills"] == []
+    assert body["side"] == "buy"
+    assert body["size"] == 100.0
+    assert body["leverage"] == 5
 
 
 def test_take_profit_sell_placed_and_resting():
     """Take-profit sell (for long position) should be placed and rest until triggered."""
-    client = make_client()
+    # Long position: side=0 (Long), close_side=SELL
+    client = make_client(chain=FakeChain(position=(0, 100, 5)))
     # Place take-profit sell at 55.0 (above current price ~50, for long position)
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
@@ -877,15 +891,19 @@ def test_take_profit_sell_placed_and_resting():
     assert body["order_type"] == "take_profit"
     assert body["trigger_price"] == 55.0
     assert body["position_id"] == "pos-1"
+    assert body["side"] == "sell"
+    assert body["size"] == 100.0
+    assert body["leverage"] == 5
 
 
 def test_stop_loss_sell_placed_and_resting():
     """Stop-loss sell (for long position) should be placed and rest until triggered."""
-    client = make_client()
+    # Long position: side=0 (Long), close_side=SELL
+    client = make_client(chain=FakeChain(position=(0, 100, 5)))
     # Place stop-loss sell at 45.0 (below current price ~50, for long position)
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
@@ -893,15 +911,19 @@ def test_stop_loss_sell_placed_and_resting():
     assert body["status"] == "open"
     assert body["order_type"] == "stop_loss"
     assert body["trigger_price"] == 45.0
+    assert body["side"] == "sell"
+    assert body["size"] == 100.0
+    assert body["leverage"] == 5
 
 
 def test_take_profit_buy_placed_and_resting():
     """Take-profit buy (for short position) should be placed and rest until triggered."""
-    client = make_client()
+    # Short position: side=1 (Short), close_side=BUY
+    client = make_client(chain=FakeChain(position=(1, 100, 5)))
     # Place take-profit buy at 45.0 (below current price ~50, for short position)
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
@@ -909,15 +931,19 @@ def test_take_profit_buy_placed_and_resting():
     assert body["status"] == "open"
     assert body["order_type"] == "take_profit"
     assert body["trigger_price"] == 45.0
+    assert body["side"] == "buy"
+    assert body["size"] == 100.0
+    assert body["leverage"] == 5
 
 
 def test_sltp_no_additional_margin_reservation():
     """SL/TP orders should not require additional margin (position already has margin)."""
-    client = make_client(chain=FakeChain(free=10.0))  # Low free balance
+    # Long position: side=0 (Long), close_side=SELL
+    client = make_client(chain=FakeChain(free=10.0, position=(0, 100, 5)))  # Low free balance
     # Should pass because no additional margin check for SL/TP
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     body = resp.json()
@@ -928,13 +954,14 @@ def test_sltp_no_additional_margin_reservation():
 
 def test_sltp_oco_pair_cancels_sibling():
     """When one SL/TP triggers, the sibling should be cancelled (OCO)."""
-    client = make_client()
+    # Long position: side=0 (Long), close_side=SELL
+    client = make_client(chain=FakeChain(position=(0, 100, 5)))
     oco_group = "oco-test-1"
     
     # Place stop-loss sell at 45.0
     sl_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
+        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
         headers=AUTH_ALICE,
     ).json()
     sl_order_id = sl_resp["order_id"]
@@ -943,7 +970,7 @@ def test_sltp_oco_pair_cancels_sibling():
     # Place take-profit sell at 55.0
     tp_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
+        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
         headers=AUTH_ALICE,
     ).json()
     tp_order_id = tp_resp["order_id"]
@@ -986,13 +1013,14 @@ def test_sltp_oco_pair_cancels_sibling():
 
 def test_sltp_cancel_cancels_sibling():
     """Cancelling one SL/TP should cancel the sibling (OCO)."""
-    client = make_client()
+    # Long position: side=0 (Long), close_side=SELL
+    client = make_client(chain=FakeChain(position=(0, 100, 5)))
     oco_group = "oco-test-2"
     
     # Place stop-loss sell at 45.0
     sl_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
+        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
         headers=AUTH_ALICE,
     ).json()
     sl_order_id = sl_resp["order_id"]
@@ -1000,7 +1028,7 @@ def test_sltp_cancel_cancels_sibling():
     # Place take-profit sell at 55.0
     tp_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
+        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
         headers=AUTH_ALICE,
     ).json()
     tp_order_id = tp_resp["order_id"]
@@ -1019,7 +1047,8 @@ def test_sltp_cancel_cancels_sibling():
 
 def test_sltp_self_trade_rejected():
     """SL/TP order that would self-trade on trigger should be rejected."""
-    client = make_client()
+    # Long position: side=0 (Long), close_side=SELL
+    client = make_client(chain=FakeChain(position=(0, 100, 5)))
     # Place resting buy order from Alice at 55.0
     client.post(
         "/orders",
@@ -1030,7 +1059,7 @@ def test_sltp_self_trade_rejected():
     # Place take-profit sell from Alice (same trader) at 55.0
     tp_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     ).json()
     tp_order_id = tp_resp["order_id"]
@@ -1061,12 +1090,13 @@ def test_sltp_self_trade_rejected():
 
 def test_sltp_full_close_only():
     """SL/TP orders should be full-close only (size = position size)."""
-    client = make_client()
+    # Long position: side=0 (Long), close_side=SELL
+    client = make_client(chain=FakeChain(position=(0, 100, 5)))
     # The API doesn't enforce this at placement - it's a convention
     # But we can verify the order is accepted with any size
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
