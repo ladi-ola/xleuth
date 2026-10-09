@@ -31,7 +31,7 @@ class FakeChain(ChainState):
         # side: 0=Long(BUY), 1=Short(SELL)
         self._position = position
 
-    def oracle_price(self, basket_name):
+    def oracle_price(self, basket_name, index_id_hex=None):
         return self.oracle
 
     def free_balance(self, wallet):
@@ -89,7 +89,7 @@ def make_config() -> MatchingConfig:
         tick_size=0.01,
         trading_fee_bps=10,
         max_price_staleness_seconds=60,
-        baskets=["TOP20-SEPTEMBER", "TOP20-OCTOBER"],
+        baskets=["TOP20-JANUARY-2027", "TOP20-OCTOBER"],
         trader_keys={ALICE: "0x" + "a" * 64, BOB: "0x" + "b" * 64},
     )
 
@@ -108,14 +108,14 @@ AUTH_BOB = {"Authorization": f"Bearer test-token-{BOB}"}
 
 def test_requires_bearer_token():
     client = make_client()
-    resp = client.post("/orders", json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5})
+    resp = client.post("/orders", json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5})
     assert resp.status_code == 401
 
 
 def test_rejects_bad_token():
     client = make_client()
     bad = {"Authorization": "Bearer not.a.valid.token"}
-    resp = client.post("/orders", json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5}, headers=bad)
+    resp = client.post("/orders", json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5}, headers=bad)
     assert resp.status_code == 401
 
 
@@ -123,7 +123,7 @@ def test_rejects_insufficient_margin_with_code_path_reason():
     client = make_client(chain=FakeChain(free=10.0))
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 422
@@ -134,7 +134,7 @@ def test_rejects_stale_oracle():
     client = make_client(chain=FakeChain(oracle=(50, _now() - 120)))
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 422
@@ -156,7 +156,7 @@ def test_resting_order_then_cancel():
     client = make_client()
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 40.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 40.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
@@ -178,12 +178,12 @@ def test_crossing_orders_match_and_fills_confirmed_with_tx():
     client = make_client()
     alice = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     ).json()
     bob = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 49.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 49.0, "size": 100.0, "leverage": 5},
         headers=AUTH_BOB,
     ).json()
 
@@ -206,12 +206,12 @@ def test_revert_onchain_leaves_fill_unconfirmed_and_order_rejected():
     client = make_client(submitter=FakeSubmitter(fail_wallet=BOB))
     alice = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     ).json()
     bob = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 49.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 49.0, "size": 100.0, "leverage": 5},
         headers=AUTH_BOB,
     ).json()
 
@@ -229,7 +229,7 @@ def test_cannot_cancel_someone_elses_order():
     client = make_client()
     order = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 40.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 40.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     ).json()
     resp = client.delete(f"/orders/{order['order_id']}", headers=AUTH_BOB)
@@ -240,15 +240,15 @@ def test_book_depth_snapshot():
     client = make_client()
     client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 40.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 40.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     )
     client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 60.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 60.0, "size": 100.0, "leverage": 5},
         headers=AUTH_BOB,
     )
-    resp = client.get("/baskets/TOP20-SEPTEMBER/book")
+    resp = client.get("/baskets/TOP20-JANUARY-2027/book")
     assert resp.status_code == 200
     body = resp.json()
     assert body["best_bid"] == 40.0
@@ -263,7 +263,7 @@ def test_market_order_requires_slippage():
     client = make_client()
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market"},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market"},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 422
@@ -276,7 +276,7 @@ def test_market_order_rejected_without_liquidity():
     # No resting orders in the book
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     body = resp.json()
@@ -291,7 +291,7 @@ def test_market_buy_fills_against_resting_asks():
     # Place resting sell order (ask)
     alice_resting = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 50.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 50.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     ).json()
     assert alice_resting["status"] == "open"
@@ -299,7 +299,7 @@ def test_market_buy_fills_against_resting_asks():
     # Place market buy order
     bob_market = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 100},
         headers=AUTH_BOB,
     ).json()
 
@@ -325,7 +325,7 @@ def test_market_sell_fills_against_resting_bids():
     # Place resting buy order (bid)
     alice_resting = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 50.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     ).json()
     assert alice_resting["status"] == "open"
@@ -333,7 +333,7 @@ def test_market_sell_fills_against_resting_bids():
     # Place market sell order
     bob_market = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 100},
         headers=AUTH_BOB,
     ).json()
 
@@ -353,7 +353,7 @@ def test_market_order_fok_rejected_on_partial_fill():
     # Place small resting sell order
     alice_resting = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 50.0, "size": 50.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 50.0, "size": 50.0, "leverage": 5},
         headers=AUTH_ALICE,
     ).json()
     assert alice_resting["status"] == "open"
@@ -361,7 +361,7 @@ def test_market_order_fok_rejected_on_partial_fill():
     # Try to market buy 100 with tight slippage - only 50 available
     bob_market = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 100},
         headers=AUTH_BOB,
     ).json()
 
@@ -379,7 +379,7 @@ def test_market_order_slippage_guard_rejects_bad_price():
     # Place resting sell order at high price
     alice_resting = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 55.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 55.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     ).json()
 
@@ -394,7 +394,7 @@ def test_market_order_slippage_guard_rejects_bad_price():
     # Place resting buy order at low price
     alice_bid = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 45.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 45.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     ).json()
     
@@ -421,14 +421,14 @@ def test_market_order_self_trade_rejected():
     # Place resting sell order
     alice_resting = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 50.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 50.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     ).json()
 
     # Try to market buy (same trader) - should be rejected for self-trade
     alice_market = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     ).json()
 
@@ -446,7 +446,7 @@ def test_market_order_margin_check_uses_oracle_price():
     # Free = 1000 -> exactly at boundary, should pass
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     # Should not fail margin check (exact boundary)
@@ -458,7 +458,7 @@ def test_limit_order_still_requires_price():
     client = make_client()
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "limit"},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "limit"},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 422
@@ -471,12 +471,12 @@ def test_market_order_walks_multiple_levels():
     # Place multiple resting sell orders at different prices
     alice1 = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 50.0, "size": 50.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 50.0, "size": 50.0, "leverage": 5},
         headers=AUTH_ALICE,
     ).json()
     alice2 = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 51.0, "size": 50.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 51.0, "size": 50.0, "leverage": 5},
         headers=AUTH_ALICE,
     ).json()
 
@@ -485,7 +485,7 @@ def test_market_order_walks_multiple_levels():
     # Need more slippage: 51.0 / 50.0 = 1.02 -> 200 bps
     bob_market = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 250},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "market", "max_slippage_bps": 250},
         headers=AUTH_BOB,
     ).json()
 
@@ -505,7 +505,7 @@ def test_stop_order_requires_trigger_price():
     client = make_client()
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 422
@@ -517,7 +517,7 @@ def test_stop_order_requires_slippage():
     client = make_client()
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 422
@@ -530,7 +530,7 @@ def test_stop_buy_placed_and_resting():
     # Place stop buy at 55.0 (above current price ~50)
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
@@ -554,7 +554,7 @@ def test_stop_sell_placed_and_resting():
     # Place stop sell at 45.0 (below current price ~50)
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 45.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 45.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
@@ -569,7 +569,7 @@ def test_stop_order_margin_reserved_at_placement():
     client = make_client(chain=FakeChain(free=10.0))  # Low free balance
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     # Should fail margin check (oracle price 50 * 100 / 5 = 1000 > free 10)
@@ -585,7 +585,7 @@ def test_stop_buy_triggered_when_price_crosses():
     # Place stop buy at 55.0
     stop_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     ).json()
     assert stop_resp["status"] == "open"
@@ -594,7 +594,7 @@ def test_stop_buy_triggered_when_price_crosses():
     # Place a resting sell order at 55.0 for the market order to fill against
     client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 55.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 55.0, "size": 100.0, "leverage": 5},
         headers=AUTH_BOB,
     )
 
@@ -604,7 +604,7 @@ def test_stop_buy_triggered_when_price_crosses():
     # Mock the oracle price to return 55.0 (5500 in integer scale)
     original_oracle_price = engine.chain.oracle_price
     
-    def mock_oracle_price(basket_name):
+    def mock_oracle_price(basket_name, index_id_hex=None):
         return (5500, int(time.time()))
     
     engine.chain.oracle_price = mock_oracle_price
@@ -631,7 +631,7 @@ def test_stop_sell_triggered_when_price_crosses():
     # Place stop sell at 45.0
     stop_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 45.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 45.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     ).json()
     assert stop_resp["status"] == "open"
@@ -640,7 +640,7 @@ def test_stop_sell_triggered_when_price_crosses():
     # Place a resting buy order at 45.0 for the market order to fill against
     client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 45.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 45.0, "size": 100.0, "leverage": 5},
         headers=AUTH_BOB,
     )
 
@@ -648,7 +648,7 @@ def test_stop_sell_triggered_when_price_crosses():
     engine = client.app.state.engine
     original_oracle_price = engine.chain.oracle_price
     
-    def mock_oracle_price(basket_name):
+    def mock_oracle_price(basket_name, index_id_hex=None):
         return (4500, int(time.time()))
     
     engine.chain.oracle_price = mock_oracle_price
@@ -674,7 +674,7 @@ def test_stop_order_not_triggered_before_price():
     # Place stop buy at 55.0
     stop_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     ).json()
     assert stop_resp["status"] == "open"
@@ -683,7 +683,7 @@ def test_stop_order_not_triggered_before_price():
     # Place a resting sell order at 55.0
     client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 55.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 55.0, "size": 100.0, "leverage": 5},
         headers=AUTH_BOB,
     )
 
@@ -691,7 +691,7 @@ def test_stop_order_not_triggered_before_price():
     engine = client.app.state.engine
     original_oracle_price = engine.chain.oracle_price
     
-    def mock_oracle_price(basket_name):
+    def mock_oracle_price(basket_name, index_id_hex=None):
         return (5400, int(time.time()))
     
     engine.chain.oracle_price = mock_oracle_price
@@ -715,7 +715,7 @@ def test_stop_order_cancel():
     client = make_client()
     stop_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     ).json()
     assert stop_resp["status"] == "open"
@@ -737,7 +737,7 @@ def test_stop_order_fok_on_trigger():
     # Place stop buy at 55.0
     stop_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     ).json()
     stop_order_id = stop_resp["order_id"]
@@ -745,7 +745,7 @@ def test_stop_order_fok_on_trigger():
     # Place ONLY 50 size resting sell (less than stop order's 100)
     client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 55.0, "size": 50.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 55.0, "size": 50.0, "leverage": 5},
         headers=AUTH_BOB,
     )
 
@@ -753,7 +753,7 @@ def test_stop_order_fok_on_trigger():
     engine = client.app.state.engine
     original_oracle_price = engine.chain.oracle_price
     
-    def mock_oracle_price(basket_name):
+    def mock_oracle_price(basket_name, index_id_hex=None):
         return (5500, int(time.time()))
     
     engine.chain.oracle_price = mock_oracle_price
@@ -779,14 +779,14 @@ def test_stop_order_self_trade_rejected():
     # Place resting sell order from Alice
     client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "price": 55.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "price": 55.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     )
     
     # Place stop buy from Alice (same trader) at 55.0
     stop_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "size": 100.0, "leverage": 5, "order_type": "stop", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     ).json()
     stop_order_id = stop_resp["order_id"]
@@ -795,7 +795,7 @@ def test_stop_order_self_trade_rejected():
     engine = client.app.state.engine
     original_oracle_price = engine.chain.oracle_price
     
-    def mock_oracle_price(basket_name):
+    def mock_oracle_price(basket_name, index_id_hex=None):
         return (5500, int(time.time()))
     
     engine.chain.oracle_price = mock_oracle_price
@@ -822,7 +822,7 @@ def test_sltp_order_requires_trigger_price():
     client = make_client()
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop_loss", "position_id": "pos-1", "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop_loss", "position_id": "pos-1", "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 422
@@ -834,7 +834,7 @@ def test_sltp_order_requires_slippage():
     client = make_client()
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 422
@@ -846,7 +846,7 @@ def test_sltp_order_requires_position_id():
     client = make_client()
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop_loss", "trigger_price": 45.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "sell", "size": 100.0, "leverage": 5, "order_type": "stop_loss", "trigger_price": 45.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 422
@@ -860,7 +860,7 @@ def test_stop_loss_buy_placed_and_resting():
     # Place stop-loss buy at 55.0 (above current price ~50, for short position)
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
@@ -882,7 +882,7 @@ def test_take_profit_sell_placed_and_resting():
     # Place take-profit sell at 55.0 (above current price ~50, for long position)
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
@@ -903,7 +903,7 @@ def test_stop_loss_sell_placed_and_resting():
     # Place stop-loss sell at 45.0 (below current price ~50, for long position)
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
@@ -923,7 +923,7 @@ def test_take_profit_buy_placed_and_resting():
     # Place take-profit buy at 45.0 (below current price ~50, for short position)
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
@@ -943,7 +943,7 @@ def test_sltp_no_additional_margin_reservation():
     # Should pass because no additional margin check for SL/TP
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     body = resp.json()
@@ -961,7 +961,7 @@ def test_sltp_oco_pair_cancels_sibling():
     # Place stop-loss sell at 45.0
     sl_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
+        json={"basket_name": "TOP20-JANUARY-2027", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
         headers=AUTH_ALICE,
     ).json()
     sl_order_id = sl_resp["order_id"]
@@ -970,7 +970,7 @@ def test_sltp_oco_pair_cancels_sibling():
     # Place take-profit sell at 55.0
     tp_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
+        json={"basket_name": "TOP20-JANUARY-2027", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
         headers=AUTH_ALICE,
     ).json()
     tp_order_id = tp_resp["order_id"]
@@ -979,7 +979,7 @@ def test_sltp_oco_pair_cancels_sibling():
     # Place resting buy order at 55.0 for take-profit to fill against
     client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 55.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 55.0, "size": 100.0, "leverage": 5},
         headers=AUTH_BOB,
     )
     
@@ -987,7 +987,7 @@ def test_sltp_oco_pair_cancels_sibling():
     engine = client.app.state.engine
     original_oracle_price = engine.chain.oracle_price
     
-    def mock_oracle_price(basket_name):
+    def mock_oracle_price(basket_name, index_id_hex=None):
         return (5500, int(time.time()))
     
     engine.chain.oracle_price = mock_oracle_price
@@ -1020,7 +1020,7 @@ def test_sltp_cancel_cancels_sibling():
     # Place stop-loss sell at 45.0
     sl_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
+        json={"basket_name": "TOP20-JANUARY-2027", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
         headers=AUTH_ALICE,
     ).json()
     sl_order_id = sl_resp["order_id"]
@@ -1028,7 +1028,7 @@ def test_sltp_cancel_cancels_sibling():
     # Place take-profit sell at 55.0
     tp_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
+        json={"basket_name": "TOP20-JANUARY-2027", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100, "oco_group_id": oco_group},
         headers=AUTH_ALICE,
     ).json()
     tp_order_id = tp_resp["order_id"]
@@ -1052,14 +1052,14 @@ def test_sltp_self_trade_rejected():
     # Place resting buy order from Alice at 55.0
     client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "side": "buy", "price": 55.0, "size": 100.0, "leverage": 5},
+        json={"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 55.0, "size": 100.0, "leverage": 5},
         headers=AUTH_ALICE,
     )
     
     # Place take-profit sell from Alice (same trader) at 55.0
     tp_resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "order_type": "take_profit", "position_id": "pos-1", "trigger_price": 55.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     ).json()
     tp_order_id = tp_resp["order_id"]
@@ -1068,7 +1068,7 @@ def test_sltp_self_trade_rejected():
     engine = client.app.state.engine
     original_oracle_price = engine.chain.oracle_price
     
-    def mock_oracle_price(basket_name):
+    def mock_oracle_price(basket_name, index_id_hex=None):
         return (5500, int(time.time()))
     
     engine.chain.oracle_price = mock_oracle_price
@@ -1096,10 +1096,36 @@ def test_sltp_full_close_only():
     # But we can verify the order is accepted with any size
     resp = client.post(
         "/orders",
-        json={"basket_name": "TOP20-SEPTEMBER", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
+        json={"basket_name": "TOP20-JANUARY-2027", "order_type": "stop_loss", "position_id": "pos-1", "trigger_price": 45.0, "max_slippage_bps": 100},
         headers=AUTH_ALICE,
     )
     assert resp.status_code == 201
     body = resp.json()
     assert body["status"] == "open"
     assert body["size"] == 100.0
+
+def test_idempotency_key_replay_returns_original_order():
+    client = make_client()
+    headers = dict(AUTH_ALICE)
+    headers["Idempotency-Key"] = "key-123"
+    payload = {"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 40.0, "size": 100.0, "leverage": 5}
+    first = client.post("/orders", json=payload, headers=headers)
+    assert first.status_code == 201, first.text
+    second = client.post("/orders", json=payload, headers=headers)
+    assert second.status_code == 201, second.text
+    assert second.json()["order_id"] == first.json()["order_id"]
+    # Still exactly one resting order in the book.
+    book = client.get("/baskets/TOP20-JANUARY-2027/book")
+    assert book.status_code == 200
+    assert len(book.json()["bids"]) == 1
+
+
+def test_idempotency_keys_are_per_wallet():
+    client = make_client()
+    payload = {"basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 40.0, "size": 100.0, "leverage": 5}
+    alice = dict(AUTH_ALICE); alice["Idempotency-Key"] = "same-key"
+    bob = dict(AUTH_BOB); bob["Idempotency-Key"] = "same-key"
+    ra = client.post("/orders", json=payload, headers=alice)
+    rb = client.post("/orders", json=payload, headers=bob)
+    assert ra.status_code == 201 and rb.status_code == 201
+    assert ra.json()["order_id"] != rb.json()["order_id"]

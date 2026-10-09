@@ -22,16 +22,20 @@ import { OrderResultModal } from "@/components/xleuth/OrderResultModal";
 import { SignInSheet } from "@/components/xleuth/SignInSheet";
 import { SegmentedControl } from "@/components/xleuth/SegmentedControl";
 import { EmptyState } from "@/components/xleuth/EmptyState";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 type Tab = "chart" | "order-book";
 type Order = { side: "buy" | "sell"; amount: number; leverage: number };
 
 function basketNameFromSlug(slug: string | undefined, basketNames: string[]): string | undefined {
   if (!slug) return basketNames[0];
-  return basketNames.find((name) => name.toLowerCase().replace(/_/g, "-") === slug) ?? basketNames[0];
+  // Task 13: unknown slugs resolve to undefined (distinct "unknown basket"
+  // state) instead of silently falling back to the first basket.
+  return basketNames.find((name) => name.toLowerCase().replace(/_/g, "-") === slug);
 }
 
 export default function Markets() {
+  usePageMeta({ title: 'Xleuth — prediction-market index futures (testnet)', description: 'Trade leveraged index futures on prediction-market baskets. Live prices, order book and 5x leverage on Polygon Amoy testnet.', path: '/' });
   const { slug } = useParams<{ slug?: string }>();
   const [tab, setTab] = useState<Tab>("chart");
   const [tradeSide, setTradeSide] = useState<"buy" | "sell" | null>(null);
@@ -64,9 +68,17 @@ export default function Markets() {
   }
 
   if (!apiBasket || !basketName) {
+    const unknownSlug = slug && basketOptions.length > 0;
     return (
       <Layout>
-        <EmptyState title="Markets unavailable" caption="Could not load markets" />
+        <EmptyState
+          title={unknownSlug ? `Unknown basket "${slug}"` : "Markets unavailable"}
+          caption={
+            unknownSlug
+              ? "It may have expired or never existed — see current baskets"
+              : "Could not load markets"
+          }
+        />
       </Layout>
     );
   }
@@ -96,6 +108,7 @@ export default function Markets() {
     amount: number;
     leverage: number;
     slippageBps: number;
+    idempotencyKey: string;
   }) => {
     setTradeSide(null);
     if (!user) {
@@ -115,8 +128,8 @@ export default function Markets() {
       return;
     }
     try {
-      const response = await placeOrder.mutateAsync(
-        buildMarketOrder({
+      const response = await placeOrder.mutateAsync({
+        order: buildMarketOrder({
           basketName,
           side: order.side,
           notionalUsdc: order.amount,
@@ -124,7 +137,8 @@ export default function Markets() {
           leverage: order.leverage,
           slippageBps: Math.floor(order.slippageBps),
         }),
-      );
+        idempotencyKey: order.idempotencyKey,
+      });
       if (response.status === "filled") {
         setFilledOrder({ side: order.side, amount: order.amount, leverage: order.leverage });
       } else {

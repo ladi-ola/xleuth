@@ -40,11 +40,18 @@ def sign_price_update(
     basket_name: str,
     price: int,
     timestamp: int,
+    index_id_override: str | bytes | None = None,
 ) -> bytes:
     """Sign a `PriceUpdate(bytes32 basketId,uint256 price,uint256 timestamp)` EIP-712
     message and return the raw 65-byte `r||s||v` signature the contract expects."""
     account = Account.from_key(signer_private_key)
-    basket = basket_id_from_name(basket_name)
+    if index_id_override is None:
+        basket = basket_id_from_name(basket_name)
+    elif isinstance(index_id_override, bytes):
+        basket = index_id_override
+    else:
+        h = index_id_override[2:] if index_id_override.startswith("0x") else index_id_override
+        basket = bytes.fromhex(h)
 
     typed_data = {
         "types": {
@@ -89,12 +96,19 @@ def sign_settle_basket(
     basket_name: str,
     realized_price: int,
     timestamp: int,
+    index_id_override: str | bytes | None = None,
 ) -> bytes:
     """Sign a `SettleBasket(bytes32 basketId,uint256 realizedPrice,uint256 timestamp)`
     EIP-712 message for the SettlementEngine and return the raw 65-byte
     `r||s||v` signature the contract expects."""
     account = Account.from_key(signer_private_key)
-    basket = basket_id_from_name(basket_name)
+    if index_id_override is None:
+        basket = basket_id_from_name(basket_name)
+    elif isinstance(index_id_override, bytes):
+        basket = index_id_override
+    else:
+        h = index_id_override[2:] if index_id_override.startswith("0x") else index_id_override
+        basket = bytes.fromhex(h)
 
     typed_data = {
         "types": {

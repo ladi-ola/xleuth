@@ -1,6 +1,8 @@
 import { InfoPage } from "./InfoPage";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 export default function HowItWorks() {
+  usePageMeta({ title: 'How it works — Xleuth (testnet)', description: 'How Xleuth index baskets are built, priced and settled: Polymarket data, VWAP index price and on-chain settlement.', path: '/how-it-works' });
   return (
     <InfoPage
       title="How it works"

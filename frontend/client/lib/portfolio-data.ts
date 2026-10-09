@@ -1,4 +1,6 @@
 // TODO: replace with live portfolio data (websocket / REST polling of the user's on-chain positions).
+// NOTE (PLAN.md): symbols below are offline demo placeholders only. Live
+// positions render through adaptPosition() from API basket_names.
 export const portfolioSummary = {
   totalBalance: 1000.0,
   unrealizedPnl: 1250.0,

@@ -34,6 +34,19 @@ from xleuth_shared.basket_lifecycle import active_basket_names
 
 _TRADER_KEY_RE = re.compile(r"^TRADER\d*_PRIVATE_KEY$")
 
+# Guardrail hook (PLAN.md): fail fast if a retired basket-specific env var is
+# still set. Nothing retired yet — ACTIVE_BASKETS stays as fallback until the
+# migrated rows are verified.
+RETIRED_BASKET_ENV_VARS: tuple[str, ...] = ()
+
+
+def _check_no_retired_env() -> None:
+    stale = [v for v in RETIRED_BASKET_ENV_VARS if os.getenv(v)]
+    if stale:
+        raise ValueError(
+            f"Retired basket env var(s) still set: {', '.join(stale)}. "
+            "Baskets now live in the DB — unset these variables.")
+
 
 @dataclass(frozen=True)
 class MatchingConfig:
@@ -80,6 +93,7 @@ class MatchingConfig:
 
     @staticmethod
     def load() -> "MatchingConfig":
+        _check_no_retired_env()
         rpc = os.getenv("POLYGON_AMOY_RPC_URL") or os.getenv("RPC_URL")
         if not rpc:
             raise ValueError("Missing RPC URL (POLYGON_AMOY_RPC_URL / RPC_URL)")

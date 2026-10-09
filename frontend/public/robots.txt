@@ -1,14 +1,22 @@
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Twitterbot
-Allow: /
-
-User-agent: facebookexternalhit
-Allow: /
+# robots.txt — Xleuth testnet (tasks 6+9)
+#
+# Testnet default: crawlers are ALLOWED here (sitemap/discovery) but every
+# page carries `<meta name="robots" content="noindex, nofollow">` (see
+# index.html + VITE_ROBOTS_CONTENT), so nothing is indexed. One-line switch
+# to open up later: VITE_ROBOTS_CONTENT="index, follow".
+#
+# Authenticated/app screens and APIs are disallowed outright.
 
 User-agent: *
-Allow: /
+Allow: /how-it-works
+Allow: /support
+Allow: /legal-risk-disclosure
+Allow: /privacy
+Allow: /terms
+Allow: /explore
+Disallow: /portfolio
+Disallow: /account
+Disallow: /market/
+Disallow: /api/
+
+Sitemap: /sitemap.xml

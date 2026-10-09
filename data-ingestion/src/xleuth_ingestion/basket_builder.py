@@ -3,6 +3,7 @@ from typing import Any
 
 from xleuth_ingestion.event_map import build_volume_map
 from xleuth_ingestion.polymarket_client import PolymarketClient
+from xleuth_ingestion.selection import resolve_target_month, select_constituents
 from xleuth_ingestion.vwap import basket_vwap
 from xleuth_shared.basket_lifecycle import MONTH_NAMES, parse_basket_name
 
@@ -74,6 +75,12 @@ async def build_basket(
     exclude_categories: str | None = None,
     markets: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
+    """Legacy wrapper: derives month/count by parsing the NAME.
+
+    DEPRECATED — kept only so live template baskets keep working during the
+    DB migration. New code must call build_basket_from_params() with explicit
+    DB columns and never parse the name.
+    """
     parsed = parse_basket_name(basket_name)
     if not parsed:
         msg = (
@@ -83,30 +90,40 @@ async def build_basket(
         raise ValueError(msg)
 
     n, target_month, _ = parsed
+    return await build_basket_from_params(
+        basket_name=basket_name,
+        client=client,
+        market_count=n,
+        target_month=target_month,
+        exclude_categories=exclude_categories,
+        markets=markets,
+    )
+
+
+async def build_basket_from_params(
+    basket_name: str,
+    client: PolymarketClient,
+    *,
+    market_count: int,
+    target_month: int | None,
+    exclude_categories: str | None = None,
+    selection_rules: dict[str, Any] | None = None,
+    markets: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Build a basket from explicit params (DB columns). Parses NO names."""
+    if selection_rules:
+        target_month = resolve_target_month(target_month, selection_rules)
+        if selection_rules.get("exclude_categories"):
+            exclude_categories = selection_rules["exclude_categories"]
 
     raw_markets = markets if markets is not None else await _fetch_all_markets(client)
 
-    resolving = [m for m in raw_markets if market_resolves_in_month(m, target_month)]
-
-    exclude_list = []
-    if exclude_categories:
-        exclude_list = [c.strip().lower() for c in exclude_categories.split(",")]
-
-    excluded: list[dict[str, str]] = []
-    filtered: list[dict[str, Any]] = []
-    for m in resolving:
-        category = PolymarketClient.get_category(m)
-        if category and category.lower() in exclude_list:
-            excluded.append({
-                "id": str(m.get("id", "?")),
-                "question": str(m.get("question", "")),
-                "reason": f"category '{category}' is excluded (EXCLUDE_CATEGORIES={exclude_categories})",
-            })
-            continue
-        filtered.append(m)
-
-    filtered.sort(key=lambda m: PolymarketClient.get_volume(m), reverse=True)
-    top_n = filtered[:n]
+    top_n, excluded = select_constituents(
+        raw_markets,
+        market_count=market_count,
+        target_month=target_month,
+        exclude_categories=exclude_categories,
+    )
 
     volume_map = await build_volume_map(top_n, client)
 

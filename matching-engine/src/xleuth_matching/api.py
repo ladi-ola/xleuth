@@ -100,6 +100,13 @@ class Engine:
         self.margin = MarginCheck(self.config, self.chain)
         self.books = OrderBookManager(self.config.baskets)
         self.bridge = bridge or SettlementBridge(self.config)
+        # DB registry (PLAN.md): {name: row} + {name: onchain_index_id hex}.
+        # None/empty = env fallback (preserves current behavior + tests).
+        self.registry: dict | None = None
+        self.index_ids: dict[str, str] = {}
+        self._db_pool = None
+        self._basket_refresh_interval = int(os.getenv("ENGINE_BASKET_REFRESH_SECONDS", "60"))
+        self._basket_refresh_task: asyncio.Task | None = None
         self._redis = self.bridge.redis  # shared optional redis client
         # Internal JWT verifier (HS256 token issued by backend-api)
         self.internal_verifier = InternalJWTVerifier(
@@ -108,9 +115,84 @@ class Engine:
         # Background task for stop order trigger evaluation
         self._trigger_task: asyncio.Task | None = None
         self._trigger_interval = int(os.getenv("STOP_TRIGGER_CHECK_INTERVAL_SECONDS", "5"))
+        # Task 15: order idempotency keys (single instance, in-memory).
+        # (wallet.lower(), key) -> (order_id, expires_unix). Replay returns
+        # the original order instead of placing a duplicate.
+        self._idempotency: dict[tuple[str, str], tuple[str, float]] = {}
+        self._idempotency_ttl = int(os.getenv("IDEMPOTENCY_TTL_SECONDS", "86400"))
 
     def book(self, basket_name: str) -> BasketOrderBook:
         return self.books.get(basket_name)
+
+    def find_order(self, order_id: str):
+        for name in self.known_baskets or self.books.names():
+            try:
+                order = self.books.get(name).get_order(order_id)
+            except Exception:
+                continue
+            if order is not None:
+                return order
+        return None
+
+    def check_idempotency(self, wallet: str, key: str):
+        """Return the original order for a replayed key, else None."""
+        import time as _time
+
+        slot = self._idempotency.get((wallet.lower(), key))
+        if slot is None:
+            return None
+        order_id, expires = slot
+        if expires < _time.time():
+            del self._idempotency[(wallet.lower(), key)]
+            return None
+        order = self.find_order(order_id)
+        if order is None or order.trader.lower() != wallet.lower():
+            return None
+        return order
+
+    def remember_idempotency(self, wallet: str, key: str, order_id: str) -> None:
+        import time as _time
+
+        if not key:
+            return
+        if len(self._idempotency) > 10000:
+            now = _time.time()
+            self._idempotency = {k: v for k, v in self._idempotency.items() if v[1] >= now}
+        self._idempotency[(wallet.lower(), key)] = (order_id, _time.time() + self._idempotency_ttl)
+
+    @property
+    def known_baskets(self) -> list[str]:
+        """DB registry wins when populated; else env config (back-compat)."""
+        if self.registry:
+            return sorted(self.registry)
+        return list(self.config.baskets)
+
+    def attach_registry(self, registry: dict, index_ids: dict[str, str] | None = None) -> None:
+        """Wire DB rows in (no restart): margin gates + books + chain ids."""
+        self.registry = dict(registry)
+        self.index_ids = dict(index_ids or {})
+        self.margin.registry = self.registry
+        self.margin.index_ids = self.index_ids
+        if hasattr(self.chain, "_index_ids"):
+            self.chain._index_ids = self.index_ids
+        for name in self.registry:
+            try:
+                self.books.get(name)  # creates on demand
+            except Exception:
+                pass
+
+    async def refresh_baskets(self) -> None:
+        """Best-effort DB refresh (short TTL upstream); never raises."""
+        if self._db_pool is None:
+            return
+        try:
+            from xleuth_matching.basket_source import get_active_rows, index_ids_from_rows
+
+            rows = await get_active_rows(self._db_pool)
+            if rows:
+                self.attach_registry({r["name"]: r for r in rows}, index_ids_from_rows(rows))
+        except Exception:
+            logger.warning("basket refresh failed", exc_info=True)
 
     async def start_trigger_evaluation(self) -> None:
         """Start the background task for stop order trigger evaluation."""
@@ -135,6 +217,7 @@ class Engine:
         while True:
             try:
                 await asyncio.sleep(self._trigger_interval)
+                await self.refresh_baskets()
                 await self._evaluate_all_triggers()
             except asyncio.CancelledError:
                 break
@@ -143,7 +226,7 @@ class Engine:
 
     async def _evaluate_all_triggers(self) -> None:
         """Evaluate stop order and SL/TP triggers for all baskets."""
-        for basket_name in self.config.baskets:
+        for basket_name in self.known_baskets:
             try:
                 # Get current mark/index price from oracle
                 oracle_result = self.chain.oracle_price(basket_name)
@@ -265,16 +348,28 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
             allow_methods=["*"],
             allow_headers=["*"],
         )
-    
+
+    # Task 16: per-IP rate limit on order placement + request size guard.
+    from xleuth_shared.rate_limit import RateLimitMiddleware
+
+    app.add_middleware(RateLimitMiddleware, service="matching-engine")
+
     engine = Engine(config, chain=chain, bridge=bridge)
     app.state.engine = engine
 
     @app.post("/orders", status_code=201, response_model=OrderResponse)
     def place_order(
         body: OrderRequest,
+        request: Request,
         wallet: str = Depends(get_wallet),
         engine: Engine = Depends(get_engine),
     ) -> dict[str, Any]:
+        # Task 15: Idempotency-Key replay returns the original order.
+        idem_key = (request.headers.get("idempotency-key") or "").strip()[:128]
+        if idem_key:
+            replay = engine.check_idempotency(wallet, idem_key)
+            if replay is not None:
+                return _order_response(replay, confirmed=[], failed=[])
         # Validate request based on order type
         if body.order_type == OrderType.LIMIT:
             if body.price is None:
@@ -374,6 +469,7 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
                 )
                 order.status = OrderStatus.REJECTED
                 order.rejection_reason = check.message
+                engine.remember_idempotency(wallet, idem_key, order.order_id)
                 return _order_response(order, confirmed=[], failed=[], check=check)
             raise HTTPException(status_code=422, detail=check.message)
 
@@ -411,6 +507,7 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         outcomes = engine.bridge.settle_fills(fills) if fills else []
         confirmed, failed = _confirm_fills(engine, fills, outcomes)
         _publish_book(engine, body.basket_name)
+        engine.remember_idempotency(wallet, idem_key, order.order_id)
 
         return _order_response(order, confirmed=confirmed, failed=failed, check=check)
 
@@ -421,7 +518,7 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         engine: Engine = Depends(get_engine),
     ) -> dict[str, Any]:
         order = None
-        for name in engine.books.names() or (engine.config.baskets or []):
+        for name in engine.books.names() or (engine.known_baskets or []):
             order = engine.books.get(name).get_order(order_id)
             if order is not None:
                 break
@@ -447,7 +544,7 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         engine: Engine = Depends(get_engine),
     ) -> dict[str, Any]:
         order = None
-        for name in engine.config.baskets or engine.books.names():
+        for name in engine.known_baskets or engine.books.names():
             order = engine.books.get(name).get_order(order_id)
             if order is not None:
                 break
@@ -462,7 +559,7 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         basket_name: str,
         engine: Engine = Depends(get_engine),
     ) -> dict[str, Any]:
-        if basket_name not in engine.config.baskets:
+        if basket_name not in engine.known_baskets:
             raise HTTPException(status_code=404, detail="unknown basket")
         snap = engine.book(basket_name).snapshot()
         # Convert to BookSnapshot format
@@ -513,7 +610,7 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         
         # Collect all orders for this trader
         all_orders: list[OrderRecord] = []
-        for name in engine.books.names() or (engine.config.baskets or []):
+        for name in engine.books.names() or (engine.known_baskets or []):
             if basket_name and name != basket_name:
                 continue
             book = engine.books.get(name)
@@ -595,7 +692,7 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         positions: list[dict] = []
         
         # Get positions from on-chain for each basket
-        for basket_name in engine.config.baskets:
+        for basket_name in engine.known_baskets:
             position = engine.chain.get_position(wallet, basket_name)
             if position is None:
                 continue
@@ -665,7 +762,7 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
             tp_order_id = None
             oco_group_id = None
             
-            for name in engine.books.names() or (engine.config.baskets or []):
+            for name in engine.books.names() or (engine.known_baskets or []):
                 book = engine.books.get(name)
                 for order in book._sltp_orders.values():
                     if order.trader.lower() == wallet and order.basket_name == basket_name:

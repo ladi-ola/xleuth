@@ -1,6 +1,8 @@
 import { InfoPage } from "./InfoPage";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 export default function Support() {
+  usePageMeta({ title: 'Support — Xleuth (testnet)', description: 'Common questions, contact and bug reports for the Xleuth testnet trading app.', path: '/support' });
   return (
     <InfoPage
       title="Support"

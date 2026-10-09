@@ -103,7 +103,7 @@ class TxSubmitter(ABC):
 
 
 class Web3TxSubmitter(TxSubmitter):
-    def __init__(self, config: MatchingConfig, w3=None):
+    def __init__(self, config: MatchingConfig, w3=None, index_ids: dict[str, str] | None = None):
         from web3 import Web3
 
         self._w3 = w3 or Web3(Web3.HTTPProvider(config.rpc_url, request_kwargs={"timeout": 15}))
@@ -113,6 +113,7 @@ class Web3TxSubmitter(TxSubmitter):
         self._keys = {k.lower(): v for k, v in config.trader_keys.items()}
         self._chain_id = config.chain_id
         self._confirm_timeout = CONFIRM_TIMEOUT_SECONDS
+        self._index_ids = index_ids or {}
 
     def submit(self, update: PositionUpdate) -> tuple[str, dict]:
         key = self._keys.get(update.wallet.lower())
@@ -125,7 +126,8 @@ class Web3TxSubmitter(TxSubmitter):
 
         account = Account.from_key(key)
 
-        basket_id = Web3ChainState.basket_id(update.basket_name)
+        basket_id = Web3ChainState.basket_id(
+            update.basket_name, self._index_ids.get(update.basket_name))
         call = self._pm.functions.updatePosition(
             basket_id,
             SIDE_TO_ENUM[update.side],

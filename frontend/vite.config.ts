@@ -15,6 +15,9 @@ export default defineConfig(({ mode }) => ({
   },
   build: {
     outDir: "dist/spa",
+    // Security (task 3): never ship source maps to production — the bundle
+    // must not expose source. CI check: scripts/check-bundle-secrets.sh
+    sourcemap: false,
   },
   plugins: [react(), expressPlugin()],
   resolve: {

@@ -27,6 +27,30 @@ def _lifecycle(basket_name: str) -> tuple[str, bool]:
     return basket_status(basket_name, now), is_tradeable(basket_name, now)
 
 
+def _lifecycle_for_row(row: dict | None, basket_name: str) -> tuple[str, bool]:
+    """DB status wins when a registry row exists (expiry-aware).
+
+    Maps registry status (draft/registering/active/closed/settled/
+    registration_failed) to the API's active/upcoming/resolved vocabulary:
+    active+unexpired -> active/tradeable; anything else -> non-tradeable with
+    the registry status surfaced. Falls back to name-derived lifecycle
+    pre-backfill.
+    """
+    if not row:
+        return _lifecycle(basket_name)
+    status = (row.get("status") or "active").lower()
+    exp = row.get("expiry_at")
+    now = datetime.now(timezone.utc)
+    if exp is not None:
+        exp_utc = exp if exp.tzinfo else exp.replace(tzinfo=timezone.utc)
+        if status == "active" and exp_utc > now:
+            return "active", True
+        if status in ("closed", "settled") or exp_utc <= now:
+            return status if status in ("closed", "settled") else "resolved", False
+        return status, False
+    return _lifecycle(basket_name)
+
+
 async def _add_24h_change(db: Database, basket_name: str, response: BasketPriceResponse) -> BasketPriceResponseWithChange:
     """Add 24h change fields to a basket price response."""
     price_24h_ago = await db.get_price_24h_ago(basket_name)
@@ -56,6 +80,46 @@ async def _add_24h_change(db: Database, basket_name: str, response: BasketPriceR
 async def list_baskets(
     db: Database = Depends(get_db),
 ):
+    # DB-first: registry rows joined with latest prices. Falls back to the
+    # legacy DISTINCT index_prices scan when the table is empty (migration).
+    records = await db.list_basket_records()
+    baskets = []
+    if records:
+        for rec in records:
+            name = rec["name"]
+            latest = await db.get_latest_basket_price(name)
+            status, tradeable = _lifecycle_for_row(rec, name)
+            base = BasketInfo(
+                basket_name=name,
+                total_constituents=(latest.get("constituent_count") if latest else 0) or 0,
+                index_price=latest.get("index_price") if latest else None,
+                index_price_scaled=latest.get("scaled_price") if latest else None,
+                computed_at=latest.get("ts") if latest else None,
+                status=status,
+                is_tradeable=tradeable,
+                slug=rec.get("slug"),
+                expiry_at=rec.get("expiry_at"),
+                onchain_index_id=rec.get("onchain_index_id"),
+            )
+            price_24h_ago = await db.get_price_24h_ago(name)
+            current_price = base.index_price_scaled
+            change_24h_abs = None
+            change_24h_pct = None
+            if current_price is not None and price_24h_ago is not None and price_24h_ago > 0:
+                change_24h_abs = current_price - price_24h_ago
+                change_24h_pct = (change_24h_abs / price_24h_ago) * 100
+            baskets.append({
+                "basket_name": base.basket_name,
+                "total_constituents": base.total_constituents,
+                "index_price": base.index_price,
+                "index_price_scaled": base.index_price_scaled,
+                "computed_at": base.computed_at,
+                "status": base.status,
+                "is_tradeable": base.is_tradeable,
+                "change_24h_abs": change_24h_abs,
+                "change_24h_pct": change_24h_pct,
+            })
+        return BasketListResponse(baskets=baskets)
     rows = await db.list_baskets()
     baskets = []
     for r in rows:
@@ -101,10 +165,13 @@ async def get_basket_price(
     db: Database = Depends(get_db),
 ):
     row = await db.get_latest_basket_price(basket_name)
-    status, tradeable = _lifecycle(basket_name)
+    rec = await db.get_basket_record(basket_name)
+    status, tradeable = _lifecycle_for_row(rec, basket_name)
     if row is None:
         base = BasketPriceResponse(
-            basket_name=basket_name, status=status, is_tradeable=tradeable
+            basket_name=basket_name, status=status, is_tradeable=tradeable,
+            slug=(rec or {}).get("slug"), expiry_at=(rec or {}).get("expiry_at"),
+            onchain_index_id=(rec or {}).get("onchain_index_id"),
         )
         return await _add_24h_change(db, basket_name, base)
     base = BasketPriceResponse(
@@ -115,6 +182,9 @@ async def get_basket_price(
         constituent_count=row.get("constituent_count"),
         status=status,
         is_tradeable=tradeable,
+        slug=(rec or {}).get("slug"),
+        expiry_at=(rec or {}).get("expiry_at"),
+        onchain_index_id=(rec or {}).get("onchain_index_id"),
     )
     return await _add_24h_change(db, basket_name, base)
 
@@ -162,7 +232,8 @@ async def get_basket_constituents(
         for r in constituents_raw
     ]
     latest = await db.get_latest_basket_price(basket_name)
-    status, tradeable = _lifecycle(basket_name)
+    rec = await db.get_basket_record(basket_name)
+    status, tradeable = _lifecycle_for_row(rec, basket_name)
     return BasketDetail(
         basket_name=basket_name,
         total_constituents=len(constituents),

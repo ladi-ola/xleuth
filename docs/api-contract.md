@@ -55,14 +55,17 @@ Endpoints: `GET /auth/me` returns the current user's profile.
 
 | Endpoint | Description |
 |---|---|
-| `GET /baskets` | List all baskets with latest index price, lifecycle `status` (`active` / `upcoming` / `resolved`) and `is_tradeable`. |
+| `GET /baskets` | List all baskets from the DB registry with latest index price, `slug`, `expiry_at`, `onchain_index_id`, registry `status` (`draft` / `registering` / `active` / `closed` / `settled` / `registration_failed`, surfaced as `active` / upcoming-like / `closed` / `settled` / `resolved`) and `is_tradeable`. |
 | `GET /baskets/{name}/price` | Latest computed index price for one basket. `index_price` is the raw float (e.g. `0.1527`), `scaled_price` is the 0–100 index-point value used on-chain and in trading (e.g. `15.28`). |
 | `GET /baskets/{name}/history` | Time series of computed prices (`[{ts, basket_name, index_price, scaled_price, constituent_count}]`), newest last. |
 | `GET /baskets/{name}/constituents` | Constituent Polymarket markets that make up the basket: `{ condition_id, clob_token_id, event_id, question, end_date, price, volume, price_source, sub_markets, sub_market_count }` plus `markets_filtered_out` / `excluded_markets`. |
 
-Basket names look like `TOP20-AUGUST` (year-less → current year) or
-`TOP20-JANUARY-2027` (explicit year). A basket that has reached its target
-month is `resolved` / `is_tradeable: false`.
+Basket names look like `TOP20-OCTOBER` (generated display labels
+`{THEME}{COUNT}-{EXPIRY}`; the immutable key is a year-qualified slug such as
+`top20-2026-10`). Names are never parsed — theme/count/expiry come from DB
+columns. Only `active`, unexpired baskets with an `onchain_index_id` are
+tradeable; `GET /baskets` also returns `slug`, `expiry_at` and
+`onchain_index_id` per basket.
 
 ### Accounts — JWT required
 
@@ -112,6 +115,11 @@ Trading lives here; auth uses Dynamic JWT verification (same env ID as backend).
 
 - Price is in 0–100 index points, must be on `tick_size` (0.01); `size` must
   be ≥ `min_order_size` (10); leverage 1–`max_leverage`.
+- `Idempotency-Key` header (optional): replaying a key within 24h returns the
+  original order instead of placing a duplicate (same wallet). The UI sends
+  one key per trade dialog.
+- Rate limits: `POST /orders` 120/min/IP (429 + `Retry-After`); bodies over
+  1MB are rejected (413). Auth/faucet endpoints: 30/10 per min/IP.
 - Before accepting, the engine pre-checks against **live on-chain state**:
   basket tradeable, oracle price fresh, leverage cap, and free vault balance
   ≥ required margin (`oracle_price * size / leverage` USDC).

@@ -7,8 +7,10 @@ import { EmptyState } from "@/components/xleuth/EmptyState";
 import type { BasketStatus } from "@/lib/market-data";
 import { useBaskets, useBasketPrices } from "@/lib/api/hooks";
 import { adaptBasket } from "@/lib/api/adapters";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 export default function Explore() {
+  usePageMeta({ title: 'Explore index baskets — Xleuth (testnet)', description: 'Browse active, upcoming and resolved prediction-market index baskets with live prices on the Amoy testnet.', path: '/explore' });
   const [tab, setTab] = useState<BasketStatus>("active");
   const [query, setQuery] = useState("");
 

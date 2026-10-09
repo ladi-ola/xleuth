@@ -4,6 +4,7 @@ import { useToast } from "@/hooks/use-toast";
 import { EmptyState } from "@/components/xleuth/EmptyState";
 import { useFaucetClaim, useAccount } from "@/lib/api/hooks";
 import { Layout } from "@/components/xleuth/Layout";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 function getInitials(name) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
@@ -13,6 +14,7 @@ function getInitials(name) {
 }
 
 export default function Account() {
+  usePageMeta({ title: 'Account — Xleuth (testnet)', description: 'Manage your connected wallet, display alias and test-USDC faucet on the Polygon Amoy testnet.', path: '/account' });
   const { user, primaryWallet, handleLogOut, setShowAuthFlow } = useDynamicContext();
   const { toast } = useToast();
   const { mutate: claimFaucet, isPending } = useFaucetClaim();

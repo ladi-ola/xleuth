@@ -14,6 +14,14 @@ from xleuth_oracle.signing import basket_id_from_name, price_to_scale, sign_pric
 
 logger = logging.getLogger("xleuth_oracle.pusher")
 
+
+def basket_bytes(name: str, index_id_hex: str | None = None) -> bytes:
+    """On-chain id: explicit DB hex when known, else legacy keccak(NAME)."""
+    if index_id_hex:
+        h = index_id_hex[2:] if index_id_hex.startswith("0x") else index_id_hex
+        return bytes.fromhex(h)
+    return basket_id_from_name(name)
+
 ORACLE_ABI = [
     {
         "inputs": [
@@ -87,11 +95,11 @@ class Pusher:
             self.connect()
         return self._contract
 
-    def latest_onchain_price(self, basket_name: str) -> tuple[int, int] | None:
+    def latest_onchain_price(self, basket_name: str, index_id_hex: str | None = None) -> tuple[int, int] | None:
         """(price, timestamp) of the last accepted on-chain update, or None."""
         try:
             result = self.contract.functions.latestPrice(
-                basket_id_from_name(basket_name)
+                basket_bytes(basket_name, index_id_hex)
             ).call()
             return int(result[0]), int(result[1])
         except Exception:
@@ -101,7 +109,8 @@ class Pusher:
     def current_timestamp(self) -> int:
         return int(self.w3.eth.get_block("latest")["timestamp"])
 
-    def _send(self, basket_name: str, price: int, timestamp: int, nonce: int) -> bytes:
+    def _send(self, basket_name: str, price: int, timestamp: int, nonce: int,
+              index_id_hex: str | None = None) -> bytes:
         signature = sign_price_update(
             self.config.signer_private_key,
             self.config.contract_address,
@@ -109,9 +118,10 @@ class Pusher:
             basket_name,
             price,
             timestamp,
+            index_id_override=index_id_hex,
         )
         tx = self.contract.functions.pushPrice(
-            basket_id_from_name(basket_name), price, timestamp, signature
+            basket_bytes(basket_name, index_id_hex), price, timestamp, signature
         ).build_transaction(
             {
                 "from": self.config.signer_address,
@@ -135,27 +145,31 @@ class Pusher:
         )
         return True
 
-    async def push_all(self, prices: dict[str, float | None]) -> None:
+    async def push_all(self, prices: dict[str, float | None],
+                       index_ids: dict[str, str] | None = None) -> None:
         """Sign + push the latest price per basket with retry/backoff."""
         if not prices:
             return
+        index_ids = index_ids or {}
         for basket_name, raw_price in prices.items():
             if raw_price is None:
                 logger.warning("No price for basket %s; skipping push this cycle", basket_name)
                 continue
             price = price_to_scale(raw_price, self.config.price_scale)
-            await self._push_with_retry(basket_name, price)
+            await self._push_with_retry(basket_name, price, index_ids.get(basket_name))
 
-    async def _push_with_retry(self, basket_name: str, price: int) -> bool:
+    async def _push_with_retry(self, basket_name: str, price: int,
+                               index_id_hex: str | None = None) -> bool:
         for attempt in range(1, self.config.retry_max_attempts + 1):
             try:
                 timestamp = self.current_timestamp()
-                latest = self.latest_onchain_price(basket_name)
+                latest = self.latest_onchain_price(basket_name, index_id_hex)
                 if latest is not None and latest == (price, timestamp):
                     logger.debug("On-chain %s already at price=%d ts=%d", basket_name, price, timestamp)
                     return True
                 nonce = self.w3.eth.get_transaction_count(self.config.signer_address, "pending")
-                ok = await asyncio.to_thread(self._send, basket_name, price, timestamp, nonce)
+                ok = await asyncio.to_thread(self._send, basket_name, price, timestamp, nonce,
+                                             index_id_hex)
                 if ok:
                     return True
             except Exception as exc:

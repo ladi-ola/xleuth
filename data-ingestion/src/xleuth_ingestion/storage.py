@@ -63,6 +63,17 @@ class Storage:
                 if stmt:
                     await conn.execute(stmt)
 
+            # Baskets registry (shared DDL; idempotent for concurrent boot).
+            try:
+                from xleuth_shared.db_baskets import BASKETS_TABLE_SQL
+
+                for statement in BASKETS_TABLE_SQL.split(";"):
+                    stmt = statement.strip()
+                    if stmt:
+                        await conn.execute(stmt)
+            except Exception:
+                logger.warning("baskets schema ensure failed", exc_info=True)
+
             self._timescaledb = await self._check_timescaledb(conn)
             if self._timescaledb:
                 for statement in HYPERTABLE_SQL.split(";"):

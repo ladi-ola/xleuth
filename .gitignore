@@ -29,3 +29,6 @@ contracts/.env
 
 #PLAN FOR AGENTIC CODER
 PLAN.md
+
+# Admin-only (never commit)
+ADMIN_BASKET_GUIDE.md

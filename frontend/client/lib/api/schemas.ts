@@ -13,6 +13,9 @@ export interface BasketInfo {
   computed_at: string | null;
   status: string;
   is_tradeable: boolean;
+  slug?: string | null;
+  expiry_at?: string | null;
+  onchain_index_id?: string | null;
 }
 
 export interface BasketListResponse {
@@ -29,6 +32,9 @@ export interface BasketPriceResponseWithChange {
   is_tradeable: boolean;
   change_24h_abs: number | null;
   change_24h_pct: number | null;
+  slug?: string | null;
+  expiry_at?: string | null;
+  onchain_index_id?: string | null;
 }
 
 export interface BasketHistoryResponse {

@@ -32,6 +32,10 @@ class BasketInfo(BaseModel):
     computed_at: datetime | None = None
     status: str = "active"
     is_tradeable: bool = True
+    # DB registry fields (PLAN.md): present when the baskets table has a row.
+    slug: str | None = None
+    expiry_at: datetime | None = None
+    onchain_index_id: str | None = None
 
 
 class BasketDetail(BasketInfo):
@@ -56,6 +60,9 @@ class BasketPriceResponse(BaseModel):
     constituent_count: int | None = None
     status: str = "active"
     is_tradeable: bool = True
+    slug: str | None = None
+    expiry_at: datetime | None = None
+    onchain_index_id: str | None = None
 
 
 class BasketPriceResponseWithChange(BasketPriceResponse):
@@ -85,3 +92,43 @@ class CandlesResponse(BaseModel):
     basket_name: str
     interval: str
     candles: list[Candle] = []
+
+
+# ── DB-backed basket registry (PLAN.md: baskets table) ──────────────
+# Stored columns are theme / market_count / window+expiry; `name` is a
+# generated display label (see xleuth_shared.baskets.generate_name).
+
+class BasketRecord(BaseModel):
+    id: int | None = None
+    slug: str
+    name: str
+    theme: str
+    market_count: int
+    window_start: datetime
+    expiry_at: datetime
+    settlement_at: datetime | None = None
+    selection_rules: dict = {}
+    status: str = "draft"
+    onchain_index_id: str | None = None
+    register_tx_hash: str | None = None
+    registered_at: datetime | None = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    created_by: str | None = None
+
+
+class BasketCreate(BaseModel):
+    theme: str
+    market_count: int
+    window_start: datetime
+    expiry_at: datetime
+    selection_rules: dict = {}
+    created_by: str | None = None
+
+
+class BasketEvent(BaseModel):
+    basket_id: int
+    event: str
+    actor: str | None = None
+    payload: dict = {}
+    created_at: datetime | None = None

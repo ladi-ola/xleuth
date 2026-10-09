@@ -34,6 +34,12 @@ deployment and no real-money risk anywhere in this system today.
   TOP20-AUGUST (one long, one short, size 140 each, entry 24, margin 692
   USDC each) — tradeable and liquidatable while the oracle keeps the price
   fresh.
+- **Baskets are DB-managed (no redeploy for new indexes):** `baskets` table +
+  `basket` admin CLI (`make basket-*`; runbook `docs/basket-runbook.md`).
+  Registration = owner `setBasketExpiry` + oracle `pushPrice`; no contract
+  change (contracts accept any `bytes32` index id). Live rows keep
+  `keccak(NAME)` ids; new rows use `keccak(slug)`. `ACTIVE_BASKETS` remains
+  only as a transition fallback until migrated rows are verified.
 - **Baskets auto-rotate monthly:** `ACTIVE_BASKETS=TOP20-{MONTH}` expands to
   the current and next month; resolved baskets become read-only history.
 - **Documentation:** OpenAPI specs + plain-English API contract

@@ -1,3 +1,4 @@
+import { secureUrl } from './urls';
 // Reconnecting WebSocket client with exponential backoff
 
 type MessageHandler = (data: unknown) => void;
@@ -203,7 +204,7 @@ export function createPriceWsClient(
   basketName: string,
   onPriceUpdate: (data: PriceUpdateMessage) => void
 ): ReconnectingWebSocket {
-  const wsUrl = `${import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:8000'}/ws/price/${encodeURIComponent(basketName)}`;
+  const wsUrl = `${secureUrl(import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:8000')}/ws/price/${encodeURIComponent(basketName)}`;
 
   const client = new ReconnectingWebSocket({
     url: wsUrl,
@@ -236,7 +237,7 @@ export function createOrderBookWsClient(
   basketName: string,
   onOrderBookUpdate: (data: OrderBookSnapshotMessage) => void
 ): ReconnectingWebSocket {
-  const wsUrl = `${import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:8000'}/ws/orderbook/${encodeURIComponent(basketName)}`;
+  const wsUrl = `${secureUrl(import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:8000')}/ws/orderbook/${encodeURIComponent(basketName)}`;
 
   const client = new ReconnectingWebSocket({
     url: wsUrl,

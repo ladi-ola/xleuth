@@ -1,6 +1,8 @@
 import { InfoPage } from "./InfoPage";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
 export default function LegalRiskDisclosure() {
+  usePageMeta({ title: 'Legal and risk disclosure — Xleuth (testnet)', description: 'Key risks of using Xleuth: experimental product, market risk and Amoy testnet assets with no monetary value.', path: '/legal-risk-disclosure' });
   return (
     <InfoPage
       title="Legal & Risk disclosure"

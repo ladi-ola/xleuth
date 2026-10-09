@@ -12,7 +12,9 @@ import type {
   OrderStatus,
 } from './schemas';
 
-const MATCHING_ENGINE_URL = import.meta.env.VITE_MATCHING_ENGINE_URL || 'http://localhost:8001';
+import { secureUrl } from './urls';
+
+const MATCHING_ENGINE_URL = secureUrl(import.meta.env.VITE_MATCHING_ENGINE_URL || 'http://localhost:8001');
 
 function getAuthHeaders(token?: string): HeadersInit {
   const headers: HeadersInit = {
@@ -48,10 +50,12 @@ async function handleResponse<T>(response: Response): Promise<T> {
 
 export const matchingApi = {
   // Orders
-  async placeOrder(token: string, order: OrderRequest): Promise<OrderResponse> {
+  async placeOrder(token: string, order: OrderRequest, idempotencyKey?: string): Promise<OrderResponse> {
+    const headers = getAuthHeaders(token) as Record<string, string>;
+    if (idempotencyKey) headers['Idempotency-Key'] = idempotencyKey;
     const response = await fetch(`${MATCHING_ENGINE_URL}/orders`, {
       method: 'POST',
-      headers: getAuthHeaders(token),
+      headers,
       body: JSON.stringify(order),
     });
     return handleResponse<OrderResponse>(response);

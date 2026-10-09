@@ -64,6 +64,13 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Task 16: per-IP rate limits on public endpoints + request size guard.
+    # Rules are env-tunable (RL_*_PER_MIN); the faucet keeps its own 24h
+    # per-wallet cooldown in addition to this IP limit.
+    from xleuth_shared.rate_limit import RateLimitMiddleware
+
+    app.add_middleware(RateLimitMiddleware, service="backend-api")
+
     database_url = os.getenv("DATABASE_URL")
     dynamic_env_id = os.getenv("DYNAMIC_ENVIRONMENT_ID", "938a93a5-ee1f-4da2-86cf-27326bd01885")
     internal_jwt_secret = os.getenv("JWT_SECRET", "changeme-generate-a-real-256bit-secret")

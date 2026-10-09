@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { track } from "@/lib/analytics";
 import type { Basket } from "@/lib/market-data";
 import { usePositions, usePortfolioSummary } from "@/lib/api/hooks";
 
@@ -23,8 +24,16 @@ export function TradeModal({
     amount: number;
     leverage: number;
     slippageBps: number;
+    idempotencyKey: string;
   }) => void;
 }) {
+  // Task 15: one idempotency key per modal session — double-clicks and
+  // in-flight retries dedupe server-side; a fresh modal means a new intent.
+  const idempotencyKey = useRef(
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
   const [side, setSide] = useState<"buy" | "sell">(initialSide);
   const [orderType, setOrderType] = useState<(typeof ORDER_TYPES)[number]>("Market");
   const [leverage, setLeverage] = useState<number>(2);
@@ -48,9 +57,19 @@ export function TradeModal({
   const positionPnl = livePosition?.unrealized_pnl_abs ?? 0;
 
   const notional = Number(amount) || 0;
+  const slippageBps = Math.floor(Number(slippage) || 0);
   const marginRequired = notional / leverage;
   const availableBefore = summaryData?.free_margin ?? 0;
   const freeAfterOrder = availableBefore - marginRequired;
+
+  // Task 15: client-side validation is UX only — the matching engine
+  // re-validates everything server-side (min size, tick, margin, slippage).
+  const amountError =
+    notional <= 0 ? "Enter an amount greater than 0." :
+    notional < MIN_SIZE ? `Minimum size is ${MIN_SIZE} USDC.` : null;
+  const slippageError =
+    slippageBps < 1 || slippageBps > 10000 ? "Slippage must be 1–10000 bps." : null;
+  const formInvalid = amountError !== null || slippageError !== null;
 
   const handlePercentage = (pct: number) => {
     const maxNotional = availableBefore * leverage;
@@ -61,7 +80,9 @@ export function TradeModal({
     // TP/SL fields are intentionally not sent: the API attaches SL/TP to an
     // existing position (position_id required), which does not exist yet at
     // entry. See the Phase 6 report for the proposed attach flow.
-    onSubmitted({ side, amount: notional, leverage, slippageBps: Number(slippage) || 0 });
+    if (formInvalid) return; // submit is also disabled; belt and suspenders
+    track("order_submitted");
+    onSubmitted({ side, amount: notional, leverage, slippageBps, idempotencyKey: idempotencyKey.current });
   };
 
   return (
@@ -142,6 +163,9 @@ export function TradeModal({
             </span>
           </div>
           <span className="text-[9px] text-neutral-500">Min size: {MIN_SIZE} USDC</span>
+          {amountError && (
+            <span role="alert" className="text-[9px] text-destructive">{amountError}</span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -214,16 +238,24 @@ export function TradeModal({
               value={slippage}
               onChange={(e) => setSlippage(e.target.value)}
               placeholder="100"
+              aria-label="Max slippage in basis points"
               className="w-20 bg-transparent text-right text-[10px] font-medium text-neutral-100 outline-none placeholder:text-neutral-500"
             />
           </div>
+          {slippageError && (
+            <span role="alert" className="text-[9px] text-destructive">{slippageError}</span>
+          )}
         </div>
 
         <button
           onClick={handleSubmit}
+          disabled={formInvalid}
+          aria-disabled={formInvalid}
           className={cn(
             "mt-1 rounded-xl px-4 py-3 text-base font-semibold text-white",
-            side === "buy" ? "bg-success" : "bg-destructive",
+            formInvalid && "cursor-not-allowed opacity-40",
+            !formInvalid && side === "buy" && "bg-success",
+            !formInvalid && side === "sell" && "bg-destructive",
           )}
         >
           Place {side === "buy" ? "Buy" : "Sell"} Order

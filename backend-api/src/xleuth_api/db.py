@@ -64,6 +64,51 @@ class Database:
                 stmt = statement.strip()
                 if stmt:
                     await conn.execute(stmt)
+        # Baskets registry DDL (shared, idempotent). Reads below prefer the
+        # baskets table and fall back to index_prices during migration.
+        try:
+            from xleuth_shared.db_baskets import ensure_baskets_schema
+
+            await ensure_baskets_schema(self.pool)
+        except Exception:
+            logger.warning("baskets schema ensure failed", exc_info=True)
+
+    async def get_basket_record(self, basket_name: str) -> dict | None:
+        """Registry row by display name (or None pre-backfill)."""
+        if not self.pool:
+            return None
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT * FROM baskets WHERE name = $1", basket_name)
+                if row is None:
+                    return None
+                d = dict(row)
+                import json as _json
+
+                if isinstance(d.get("selection_rules"), str):
+                    d["selection_rules"] = _json.loads(d["selection_rules"])
+                return d
+        except Exception:
+            return None
+
+    async def list_basket_records(self) -> list[dict]:
+        if not self.pool:
+            return []
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch("SELECT * FROM baskets ORDER BY expiry_at")
+                out = []
+                for r in rows:
+                    d = dict(r)
+                    import json as _json
+
+                    if isinstance(d.get("selection_rules"), str):
+                        d["selection_rules"] = _json.loads(d["selection_rules"])
+                    out.append(d)
+                return out
+        except Exception:
+            return []
 
     # ── Basket / Price reads (tables created by data-ingestion) ────────
 

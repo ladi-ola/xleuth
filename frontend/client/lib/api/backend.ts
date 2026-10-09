@@ -17,7 +17,9 @@ import type {
   HTTPValidationError,
 } from './schemas';
 
-const BACKEND_API_URL = import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8000';
+import { secureUrl } from './urls';
+
+const BACKEND_API_URL = secureUrl(import.meta.env.VITE_BACKEND_API_URL || 'http://localhost:8000');
 
 function getAuthHeaders(token?: string): HeadersInit {
   const headers: HeadersInit = {
@@ -184,12 +186,12 @@ export const backendApi = {
 // WebSocket helpers
 export const backendWs = {
   getPriceWsUrl(basketName: string): string {
-    const base = import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:8000';
+    const base = secureUrl(import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:8000');
     return `${base}/ws/price/${encodeURIComponent(basketName)}`;
   },
 
   getOrderBookWsUrl(basketName: string): string {
-    const base = import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:8000';
+    const base = secureUrl(import.meta.env.VITE_BACKEND_WS_URL || 'ws://localhost:8000');
     return `${base}/ws/orderbook/${encodeURIComponent(basketName)}`;
   },
 };

@@ -4,11 +4,36 @@
 # netlify/functions/api.ts is unused by this deploy.
 [build]
   base = "frontend/"
-  command = "npm run build:client"
+  command = "npm run build:client && ../scripts/build-sitemap.sh"
   publish = "dist/spa"
+
+# Public build-time env (non-secret). VITE_* is baked into the bundle by
+# design. ROBOTS stays noindex for the testnet (one-line flip later).
+# Backend/API/WS URLs are NOT pinned here — set them per-deploy in the
+# Netlify dashboard (they differ between preview and production).
+[build.environment]
+  VITE_PUBLIC_SITE_URL = "https://xleuth.xyz"
+  VITE_ROBOTS_CONTENT = "noindex, nofollow"
 
 # SPA fallback: /market/:slug, /portfolio, /account, etc. resolve on refresh.
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Task 4 (HTTPS/security headers). Netlify serves HTTPS by default with a
+# managed certificate + auto-renewal, and redirects http:// to https:// when
+# "Force HTTPS" is on in the dashboard (verify). HSTS here is modest
+# (30 days, no preload — see docs/deployment-https.md to raise it later).
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Strict-Transport-Security = "max-age=2592000"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"
+    # Report-only tonight: a full enforcing CSP is risky with Dynamic +
+    # WalletConnect + Google Fonts in the bundle. Promote to enforcing after
+    # watching reports (docs/deployment-https.md).
+    Content-Security-Policy-Report-Only = "default-src 'self'; script-src 'self' 'unsafe-inline' https://app.dynamic.xyz; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https://api.builder.io; connect-src 'self' https: wss:; frame-ancestors 'none'"
+

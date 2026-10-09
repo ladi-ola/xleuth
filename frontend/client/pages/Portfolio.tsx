@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Download, Upload } from "lucide-react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
+import { track } from "@/lib/analytics";
 import {
   useAccount,
   useCancelOrder,
@@ -29,6 +30,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getBasket } from "@/lib/market-data";
 import {
+import { usePageMeta } from "@/hooks/use-page-meta";
   pnlPeriods,
   type PnlPeriod,
   type Position,
@@ -50,6 +52,7 @@ const EMPTY_SUMMARY = {
 };
 
 export default function Portfolio() {
+  usePageMeta({ title: 'Portfolio — Xleuth (testnet)', description: 'Track test-USDC balances, open positions, orders and trade history on the Polygon Amoy testnet.', path: '/portfolio' });
   const [tab, setTab] = useState<Tab>("position");
   const [period, setPeriod] = useState<PnlPeriod>("YTD");
   const [showSignIn, setShowSignIn] = useState(false);
@@ -81,6 +84,7 @@ export default function Portfolio() {
   const handleDeposit = async () => {
     if (!user) return setShowSignIn(true);
     try {
+      track("deposit_submitted");
       await claimFaucet();
       toast({ title: "Faucet claim successful", description: "Test USDC deposited", variant: "destructive" });
     } catch (error) {

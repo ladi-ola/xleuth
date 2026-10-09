@@ -1,8 +1,20 @@
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
+import { Layout } from "@/components/xleuth/Layout";
+import { usePageMeta } from "@/hooks/use-page-meta";
 
+// Task 13: branded 404 inside the app shell (dark theme, primary CTA home).
+// Note: with the static SPA 200-rewrite, unknown URLs return HTTP 200 serving
+// this page client-side — a true 404 status needs edge config, documented in
+// the final QA report. Site-wide noindex covers this route regardless.
 const NotFound = () => {
   const location = useLocation();
+
+  usePageMeta({
+    title: "Page not found — Xleuth (testnet)",
+    description: "The page you asked for does not exist. Return to the Xleuth testnet markets.",
+    path: location.pathname,
+  });
 
   useEffect(() => {
     console.error(
@@ -11,16 +23,34 @@ const NotFound = () => {
     );
   }, [location.pathname]);
 
+  const isMarketSlug = location.pathname.startsWith("/market/");
+  const slug = isMarketSlug ? location.pathname.split("/market/")[1] : null;
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">404</h1>
-        <p className="text-xl text-gray-600 mb-4">Oops! Page not found</p>
-        <a href="/" className="text-blue-500 hover:text-blue-700 underline">
-          Return to Home
-        </a>
+    <Layout>
+      <div className="flex flex-col items-center gap-4 px-4 py-16 text-center">
+        <span className="text-4xl font-bold text-neutral-100">404</span>
+        <p className="text-sm text-neutral-300">
+          {slug
+            ? `Unknown basket "${slug}". It may have expired, been renamed, or never existed.`
+            : "This page does not exist."}
+        </p>
+        <div className="flex gap-3">
+          <Link
+            to="/"
+            className="rounded-lg bg-primary px-4 py-2 text-sm text-white"
+          >
+            Launch app
+          </Link>
+          <Link
+            to="/explore"
+            className="rounded-lg border-[0.4px] border-neutral-600 px-4 py-2 text-sm text-neutral-200"
+          >
+            Browse baskets
+          </Link>
+        </div>
       </div>
-    </div>
+    </Layout>
   );
 };
 

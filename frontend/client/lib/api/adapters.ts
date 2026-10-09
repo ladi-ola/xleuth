@@ -177,38 +177,46 @@ function mapStatus(apiStatus: string): 'active' | 'upcoming' | 'resolved' {
   }
 }
 
-// Map backend basket to frontend basket
+// Map backend basket to frontend basket.
+//
+// Data-driven: display fields come from API columns (slug, expiry_at,
+// total_constituents). Nothing here parses the basket name for month/count —
+// the name is a display label only (PLAN.md). Symbol abbreviation is generic
+// (first 3 letters of each dash-separated suffix part), not a month list.
+export const GLOBAL_MAX_LEVERAGE_DISPLAY = '5x'; // global risk config, not per-basket
+
+export function abbreviateBasketName(name: string): string {
+  const parts = name.split('-');
+  if (parts.length < 2) return name;
+  const head = parts[0];
+  const tail = parts.slice(1).map((p) => (p.length > 3 ? p.slice(0, 3) : p));
+  return [head, ...tail].join('-');
+}
+
 export function adaptBasket(basket: BasketInfo, priceData?: BasketPriceResponseWithChange): FrontendBasket {
   const price = priceData?.scaled_price ?? basket.index_price_scaled ?? basket.index_price ?? 0;
   const changeAbs = priceData?.change_24h_abs ?? null;
   const changePct = priceData?.change_24h_pct ?? null;
 
-  // Generate slug from basket_name (e.g., "TOP20-SEPTEMBER" -> "top20-september")
-  const slug = basket.basket_name.toLowerCase().replace(/_/g, '-');
+  const slug = basket.slug ?? basket.basket_name.toLowerCase().replace(/_/g, '-');
+  const expiryIso = basket.expiry_at ?? priceData?.expiry_at ?? null;
+  const count = basket.total_constituents ?? priceData?.constituent_count ?? 0;
 
   return {
     slug,
-    symbol: basket.basket_name.replace('TOP20-', 'TOP20-').replace('SEPTEMBER', 'SEPT').replace('OCTOBER', 'OCT').replace('DECEMBER', 'DEC'),
+    symbol: abbreviateBasketName(basket.basket_name),
     listName: basket.basket_name,
     status: mapStatus(basket.status),
-    description: `Tracks the 20 highest-volume non-sport market that resolves in ${basket.basket_name.split('-')[1]?.toLowerCase() || 'period'}.`,
+    description: `Tracks the ${count} highest-volume markets in this index.`,
     price,
     priceLabel: formatPriceLabel(price),
     changeAbs,
     changePct,
     updatedLabel: priceData?.computed_at ? `Updated ${formatRelativeTime(priceData.computed_at)}` : 'Not yet live',
-    resolvesOn: basket.basket_name.includes('SEPTEMBER')
-      ? 'Sept 30, 2026'
-      : basket.basket_name.includes('OCTOBER')
-      ? 'Oct 31, 2026'
-      : basket.basket_name.includes('DECEMBER') || basket.basket_name.includes('Q4')
-      ? 'Dec 31, 2026'
-      : basket.basket_name.includes('AUGUST')
-      ? 'Aug 31, 2026'
-      : 'TBD',
+    resolvesOn: expiryIso ? formatDate(expiryIso) : 'TBD',
     vol: '$---', // Not available from API
     creator: '@xleuth',
-    maxLeverage: '5x',
+    maxLeverage: GLOBAL_MAX_LEVERAGE_DISPLAY,
     resolutionCriteria:
       'If every market in this index resolves YES, index price ends up 100 or 0 if all resolve NO. Otherwise a mix of YES and NO, it ends up the final trading price.',
   };
@@ -267,7 +275,7 @@ export function adaptPosition(pos: PositionResponse): FrontendPosition {
 
   return {
     id: pos.position_id,
-    symbol: pos.basket_name.replace('TOP20-', 'TOP20-').replace('SEPTEMBER', 'SEPT').replace('OCTOBER', 'OCT').replace('DECEMBER', 'DEC'),
+    symbol: abbreviateBasketName(pos.basket_name),
     side: isLong ? 'LONG' : 'SHORT',
     leverage: `${pos.leverage}x Leverage`,
     pnlPct: pos.unrealized_pnl_pct,
@@ -291,7 +299,7 @@ export function adaptOpenOrder(order: OrderListItem): FrontendOpenOrder {
   return {
     id: order.order_id,
     side: isLong ? 'Long' : 'Short',
-    symbol: order.basket_name.replace('TOP20-', 'TOP20-').replace('SEPTEMBER', 'SEPT').replace('OCTOBER', 'OCT').replace('DECEMBER', 'DEC'),
+    symbol: abbreviateBasketName(order.basket_name),
     size: order.size,
     entry: order.price ?? 0,
     date: formatDate(order.created_at),
@@ -312,7 +320,7 @@ export function adaptHistoryOrder(order: OrderListItem): FrontendHistoryOrder {
     kind: 'trade',
     id: order.order_id,
     side: isLong ? 'Long' : 'Short',
-    symbol: order.basket_name.replace('TOP20-', 'TOP20-').replace('SEPTEMBER', 'SEPT').replace('OCTOBER', 'OCT').replace('DECEMBER', 'DEC'),
+    symbol: abbreviateBasketName(order.basket_name),
     size: order.filled_size,
     entry: order.average_fill_price ?? order.price ?? 0,
     date: formatDate(order.updated_at || order.created_at),

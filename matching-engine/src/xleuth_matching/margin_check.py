@@ -52,7 +52,7 @@ class ChainState(ABC):
     tests use a fake."""
 
     @abstractmethod
-    def oracle_price(self, basket_name: str) -> tuple[int, int] | None:
+    def oracle_price(self, basket_name: str, index_id_hex: str | None = None) -> tuple[int, int] | None:
         """(price, updated_at_unix) of the latest accepted oracle update, or None."""
 
     @abstractmethod
@@ -124,11 +124,12 @@ class Web3ChainState(ChainState):
         },
     ]
 
-    def __init__(self, config: MatchingConfig):
+    def __init__(self, config: MatchingConfig, index_ids: dict[str, str] | None = None):
         from web3 import Web3
 
         self._w3 = Web3(Web3.HTTPProvider(config.rpc_url, request_kwargs={"timeout": 15}))
         self._checksum = Web3.to_checksum_address
+        self._index_ids = index_ids or {}
         self._oracle = self._w3.eth.contract(
             address=config.oracle_consumer_address, abi=self.ORACLE_ABI
         )
@@ -138,14 +139,22 @@ class Web3ChainState(ChainState):
         )
 
     @staticmethod
-    def basket_id(basket_name: str) -> bytes:
+    def basket_id(basket_name: str, index_id_hex: str | None = None) -> bytes:
         from eth_utils import keccak
 
+        if index_id_hex:
+            h = index_id_hex[2:] if index_id_hex.startswith("0x") else index_id_hex
+            return bytes.fromhex(h)
         return keccak(text=basket_name)
 
-    def oracle_price(self, basket_name: str) -> tuple[int, int] | None:
+    def _b32(self, basket_name: str, index_id_hex: str | None = None) -> bytes:
+        return Web3ChainState.basket_id(
+            basket_name, (self._index_ids or {}).get(basket_name, index_id_hex))
+
+    def oracle_price(self, basket_name: str, index_id_hex: str | None = None) -> tuple[int, int] | None:
         try:
-            price, ts = self._oracle.functions.latestPrice(self.basket_id(basket_name)).call()
+            price, ts = self._oracle.functions.latestPrice(
+                self._b32(basket_name, index_id_hex)).call()
             return int(price), int(ts)
         except Exception:
             logger.warning("oracle latestPrice read failed for %s", basket_name, exc_info=True)
@@ -168,7 +177,7 @@ class Web3ChainState(ChainState):
     def position_size(self, wallet: str, basket_name: str) -> int:
         try:
             result = self._pm.functions.getPosition(
-                self._checksum(wallet), self.basket_id(basket_name)
+                self._checksum(wallet), self._b32(basket_name)
             ).call()
             return int(result[1])
         except Exception:
@@ -180,7 +189,7 @@ class Web3ChainState(ChainState):
         Side: 0=Long(BUY), 1=Short(SELL). Returns None if no position or error."""
         try:
             result = self._pm.functions.getPosition(
-                self._checksum(wallet), self.basket_id(basket_name)
+                self._checksum(wallet), self._b32(basket_name)
             ).call()
             side = int(result[0])
             size = int(result[1])
@@ -197,6 +206,11 @@ class Web3ChainState(ChainState):
 class MarginCheck:
     config: MatchingConfig
     chain: ChainState
+    # DB registry (optional): {basket_name: row}. When provided, membership
+    # + expiry are decided from the DB (active, not expired); env list is
+    # only a fallback when the registry is empty/unavailable.
+    registry: dict | None = None
+    index_ids: dict[str, str] | None = None
 
     def validate(
         self,
@@ -219,7 +233,8 @@ class MarginCheck:
             if not check.ok:
                 return check
 
-        oracle = self.chain.oracle_price(basket_name)
+        oracle = self.chain.oracle_price(
+            basket_name, (self.index_ids or {}).get(basket_name))
         now = int(datetime.now(timezone.utc).timestamp())
         if oracle is None:
             return CheckResult(False, "oracle_unreadable", {"basket_name": basket_name})
@@ -262,6 +277,22 @@ class MarginCheck:
     # ── static checks ─────────────────────────────────────────────────────
 
     def _check_basket(self, basket_name: str) -> CheckResult:
+        if self.registry is not None and len(self.registry) > 0:
+            row = self.registry.get(basket_name)
+            if row is None:
+                return CheckResult(
+                    False, "unknown_basket",
+                    {"basket_name": basket_name, "known": sorted(self.registry)})
+            exp = row.get("expiry_at")
+            if exp is not None:
+                now = datetime.now(timezone.utc)
+                exp_utc = exp if exp.tzinfo else exp.replace(tzinfo=timezone.utc)
+                if exp_utc <= now:
+                    return CheckResult(False, "basket_not_tradeable", {"basket_name": basket_name})
+            if row.get("status") not in ("active", None):
+                return CheckResult(False, "basket_not_tradeable",
+                                   {"basket_name": basket_name, "status": row.get("status")})
+            return CheckResult(True)
         if basket_name not in self.config.baskets:
             return CheckResult(
                 False, "unknown_basket", {"basket_name": basket_name, "known": self.config.baskets}

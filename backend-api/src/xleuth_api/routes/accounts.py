@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, Request
+import re
+
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from xleuth_api.chain import ChainStateReader
 from xleuth_api.db import Database
@@ -41,7 +43,15 @@ async def update_alias(
     user: dict = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
-    updated = await db.update_user_alias(user["wallet_address"], alias)
+    # Task 15: server-side alias validation (real enforcement; the UI has no
+    # alias input today but the endpoint is reachable). React escapes on
+    # render, but we still bound length/charset at the boundary.
+    clean = (alias or "").strip()
+    if not clean or len(clean) > 32:
+        raise HTTPException(status_code=422, detail="alias must be 1-32 characters")
+    if not re.fullmatch(r"[A-Za-z0-9 _.\-]+", clean):
+        raise HTTPException(status_code=422, detail="alias holds invalid characters")
+    updated = await db.update_user_alias(user["wallet_address"], clean)
     if updated is None:
         return UserInfo(wallet_address=user["wallet_address"])
     return UserInfo(

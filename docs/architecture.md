@@ -9,7 +9,12 @@
 ## 0. Locked Product Decisions (do not re-derive these — they are settled)
 
 - **Universe:** Non-sport Polymarket markets only. Grouped by resolution window (weekly/monthly/quarterly/yearly).
-- **Naming:** `TOP{N}-{MONTH}` (e.g. `TOP50-JULY`), unrelated-basket style (not thematic) for v1.
+- **Naming:** `{THEME}{COUNT}-{EXPIRY}` (e.g. `TOP20-OCTOBER`), generated display
+  label only. Theme/count/window/expiry are stored as separate DB columns
+  (`baskets` table) and the name is built in exactly one function
+  (`shared/xleuth_shared/baskets.py:generate_name`). No service parses the
+  name. The immutable unique key is a year-qualified slug (e.g.
+  `top20-2026-10`). `TOP` is the current theme; future themes allowed.
 - **Index price:** Volume-weighted average price (VWAP) across filtered constituent markets. Multi-outcome markets (e.g. "What price will BTC hit in July?") are first VWAP'd internally across their own sub-outcomes to produce one price, then that single price enters the basket VWAP.
 - **Liquidity filter:** Applied before any computation — illiquid markets are excluded entirely, not down-weighted.
 - **Derivative type:** A **linear, cash-settled, dated index future** — NOT a perpetual. Each basket (e.g. `TOP50-JULY`) has an explicit expiry tied to when its constituent markets resolve. No funding-rate engine. At expiry, the contract settles to the **realized volume-weighted YES fraction** of the basket (0–1, or scaled 0–100), per your Q5 mechanics doc.
@@ -41,5 +46,12 @@
 | Wallet auth | EIP-712 typed-data signing (Sign-In-With-Ethereum pattern) | No custody of private keys server-side; matches how Polymarket itself authenticates |
 | Containerization | Docker Compose (Postgres, Redis, backend, oracle service, matching engine as separate services) | Keeps modules independently deployable later |
 
-All thresholds, API keys, RPC URLs, contract addresses, oracle intervals, liquidity cutoffs, margin/leverage parameters, and fee rates live in `.env` — nothing described below should ever be hardcoded.
+Global config (API keys, RPC URLs, contract addresses, oracle intervals,
+liquidity-cutoff defaults, margin/leverage parameters, fee rates) lives in
+`.env` — nothing described below should ever be hardcoded. Baskets
+themselves are data, not config: theme/count/window/expiry/selection-rules
+live in the `baskets` DB table (managed via the `basket` admin CLI), with
+global env values as defaults and per-basket liquidity/weighting overrides in
+`selection_rules`. Risk params (leverage/fees/staleness/tick/size) stay
+global by decision.
 

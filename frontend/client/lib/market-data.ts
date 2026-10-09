@@ -24,107 +24,41 @@ export interface Basket {
   resolutionCriteria: string;
 }
 
-export const baskets: Basket[] = [
-  {
-    slug: "top20-september",
-    symbol: "TOP20-SEPT",
-    listName: "TOP20-SEPTEMBER",
-    status: "active",
-    description:
-      "Tracks the 20 highest-volume non-sport market that resolves in September.",
-    price: 43.657,
-    priceLabel: "43.657\u00A2",
-    changeAbs: 2.38,
-    changePct: 1.7,
-    updatedLabel: "Updated 24mins ago",
-    resolvesOn: "Sept 30, 2026",
-    vol: "$1.83M",
-    creator: "@xleuth",
-    maxLeverage: "5x",
-    resolutionCriteria:
-      "If every markets in this index resolve YES, index price ends up 100 or 0 if all resolve NO. Otherwise a mix of YES and NO, it ends up the final trading price.",
-  },
-  {
-    slug: "top20-q4",
-    symbol: "TOP20-Q4",
-    listName: "TOP20-Q4",
-    status: "active",
-    description:
-      "Tracks the 20 highest-volume non-sport market that resolves in Q4.",
-    price: 71.833,
-    priceLabel: "71.833\u00A2",
-    changeAbs: 0.89,
-    changePct: 0.37,
-    updatedLabel: "Updated 24mins ago",
-    resolvesOn: "Dec 31, 2026",
-    vol: "$4.77M",
-    creator: "@xleuth",
-    maxLeverage: "5x",
-    resolutionCriteria:
-      "If every markets in this index resolve YES, index price ends up 100 or 0 if all resolve NO. Otherwise a mix of YES and NO, it ends up the final trading price.",
-  },
-  {
-    slug: "top20-october",
-    symbol: "TOP20-OCT",
-    listName: "TOP20-OCTOBER",
-    status: "active",
-    description:
-      "Tracks the 20 highest-volume non-sport market that resolves in October.",
-    price: 23.91,
-    priceLabel: "23.91\u00A2",
-    changeAbs: 3.17,
-    changePct: 1.9,
-    updatedLabel: "Updated 24mins ago",
-    resolvesOn: "Sept 30, 2026",
-    vol: "$127.2K",
-    creator: "@xleuth",
-    maxLeverage: "5x",
-    resolutionCriteria:
-      "If every markets in this index resolve YES, index price ends up 100 or 0 if all resolve NO. Otherwise a mix of YES and NO, it ends up the final trading price.",
-  },
-  {
-    slug: "top20-december",
-    symbol: "TOP20-DEC",
-    listName: "TOP20-DECEMBER",
-    status: "upcoming",
-    description:
-      "Tracks the 20 highest-volume non-sport market that resolves in December.",
-    price: 0,
-    priceLabel: "0.00\u00A2",
-    changeAbs: null,
-    changePct: null,
-    updatedLabel: "Not yet live",
-    resolvesOn: "Dec 31, 2026",
-    vol: "$---",
-    creator: "@xleuth",
-    maxLeverage: "5x",
-    resolutionCriteria:
-      "If every markets in this index resolve YES, index price ends up 100 or 0 if all resolve NO. Otherwise a mix of YES and NO, it ends up the final trading price.",
-  },
-  {
-    slug: "top20-august",
-    symbol: "TOP20-AUG",
-    listName: "TOP20-AUGUST",
-    status: "resolved",
-    description:
-      "Tracks the 20 highest-volume non-sport market that resolves in August.",
-    price: 89.47,
-    priceLabel: "89.47\u00A2",
-    changeAbs: 0,
-    changePct: 0,
-    updatedLabel: "Resolved",
-    resolvesOn: "Aug 31, 2026",
-    vol: "$975.2K",
-    creator: "@xleuth",
-    maxLeverage: "5x",
-    resolutionCriteria:
-      "If every markets in this index resolve YES, index price ends up 100 or 0 if all resolve NO. Otherwise a mix of YES and NO, it ends up the final trading price.",
-  },
-];
+/**
+ * DEPRECATED basket fixtures (PLAN.md: baskets are data, not config).
+ *
+ * Explore/Markets pages already render from GET /baskets via adaptBasket().
+ * This module now only keeps type shapes + a generic placeholder for offline
+ * UI states (e.g. Portfolio sign-in sheet before data loads). Do NOT add
+ * per-basket entries here - create baskets through the admin CLI.
+ */
+
+export const baskets: Basket[] = [];
+
+const PLACEHOLDER_BASKET: Basket = {
+  slug: "placeholder",
+  symbol: "--",
+  listName: "Loading...",
+  status: "upcoming",
+  description: "Basket data loads from the API.",
+  price: 0,
+  priceLabel: "0.000",
+  changeAbs: null,
+  changePct: null,
+  updatedLabel: "Not yet live",
+  resolvesOn: "TBD",
+  vol: "$---",
+  creator: "@xleuth",
+  maxLeverage: "5x",
+  resolutionCriteria:
+    "If every markets in this index resolve YES, index price ends up 100 or 0 if all resolve NO. Otherwise a mix of YES and NO, it ends up the final trading price.",
+};
 
 export function getBasket(slug: string | undefined): Basket {
-  return baskets.find((b) => b.slug === slug) ?? baskets[0];
+  return baskets.find((b) => b.slug === slug) ?? PLACEHOLDER_BASKET;
 }
+
+
 
 export const constituents: string[] = [
   "Next prime minister of Ethiopia",

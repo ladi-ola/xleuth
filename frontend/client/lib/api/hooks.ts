@@ -165,8 +165,13 @@ export function usePlaceOrder() {
   const { toast } = useToast();
 
   return useMutation({
-    mutationFn: (order: Parameters<typeof matchingApi.placeOrder>[1]) =>
-      authenticatedFetch((token) => matchingApi.placeOrder(token, order)),
+    mutationFn: (args: {
+      order: Parameters<typeof matchingApi.placeOrder>[1];
+      idempotencyKey?: string;
+    }) =>
+      authenticatedFetch((token) =>
+        matchingApi.placeOrder(token, args.order, args.idempotencyKey),
+      ),
     onMutate: async (newOrder) => {
       // Cancel outgoing refetches
       await queryClient.cancelQueries({ queryKey: queryKeys.orders.all });

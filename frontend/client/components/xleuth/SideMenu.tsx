@@ -87,6 +87,24 @@ export function SideMenu({
                 Support
               </span>
             </button>
+            <button
+              onClick={() => navigateTo("/privacy")}
+              className="flex items-center gap-2.5 text-left"
+            >
+              <FileText className="h-4 w-4 text-neutral-300" strokeWidth={1.4} />
+              <span className="text-xs font-medium leading-4 text-neutral-300">
+                Privacy Policy
+              </span>
+            </button>
+            <button
+              onClick={() => navigateTo("/terms")}
+              className="flex items-center gap-2.5 text-left"
+            >
+              <FileText className="h-4 w-4 text-neutral-300" strokeWidth={1.4} />
+              <span className="text-xs font-medium leading-4 text-neutral-300">
+                Terms
+              </span>
+            </button>
           </div>
         </div>
 
