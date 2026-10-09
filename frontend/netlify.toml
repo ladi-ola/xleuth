@@ -1,0 +1,14 @@
+# Xleuth static SPA deploy (Phase 8).
+# The browser calls backend-api and matching-engine directly, so nothing is
+# served from server/ here. The old functions-based config is superseded:
+# netlify/functions/api.ts is unused by this deploy.
+[build]
+  base = "frontend/"
+  command = "npm run build:client"
+  publish = "dist/spa"
+
+# SPA fallback: /market/:slug, /portfolio, /account, etc. resolve on refresh.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

@@ -155,10 +155,26 @@ export const backendApi = {
       body: JSON.stringify({ smart_account_address: smartAccountAddress } satisfies FaucetClaimRequest),
     });
     if (response.status === 429) {
-      const data = await handleResponse<FaucetCooldownResponse>(response);
-      const error = new Error('Faucet cooldown active') as Error & { status: number; retryAfter: number };
+      // The backend signals cooldown via the Retry-After header with a
+      // plain {"detail": "..."} body (no retry_after field), so read the
+      // header directly instead of going through handleResponse (which
+      // throws for non-2xx and would lose the header value).
+      const headerRetry = Number(response.headers.get('Retry-After'));
+      let bodyRetry = 0;
+      try {
+        const data = (await response.json()) as Partial<FaucetCooldownResponse>;
+        if (typeof data?.retry_after === 'number') bodyRetry = data.retry_after;
+      } catch {
+        // Non-JSON or empty body: fall back to the header value.
+      }
+      const retryAfter =
+        Number.isFinite(headerRetry) && headerRetry > 0 ? headerRetry : bodyRetry;
+      const error = new Error('Faucet claim on cooldown') as Error & {
+        status: number;
+        retryAfter: number;
+      };
       error.status = 429;
-      error.retryAfter = data.retry_after;
+      error.retryAfter = retryAfter;
       throw error;
     }
     return handleResponse<FaucetClaimResponse>(response);

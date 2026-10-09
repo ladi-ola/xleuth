@@ -9,7 +9,7 @@ from web3 import AsyncWeb3
 from web3.exceptions import Web3Exception
 
 from xleuth_api.db import Database
-from xleuth_api.dependencies import get_db
+from xleuth_api.dependencies import get_current_user, get_db
 from xleuth_shared.schemas.faucet import (
     FaucetClaimRequest,
     FaucetClaimResponse,
@@ -20,8 +20,8 @@ router = APIRouter(prefix="/faucet", tags=["faucet"])
 
 # ERC-20 transfer function signature
 ERC20_TRANSFER_SELECTOR = "0xa9059cbb"
-# Amount: 10,000 USDC with 6 decimals = 10,000 * 10^6
-FAUCET_AMOUNT = 10_000 * 10**6
+# Amount: 1,000 USDC with 6 decimals = 1,000 * 10^6 (max 1,000 per 24h claim)
+FAUCET_AMOUNT = 1_000 * 10**6
 
 ADDRESS_REGEX = re.compile(r"^0x[a-fA-F0-9]{40}$")
 
@@ -50,14 +50,24 @@ def build_transfer_calldata(to_address: str, amount: int) -> str:
 )
 async def claim_faucet(
     request: FaucetClaimRequest,
+    user: dict = Depends(get_current_user),
     db: Database = Depends(get_db),
 ):
+    # Authenticated claims only: no token -> 401 token_missing (login-gated).
     address = request.smart_account_address.strip()
 
     if not is_valid_address(address):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid EVM address format",
+        )
+
+    # The recipient must be the caller's own wallet: anyone authenticated
+    # must not be able to direct test funds to an arbitrary address.
+    if address.lower() != user["wallet_address"].lower():
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Claim recipient must match the authenticated wallet",
         )
 
     # Check cooldown (24 hours = 86400 seconds)

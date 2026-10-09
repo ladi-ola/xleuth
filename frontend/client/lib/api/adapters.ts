@@ -10,6 +10,8 @@ import type {
   PortfolioSummaryResponse,
   PositionResponse,
   OrderListItem,
+  OrderRequest,
+  Side,
   TransactionInfo,
   BookSnapshot,
   BookLevel,
@@ -368,5 +370,30 @@ export function adaptAccount(user: UserInfo): { address: string; alias: string |
     address: user.wallet_address,
     alias: user.alias,
     balance: user.balance,
+  };
+}
+
+// Build a market (FOK + slippage guard) order request from the trade modal's
+// USDC-notional input. API size is in index units (contracts) with
+// notional ~= price x size, so size = notional / price. The server is the
+// authority on min size, tick, margin and slippage: this only translates
+// units, it never validates.
+export function buildMarketOrder(args: {
+  basketName: string;
+  side: 'buy' | 'sell';
+  notionalUsdc: number;
+  price: number;
+  leverage: number;
+  slippageBps: number;
+}): OrderRequest {
+  const side: Side = args.side;
+  const size = args.price > 0 ? args.notionalUsdc / args.price : 0;
+  return {
+    basket_name: args.basketName,
+    side,
+    size,
+    leverage: args.leverage,
+    order_type: 'market',
+    max_slippage_bps: args.slippageBps,
   };
 }

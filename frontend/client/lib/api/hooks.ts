@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueries, useMutation, useQueryClient } from '@tanstack/react-query';
 import { backendApi, matchingApi } from './index';
 import { queryKeys, queryOptions } from './queryKeys';
 import { authenticatedFetch, ApiError } from './token-exchange';
@@ -23,6 +23,19 @@ export function useBasketPrice(basketName: string | undefined) {
     queryFn: () => backendApi.getBasketPrice(basketName!),
     enabled: !!basketName,
     ...queryOptions.public,
+  });
+}
+
+// The basket list endpoint does not return 24h change, so the list views
+// enrich each basket with its own /price call (PLAN Section 5A item 1).
+export function useBasketPrices(basketNames: string[]) {
+  return useQueries({
+    queries: basketNames.map((name) => ({
+      queryKey: queryKeys.baskets.price(name),
+      queryFn: () => backendApi.getBasketPrice(name),
+      enabled: !!name,
+      ...queryOptions.public,
+    })),
   });
 }
 
@@ -180,6 +193,17 @@ export function usePlaceOrder() {
       }
 
       const apiError = ApiError.fromUnknown(error);
+      if (!apiError.status) {
+        // Ambiguous failure (network error/timeout): never auto-retry POST
+        // /orders (duplicate-order risk). Reconcile via GET /orders (the
+        // onSettled invalidation below) and say so honestly.
+        toast({
+          title: 'Order status unknown',
+          description: 'Network error. Check Portfolio open orders to reconcile.',
+          variant: 'destructive',
+        });
+        return;
+      }
       toast({
         title: 'Order Failed',
         description: apiError.message,
@@ -243,13 +267,28 @@ export function useFaucetClaim() {
 
   return useMutation({
     mutationFn: async () => {
-      if (!primaryWallet?.address) {
-        throw new Error('No wallet connected');
-      }
+      // Phase 5: the recipient is always the caller's wallet_address from
+      // /accounts/me. Prefer the cached account, fetch it when the cache is
+      // cold, and fall back to the connected wallet (same EOA) only if the
+      // account read fails. Never a free-text or user-supplied address.
       // Note: Backend currently expects smart_account_address.
       // With AA deferred, we pass the EOA address.
-      // This may need backend adjustment per Dimeji's decision.
-      return authenticatedFetch((token) => backendApi.claimFaucet(token, primaryWallet.address));
+      const cachedAccount = queryClient.getQueryData<{ wallet_address?: string }>(
+        queryKeys.account.me()
+      );
+      let address = cachedAccount?.wallet_address;
+      if (!address) {
+        try {
+          const account = await authenticatedFetch(backendApi.getAccount);
+          address = account.wallet_address;
+        } catch {
+          address = primaryWallet?.address;
+        }
+      }
+      if (!address) {
+        throw new Error('No wallet connected');
+      }
+      return authenticatedFetch((token) => backendApi.claimFaucet(token, address));
     },
     onMutate: async () => {
       await queryClient.cancelQueries({ queryKey: queryKeys.account.all });
@@ -265,6 +304,17 @@ export function useFaucetClaim() {
         queryClient.setQueryData(queryKeys.account.me(), context.previousAccount);
       }
       const apiError = ApiError.fromUnknown(error);
+      if (!apiError.status) {
+        // Ambiguous failure (network error/timeout): never auto-retry the
+        // claim (double-funding risk). The onSettled invalidation below
+        // re-reads the balance; tell the user to reconcile from it.
+        toast({
+          title: 'Claim status unknown',
+          description: 'Network error. Balance re-read — check for updated funds.',
+          variant: 'destructive',
+        });
+        return;
+      }
       toast({
         title: apiError.isCooldown() ? 'Faucet Cooldown' : 'Claim Failed',
         description: apiError.message,
