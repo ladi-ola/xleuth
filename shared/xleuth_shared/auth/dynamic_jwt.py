@@ -11,7 +11,7 @@ from typing import Optional
 
 import jwt as pyjwt
 import requests
-from jwt.algorithms import RSAAlgorithm
+from typing import Any
 
 logger = logging.getLogger("xleuth_shared.auth.dynamic_jwt")
 
@@ -67,12 +67,12 @@ class DynamicJWTVerifier:
             self._cache_expiry = now + self.config.jwks_cache_ttl
         return self._jwks_cache
 
-    def _get_public_key(self, kid: str) -> RSAAlgorithm:
+    def _get_public_key(self, kid: str) -> Any:
         """Get RSA public key for the given key ID."""
         jwks = self._get_jwks()
         for key in jwks["keys"]:
             if key.get("kid") == kid:
-                return RSAAlgorithm.from_jwk(key)
+                return pyjwt.PyJWK(key).key
         raise DynamicJWTError(f"Key ID {kid} not found in JWKS", "KID_NOT_FOUND")
 
     def verify_token(self, token: str) -> str:
