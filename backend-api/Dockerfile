@@ -10,4 +10,4 @@ COPY shared/xleuth_shared/ /app/xleuth_shared/
 
 ENV PYTHONPATH=/app
 
-CMD ["uvicorn", "xleuth_api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn xleuth_api.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
