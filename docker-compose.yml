@@ -21,7 +21,7 @@ services:
 
   data-ingestion:
     build:
-      context: data-ingestion
+      context: .
       dockerfile: data-ingestion/Dockerfile
     env_file:
       - .env
@@ -40,8 +40,6 @@ services:
     build:
       context: .
       dockerfile: backend-api/Dockerfile
-    ports:
-      - "${API_PORT:-8000}:8000"
     env_file:
       - .env
     environment:
@@ -74,8 +72,6 @@ services:
     build:
       context: .
       dockerfile: matching-engine/Dockerfile
-    ports:
-      - "${ENGINE_PORT:-8001}:8001"
     env_file:
       - .env
     environment:
