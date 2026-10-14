@@ -67,6 +67,8 @@ services:
       - data-ingestion
     networks:
       - xleuth_net
+    volumes:
+      - ./shared/xleuth_shared:/app/xleuth_shared
 
   matching-engine:
     build:

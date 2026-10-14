@@ -7,6 +7,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY oracle-service/src/xleuth_oracle/ /app/xleuth_oracle/
 
-ENV PYTHONPATH=/app
+ENV PYTHONPATH=/app/xleuth_shared
 
 CMD ["python", "-m", "xleuth_oracle"]
