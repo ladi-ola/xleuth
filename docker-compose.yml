@@ -21,7 +21,7 @@ services:
 
   data-ingestion:
     build:
-      context: .
+      context: data-ingestion
       dockerfile: data-ingestion/Dockerfile
     env_file:
       - .env
@@ -33,6 +33,8 @@ services:
       - redis
     networks:
       - xleuth_net
+    volumes:
+      - ./shared/xleuth_shared:/app/xleuth_shared
 
   backend-api:
     build:

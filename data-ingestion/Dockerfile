@@ -2,11 +2,10 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY data-ingestion/requirements.txt .
+COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY data-ingestion/src/ /app/src/
-COPY shared/xleuth_shared/ /app/xleuth_shared/
+COPY src/ /app/src/
 
 ENV PYTHONPATH=/app/src:/app
 
