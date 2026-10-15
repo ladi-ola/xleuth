@@ -29,8 +29,8 @@ import { SegmentedControl } from "@/components/xleuth/SegmentedControl";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { getBasket } from "@/lib/market-data";
-import {
 import { usePageMeta } from "@/hooks/use-page-meta";
+import {
   pnlPeriods,
   type PnlPeriod,
   type Position,
