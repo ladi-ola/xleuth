@@ -21,8 +21,8 @@ services:
 
   data-ingestion:
     build:
-      context: .
-      dockerfile: data-ingestion/Dockerfile
+      context: data-ingestion
+      dockerfile: Dockerfile
     env_file:
       - .env
     environment:
@@ -33,13 +33,11 @@ services:
       - redis
     networks:
       - xleuth_net
-    volumes:
-      - ./shared/xleuth_shared:/app/xleuth_shared
 
   backend-api:
     build:
-      context: .
-      dockerfile: backend-api/Dockerfile
+      context: backend-api
+      dockerfile: Dockerfile
     env_file:
       - .env
     environment:
@@ -54,8 +52,8 @@ services:
 
   oracle-service:
     build:
-      context: .
-      dockerfile: oracle-service/Dockerfile
+      context: oracle-service
+      dockerfile: Dockerfile
     env_file:
       - .env
     environment:
@@ -67,13 +65,11 @@ services:
       - data-ingestion
     networks:
       - xleuth_net
-    volumes:
-      - ./shared/xleuth_shared:/app/xleuth_shared
 
   matching-engine:
     build:
-      context: .
-      dockerfile: matching-engine/Dockerfile
+      context: matching-engine
+      dockerfile: Dockerfile
     env_file:
       - .env
     environment:

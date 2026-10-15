@@ -1,0 +1,15 @@
+# Keep the build context small and free of local artefacts. The build context is
+# this service's directory, so stray files here are sent on every build.
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+tests/
+*.log
+.env
+.env.*
+!.env.example

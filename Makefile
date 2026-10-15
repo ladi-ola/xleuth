@@ -1,4 +1,4 @@
-.PHONY: test test-contracts test-api test-oracle test-matching test-e2e test-all test-shared test-admin check-secrets install-hooks run-ingestion run-api run-oracle run-matching deploy-testnet deploy-upgrade deploy-config-baskets deploy-settle-basket deploy-open-position up down basket-create basket-list basket-show basket-register basket-close basket-settle basket-reconcile check-bundle check-links
+.PHONY: sync-shared check-shared-sync test test-contracts test-api test-oracle test-matching test-e2e test-all test-shared test-admin check-secrets install-hooks run-ingestion run-api run-oracle run-matching deploy-testnet deploy-upgrade deploy-config-baskets deploy-settle-basket deploy-open-position up down basket-create basket-list basket-show basket-register basket-close basket-settle basket-reconcile check-bundle check-links
 
 test:
 	PYTHONPATH=data-ingestion/src:shared .venv/bin/pytest data-ingestion/tests/ -v
@@ -57,6 +57,14 @@ run-oracle:
 run-matching:
 	PYTHONPATH=matching-engine/src:shared .venv/bin/uvicorn xleuth_matching.main:app --host 0.0.0.0 --port 8001
 
+
+# Re-vendor shared/xleuth_shared into each service dir. Needed after editing
+# shared code, because the deploy BuildService builds with a service-dir context.
+sync-shared:
+	scripts/sync-shared.sh
+
+check-shared-sync:
+	PYTHONPATH=shared .venv/bin/pytest shared/tests/test_vendored_shared.py -q
 
 check-secrets:
 	scripts/check-env-examples.sh
