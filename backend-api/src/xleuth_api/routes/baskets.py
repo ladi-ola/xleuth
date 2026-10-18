@@ -1,11 +1,11 @@
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from xleuth_api.db import CANDLE_INTERVAL_SECONDS, Database
 from xleuth_api.dependencies import get_db
-from xleuth_shared.basket_lifecycle import basket_status, is_tradeable
+from xleuth_shared.basket_lifecycle import classify_index_status
 from xleuth_shared.schemas.baskets import (
     BasketDetail,
     BasketHistoryResponse,
@@ -22,33 +22,24 @@ from xleuth_shared.schemas.baskets import (
 router = APIRouter(prefix="/baskets", tags=["baskets"])
 
 
-def _lifecycle(basket_name: str) -> tuple[str, bool]:
-    now = datetime.now(timezone.utc)
-    return basket_status(basket_name, now), is_tradeable(basket_name, now)
+def _classify(
+    basket_name: str,
+    registry_row: dict | None = None,
+    latest: dict | None = None,
+) -> tuple[str, bool]:
+    """Section status for a basket: active | upcoming | resolved.
 
-
-def _lifecycle_for_row(row: dict | None, basket_name: str) -> tuple[str, bool]:
-    """DB status wins when a registry row exists (expiry-aware).
-
-    Maps registry status (draft/registering/active/closed/settled/
-    registration_failed) to the API's active/upcoming/resolved vocabulary:
-    active+unexpired -> active/tradeable; anything else -> non-tradeable with
-    the registry status surfaced. Falls back to name-derived lifecycle
-    pre-backfill.
+    One call into the shared single source of truth. ``latest`` is the last
+    persisted ingestion snapshot (``index_prices``), which carries the
+    mapped-constituent count and the computed index price used to tell
+    "seeded and trading" (Active) from "not seeded / not trading" (Upcoming).
     """
-    if not row:
-        return _lifecycle(basket_name)
-    status = (row.get("status") or "active").lower()
-    exp = row.get("expiry_at")
-    now = datetime.now(timezone.utc)
-    if exp is not None:
-        exp_utc = exp if exp.tzinfo else exp.replace(tzinfo=timezone.utc)
-        if status == "active" and exp_utc > now:
-            return "active", True
-        if status in ("closed", "settled") or exp_utc <= now:
-            return status if status in ("closed", "settled") else "resolved", False
-        return status, False
-    return _lifecycle(basket_name)
+    return classify_index_status(
+        basket_name,
+        registry_row=registry_row,
+        constituent_count=(latest or {}).get("constituent_count"),
+        index_price=(latest or {}).get("index_price"),
+    )
 
 
 async def _add_24h_change(db: Database, basket_name: str, response: BasketPriceResponse) -> BasketPriceResponseWithChange:
@@ -88,7 +79,7 @@ async def list_baskets(
         for rec in records:
             name = rec["name"]
             latest = await db.get_latest_basket_price(name)
-            status, tradeable = _lifecycle_for_row(rec, name)
+            status, tradeable = _classify(name, rec, latest)
             base = BasketInfo(
                 basket_name=name,
                 total_constituents=(latest.get("constituent_count") if latest else 0) or 0,
@@ -123,7 +114,7 @@ async def list_baskets(
     rows = await db.list_baskets()
     baskets = []
     for r in rows:
-        status, tradeable = _lifecycle(r["basket_name"])
+        status, tradeable = _classify(r["basket_name"], None, r)
         # Create base response
         base = BasketInfo(
             basket_name=r["basket_name"],
@@ -166,7 +157,7 @@ async def get_basket_price(
 ):
     row = await db.get_latest_basket_price(basket_name)
     rec = await db.get_basket_record(basket_name)
-    status, tradeable = _lifecycle_for_row(rec, basket_name)
+    status, tradeable = _classify(basket_name, rec, row)
     if row is None:
         base = BasketPriceResponse(
             basket_name=basket_name, status=status, is_tradeable=tradeable,
@@ -233,7 +224,7 @@ async def get_basket_constituents(
     ]
     latest = await db.get_latest_basket_price(basket_name)
     rec = await db.get_basket_record(basket_name)
-    status, tradeable = _lifecycle_for_row(rec, basket_name)
+    status, tradeable = _classify(basket_name, rec, latest)
     return BasketDetail(
         basket_name=basket_name,
         total_constituents=len(constituents),

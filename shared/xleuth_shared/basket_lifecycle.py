@@ -161,6 +161,80 @@ def is_tradeable(name: str, now: datetime | None = None) -> bool:
     return basket_status(name, now) != STATUS_RESOLVED
 
 
+def is_resolved(
+    name: str,
+    registry_row: dict | None = None,
+    now: datetime | None = None,
+) -> bool:
+    """Resolved decision, kept exactly as the API's existing logic.
+
+    * No registry row (pre-backfill): name-derived lifecycle.
+    * Registry row with ``expiry_at``: resolved once the row is ``closed`` /
+      ``settled`` or the expiry has passed; otherwise not resolved.
+    * Registry row without ``expiry_at``: name-derived lifecycle.
+    """
+    now = now or datetime.now(timezone.utc)
+    if not registry_row:
+        return basket_status(name, now) == STATUS_RESOLVED
+    status = (registry_row.get("status") or "active").lower()
+    exp = registry_row.get("expiry_at")
+    if exp is not None:
+        exp_utc = exp if exp.tzinfo else exp.replace(tzinfo=timezone.utc)
+        if status in ("closed", "settled") or exp_utc <= now:
+            return True
+        return False
+    return basket_status(name, now) == STATUS_RESOLVED
+
+
+def classify_index_status(
+    name: str,
+    *,
+    registry_row: dict | None = None,
+    constituent_count: int | None = None,
+    index_price: float | None = None,
+    now: datetime | None = None,
+) -> tuple[str, bool]:
+    """Section status of an index: ``active | upcoming | resolved``.
+
+    Single source of truth for the Explore page's Active / Upcoming / Resolved
+    classification. Precedence is Resolved first, then Active, then Upcoming,
+    so an index can never appear in two sections.
+
+    * **Resolved** — the existing resolved logic (``is_resolved``): a registry
+      row that is closed / settled, its ``expiry_at`` has passed, or the
+      name-derived lifecycle has ended. This is unchanged.
+    * **Active** — the index has been seeded (constituent markets mapped,
+      ``constituent_count > 0``) *and* is trading on Polymarket (the latest
+      ingestion snapshot computed at least one live price, so ``index_price``
+      is not ``None``).
+    * **Upcoming** — everything else: not yet seeded (no markets mapped), or
+      seeded but its Polymarket markets are not trading yet (no live price).
+
+    ``is_tradeable`` is True only for Active.
+
+    Transient-failure note: the caller passes the *last persisted* ingestion
+    snapshot (constituents + price). A temporary Polymarket outage does not
+    write a new snapshot, so the previous snapshot — i.e. the last known
+    status — is used and an index never flips on a transient failure. If a
+    snapshot itself records no priced constituent, the safest default is
+    Upcoming (never advertise trading without a price).
+    """
+    now = now or datetime.now(timezone.utc)
+
+    # 1. Resolved wins, exactly as before.
+    if is_resolved(name, registry_row, now):
+        return STATUS_RESOLVED, False
+
+    # 2. Active: seeded (markets mapped) and trading (>=1 live price).
+    seeded = int(constituent_count or 0) > 0
+    trading = seeded and index_price is not None
+    if trading:
+        return STATUS_ACTIVE, True
+
+    # 3. Upcoming: not seeded yet, or not trading on Polymarket yet.
+    return STATUS_UPCOMING, False
+
+
 @dataclass
 class BasketDescriptor:
     basket_name: str
