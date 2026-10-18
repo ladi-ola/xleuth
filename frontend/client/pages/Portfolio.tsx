@@ -111,12 +111,12 @@ export default function Portfolio() {
   return (
     <Layout>
       <div className="flex flex-col gap-4 px-4 pt-4">
-        {user ? (
+        {user && (
           <div className="flex flex-col gap-4 rounded-2xl border-[0.4px] border-neutral-600 bg-neutral-900 p-4">
             <div className="flex items-start gap-8">
               <div className="flex flex-1 flex-col gap-2">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[9px] font-medium text-neutral-500">Total Balance</span>
+                  <span className="text-[9px] text-neutral-300">Total Balance</span>
                   <span className="text-base font-semibold text-neutral-100">
                     ${summary.totalBalance.toFixed(2)}
                   </span>
@@ -136,7 +136,6 @@ export default function Portfolio() {
                   </div>
                 </div>
               </div>
-
               <div className="flex w-[88px] flex-col items-end gap-1">
                 <span className="text-right text-[9px] font-light text-neutral-400">
                   Unrealized PnL
@@ -160,7 +159,6 @@ export default function Portfolio() {
                   ${summary.profitLoss.toFixed(2)}
                 </span>
               </div>
-
               <div className="flex items-center gap-1">
                 {pnlPeriods.map((p) => (
                   <button
@@ -173,88 +171,89 @@ export default function Portfolio() {
                   >
                     {p}
                   </button>
-                ))
-              }
+                ))}
               </div>
             </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleDeposit}
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-primary px-4 py-2 text-xs font-medium tracking-[-0.12px] text-neutral-50"
+                disabled={isPending}
+              >
+                <Download className="h-4 w-4" strokeWidth={1.4} />
+                Deposit
+              </button>
+              <button
+                onClick={handleWithdraw}
+                disabled
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg border-[0.4px] border-neutral-600 bg-neutral-800 px-4 py-2 text-xs font-medium tracking-[-0.12px] text-neutral-300"
+              >
+                <Upload className="h-4 w-4" strokeWidth={1.4} />
+                Withdraw
+              </button>
+            </div>
           </div>
-        ) : (
+        )}
+
+        {!user ? (
           <EmptyState
             title="Sign in to see your portfolio"
             caption="Your positions, orders and history show here"
           />
-        )}
-
-        <SegmentedControl
-          value={tab}
-          onChange={(v) => setTab(v as Tab)}
-          options={[
-            { value: "position", label: "Position" },
-            { value: "open", label: "Open" },
-            { value: "history", label: "History" },
-          ]}
-        />
-
-        {tab === "position" ? (
-          positions.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {positions.map((p) => (
-                <PositionCard key={p.id} position={p} />
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="No open positions" caption="Your running positions show here" />
-          )
-        ) : tab === "open" ? (
-          openOrders.length > 0 ? (
-            <div className="flex flex-col gap-2">
-              {openOrders.map((o) => (
-                <OpenOrderCard
-                  key={o.id}
-                  order={o}
-                  onCancel={(id) => cancelOrder(id)}
-                  cancelling={isCancelling}
-                />
-              ))}
-            </div>
-          ) : (
-            <EmptyState title="No open orders" caption="Your limit orders show here" />
-          )
-        ) : historyOrders.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            {historyOrders.map((h) => (
-              <HistoryCard key={h.id} order={h} />
-            ))}
-          </div>
         ) : (
-          <EmptyState title="No trade history" caption="Your closed trades show here" />
-        )}
+          <>
+            <SegmentedControl
+              value={tab}
+              onChange={(v) => setTab(v as Tab)}
+              options={[
+                { value: "position", label: "Position" },
+                { value: "open", label: "Open" },
+                { value: "history", label: "History" },
+              ]}
+            />
 
-        {user ? (
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleDeposit}
-              className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-primary px-4 py-2 text-xs font-medium tracking-[-0.12px] text-neutral-50"
-              disabled={isPending}
-            >
-              <Download className="h-4 w-4" strokeWidth={1.4} />
-              Deposit
-            </button>
-            <button
-              onClick={handleWithdraw}
-              disabled
-              className="flex flex-1 items-center justify-center gap-1 rounded-lg border-[0.4px] border-neutral-600 bg-neutral-800 px-4 py-2 text-xs font-medium tracking-[-0.12px] text-neutral-300"
-            >
-              <Upload className="h-4 w-4" strokeWidth={1.4} />
-              Withdraw
-            </button>
-          </div>
-        ) : null}
-
-        {showSignIn && (
-          <SignInSheet basket={getBasket(undefined)} onClose={() => setShowSignIn(false)} />
+            {tab === "position" ? (
+              positions.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {positions.map((p) => (
+                    <PositionCard key={p.id} position={p} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="No open positions" caption="Your running positions show here" />
+              )
+            ) : tab === "open" ? (
+              openOrders.length > 0 ? (
+                <div className="flex flex-col gap-2">
+                  {openOrders.map((o) => (
+                    <OpenOrderCard
+                      key={o.id}
+                      order={o}
+                      onCancel={(id) => cancelOrder(id)}
+                      cancelling={isCancelling}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="No open orders" caption="Your limit orders show here" />
+              )
+            ) : historyOrders.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {historyOrders.map((h) => (
+                  <HistoryCard key={h.id} order={h} />
+                ))}
+              </div>
+            ) : (
+              <EmptyState title="No trade history" caption="Your closed trades show here" />
+            )}
+          </>
         )}
       </div>
+
+      {showSignIn && (
+        <SignInSheet basket={getBasket(undefined)} onClose={() => setShowSignIn(false)} />
+      )}
     </Layout>
   );
 }

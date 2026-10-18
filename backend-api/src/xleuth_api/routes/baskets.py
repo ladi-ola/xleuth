@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-from xleuth_api.db import Database
+from xleuth_api.db import CANDLE_INTERVAL_SECONDS, Database
 from xleuth_api.dependencies import get_db
 from xleuth_shared.basket_lifecycle import basket_status, is_tradeable
 from xleuth_shared.schemas.baskets import (
@@ -255,7 +255,16 @@ async def get_candles(
     end: Optional[datetime] = Query(None),
     db: Database = Depends(get_db),
 ):
-    """Get OHLC candles for a basket using TimescaleDB time_bucket."""
+    """Get OHLC candles for a basket (portable PostgreSQL bucketing).
+
+    Returns 200 with an empty ``candles`` list when the basket is known but
+    has no price history yet, 404 when the basket is unknown, and 400 for an
+    unsupported interval.
+    """
+    if interval not in CANDLE_INTERVAL_SECONDS:
+        raise HTTPException(status_code=400, detail=f"unsupported_interval:{interval}")
+    if not await db.basket_exists(basket_name):
+        raise HTTPException(status_code=404, detail="basket_not_found")
     rows = await db.get_candles(basket_name, interval, limit, start, end)
     candles = [
         Candle(

@@ -6,6 +6,7 @@ import redis.asyncio as aioredis
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 
 from xleuth_api.auth.dynamic_jwt import DynamicAuthHandler
 from xleuth_api.chain import ChainConfig, Web3ChainStateReader
@@ -19,6 +20,46 @@ from xleuth_api.routes.websocket import router as websocket_router
 load_dotenv()
 
 logger = logging.getLogger("xleuth_api")
+
+
+class CatchAllErrorMiddleware:
+    """Convert uncaught exceptions into a JSON 500 that keeps CORS headers.
+
+    Starlette registers a generic ``Exception`` handler on ServerErrorMiddleware,
+    which is the *outermost* middleware — outside CORSMiddleware. Its 500
+    responses therefore carry no ``Access-Control-*`` headers, so browsers
+    report a misleading CORS error instead of the real failure. Running this
+    middleware just inside CORSMiddleware means the JSON 500 flows back out
+    through CORS and is labelled correctly.
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        response_started = False
+
+        async def _send(message) -> None:
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, receive, _send)
+        except Exception:  # noqa: BLE001 - deliberate catch-all guard
+            logger.exception(
+                "Unhandled error on %s %s", scope.get("method"), scope.get("path")
+            )
+            if response_started:
+                # Response already streaming; cannot replace it.
+                raise
+            response = JSONResponse({"detail": "Internal Server Error"}, status_code=500)
+            await response(scope, receive, send)
 
 
 @asynccontextmanager
@@ -55,7 +96,28 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+    # Keep the configured origins, but always allow the production frontends
+    # regardless of the deployed CORS_ALLOWED_ORIGINS value. No wildcards:
+    # allow_credentials=True requires an explicit origin list.
+    origins = [
+        o.strip()
+        for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+        if o.strip()
+    ]
+    for required_origin in ("https://xleuth.xyz", "https://www.xleuth.xyz"):
+        if required_origin not in origins:
+            origins.append(required_origin)
+
+    # Task 16: per-IP rate limits on public endpoints + request size guard.
+    # Rules are env-tunable (RL_*_PER_MIN); the faucet keeps its own 24h
+    # per-wallet cooldown in addition to this IP limit.
+    from xleuth_shared.rate_limit import RateLimitMiddleware
+
+    # Middleware is added innermost-first: the last one added is the outermost.
+    # CORSMiddleware must be outermost among these so that both the rate-limit
+    # and catch-all responses (including 500s) carry CORS headers.
+    app.add_middleware(RateLimitMiddleware, service="backend-api")
+    app.add_middleware(CatchAllErrorMiddleware)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=origins,
@@ -63,13 +125,6 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-
-    # Task 16: per-IP rate limits on public endpoints + request size guard.
-    # Rules are env-tunable (RL_*_PER_MIN); the faucet keeps its own 24h
-    # per-wallet cooldown in addition to this IP limit.
-    from xleuth_shared.rate_limit import RateLimitMiddleware
-
-    app.add_middleware(RateLimitMiddleware, service="backend-api")
 
     database_url = os.getenv("DATABASE_URL")
     dynamic_env_id = os.getenv("DYNAMIC_ENVIRONMENT_ID", "938a93a5-ee1f-4da2-86cf-27326bd01885")

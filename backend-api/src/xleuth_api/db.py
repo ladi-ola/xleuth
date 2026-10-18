@@ -35,6 +35,46 @@ CREATE TABLE IF NOT EXISTS faucet_claims (
 );
 """
 
+# Price-history tables are written by data-ingestion, but the API must be able
+# to create them itself so a fresh deploy (e.g. Render, no shell access) is
+# self-healing. Plain PostgreSQL DDL — no TimescaleDB-only constructs.
+PRICE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS index_prices (
+    ts          TIMESTAMPTZ NOT NULL,
+    basket_name TEXT NOT NULL,
+    index_price DOUBLE PRECISION,
+    scaled_price DOUBLE PRECISION,
+    constituent_count INTEGER,
+    constituents JSONB
+);
+
+CREATE TABLE IF NOT EXISTS market_prices (
+    ts          TIMESTAMPTZ NOT NULL,
+    market_id   TEXT NOT NULL,
+    basket_name TEXT NOT NULL,
+    question    TEXT,
+    price       DOUBLE PRECISION,
+    volume      DOUBLE PRECISION,
+    event_id    TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_index_prices_basket_ts
+    ON index_prices (basket_name, ts DESC);
+"""
+
+# Candle interval -> bucket size in seconds. Whitelisted so the interval can
+# never reach the SQL as an unsupported value.
+CANDLE_INTERVAL_SECONDS: dict[str, int] = {
+    "1m": 60,
+    "5m": 300,
+    "15m": 900,
+    "30m": 1800,
+    "1h": 3600,
+    "4h": 14400,
+    "1d": 86400,
+    "1w": 604800,
+}
+
 
 class Database:
     def __init__(self, dsn: str | None):
@@ -61,6 +101,12 @@ class Database:
             return
         async with self.pool.acquire() as conn:
             for statement in USER_TABLE_SQL.split(";"):
+                stmt = statement.strip()
+                if stmt:
+                    await conn.execute(stmt)
+            # Price history tables (idempotent): created here too so the API
+            # works on a fresh deploy even before data-ingestion runs.
+            for statement in PRICE_TABLE_SQL.split(";"):
                 stmt = statement.strip()
                 if stmt:
                     await conn.execute(stmt)
@@ -216,56 +262,81 @@ class Database:
                 return float(row["scaled_price"])
             return None
 
+    async def basket_exists(self, basket_name: str) -> bool:
+        """True if the basket is known (registry row or any price history).
+
+        Used to distinguish "known basket, no candles yet" (200 + empty list)
+        from "unknown basket" (404).
+        """
+        if not self.pool:
+            return False
+        try:
+            async with self.pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    """
+                    SELECT
+                        EXISTS(SELECT 1 FROM baskets WHERE name = $1) AS in_registry,
+                        EXISTS(SELECT 1 FROM index_prices WHERE basket_name = $1) AS in_prices
+                    """,
+                    basket_name,
+                )
+        except Exception:
+            return False
+        if row is None:
+            return False
+        return bool(row["in_registry"] or row["in_prices"])
+
     async def get_candles(
         self, basket_name: str, interval: str, limit: int = 1000, start: datetime | None = None, end: datetime | None = None
     ) -> list[dict]:
-        """Get OHLC candles using TimescaleDB time_bucket.
-        
-        Interval format: '1m', '5m', '15m', '1h', '4h', '1d', etc.
+        """OHLC candles using portable PostgreSQL bucketing.
+
+        Buckets come from epoch math (``floor(epoch / step) * step``) so no
+        TimescaleDB extension (``time_bucket``/``FIRST``/``LAST``) is needed —
+        this runs on plain PostgreSQL. Returns the most recent ``limit``
+        buckets in ascending time order. Raises ValueError for an unsupported
+        interval (mapped to HTTP 400 by the route).
         """
         if not self.pool:
             return []
+        step_seconds = CANDLE_INTERVAL_SECONDS.get(interval)
+        if step_seconds is None:
+            raise ValueError(f"Unsupported candle interval: {interval!r}")
+
         async with self.pool.acquire() as conn:
-            # Build time_bucket query
-            interval_mapping = {
-                '1m': '1 minute',
-                '5m': '5 minutes',
-                '15m': '15 minutes',
-                '30m': '30 minutes',
-                '1h': '1 hour',
-                '4h': '4 hours',
-                '1d': '1 day',
-                '1w': '1 week',
-            }
-            pg_interval = interval_mapping.get(interval, '15 minutes')
-            
-            query = f"""
-                SELECT 
-                    time_bucket('{pg_interval}', ts) AS bucket,
-                    FIRST(index_price, ts) AS open,
-                    MAX(index_price) AS high,
-                    MIN(index_price) AS low,
-                    LAST(index_price, ts) AS close
-                FROM index_prices
-                WHERE basket_name = $1
+            params: list[Any] = [basket_name, step_seconds]
+            query = """
+                SELECT bucket, open, high, low, close
+                FROM (
+                    SELECT
+                        to_timestamp(
+                            floor(
+                                extract(epoch FROM ts)::double precision
+                                / $2::double precision
+                            ) * $2::double precision
+                        ) AS bucket,
+                        (array_agg(index_price ORDER BY ts ASC))[1] AS open,
+                        MAX(index_price) AS high,
+                        MIN(index_price) AS low,
+                        (array_agg(index_price ORDER BY ts DESC))[1] AS close
+                    FROM index_prices
+                    WHERE basket_name = $1 AND index_price IS NOT NULL
             """
-            params = [basket_name]
-            
             if start:
-                query += " AND ts >= $2"
                 params.append(start)
+                query += f" AND ts >= ${len(params)}"
             if end:
-                query += f" AND ts <= ${len(params) + 1}"
                 params.append(end)
-            
-            query += f"""
-                GROUP BY bucket
-                HAVING COUNT(*) > 0
-                ORDER BY bucket ASC
-                LIMIT ${len(params) + 1}
-            """
+                query += f" AND ts <= ${len(params)}"
             params.append(limit)
-            
+            query += f"""
+                    GROUP BY bucket
+                    ORDER BY bucket DESC
+                    LIMIT ${len(params)}
+                ) AS recent_buckets
+                ORDER BY bucket ASC
+            """
+
             rows = await conn.fetch(query, *params)
             return [dict(r) for r in rows]
 

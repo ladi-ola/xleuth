@@ -50,11 +50,17 @@ export function IndexDetailsCard({
         </button>
         {constituentsOpen && (
           <div className="flex flex-col gap-1.5">
-            {constituents.map((market) => (
-              <span key={market} className="text-[9px] leading-[10px] text-neutral-400">
-                {market}
+            {constituents.length === 0 ? (
+              <span className="text-[9px] leading-[10px] text-neutral-500">
+                No data yet
               </span>
-            ))}
+            ) : (
+              constituents.map((market) => (
+                <span key={market} className="text-[9px] leading-[10px] text-neutral-400">
+                  {market}
+                </span>
+              ))
+            )}
           </div>
         )}
       </div>

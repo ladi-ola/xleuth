@@ -9,6 +9,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { cn } from "@/lib/utils";
+import { EmptyState } from "./EmptyState";
 
 const TIMEFRAMES = ["1H", "1D", "1W", "1M"] as const;
 type Timeframe = (typeof TIMEFRAMES)[number];
@@ -17,6 +18,7 @@ export function PriceChart(props: {
   candles?: { time: number; open: number; high: number; low: number; close: number }[];
 }) {
   const liveCandles = props.candles ?? [];
+  const hasData = liveCandles.length > 0;
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Line"> | ISeriesApi<"Candlestick"> | null>(
@@ -149,7 +151,22 @@ export function PriceChart(props: {
           ))}
         </div>
       </div>
-      <div ref={containerRef} className="h-[338px] w-full" />
+      <div className="relative h-[338px] w-full">
+        {/* The chart container stays mounted (sized) so the chart instance is
+            ready; it is only hidden while there is no data to plot. */}
+        <div
+          ref={containerRef}
+          className={cn("h-full w-full", !hasData && "invisible")}
+        />
+        {!hasData && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <EmptyState
+              title="No data yet"
+              caption="Price history will appear once the index is live"
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

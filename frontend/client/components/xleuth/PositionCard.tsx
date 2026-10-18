@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { formatPercentDelta } from "@/lib/format";
 import type { Position } from "@/lib/portfolio-data";
 
 function Cell({
@@ -49,8 +50,7 @@ export function PositionCard({ position }: { position: Position }) {
         <div className="flex flex-col items-end gap-1">
           <span className="text-[9px] text-neutral-400">Unrealized PnL</span>
           <span className={cn("text-sm font-semibold", isProfit ? "text-success" : "text-destructive")}>
-            {position.pnlPct >= 0 ? "+" : ""}
-            {position.pnlPct}%{" "}
+            {formatPercentDelta(position.pnlPct)}{" "}
             {isProfit ? "+" : "-"}${Math.abs(position.pnlAbs).toFixed(2)}
           </span>
         </div>
