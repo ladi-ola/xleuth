@@ -1,4 +1,4 @@
-import { X, CircleQuestionMark, FileText, LifeBuoy, LogOut } from "lucide-react";
+import { X, CircleQuestionMark, FileDown, FileText, LifeBuoy, LogOut } from "lucide-react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { useNavigate } from "react-router-dom";
 
@@ -69,6 +69,21 @@ export function SideMenu({
                 How it works
               </span>
             </button>
+            {/* Plain anchor (not a router link) so the SPA router does not
+                intercept it; Vite serves public/ at the site root, so this
+                resolves to https://<host>/xleuth-whitepaper.pdf. The download
+                attribute keeps the stable filename. */}
+            <a
+              href="/xleuth-whitepaper.pdf"
+              download="xleuth-whitepaper.pdf"
+              onClick={onClose}
+              className="flex items-center gap-2.5 text-left"
+            >
+              <FileDown className="h-4 w-4 text-neutral-300" strokeWidth={1.4} />
+              <span className="text-xs font-medium leading-4 text-neutral-300">
+                Whitepaper
+              </span>
+            </a>
             <button
               onClick={() => navigateTo("/legal-risk-disclosure")}
               className="flex items-center gap-2.5 text-left"
