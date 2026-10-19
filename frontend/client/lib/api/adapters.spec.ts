@@ -20,6 +20,7 @@ import type {
   CandlesResponse,
   BookSnapshot,
 } from "./schemas";
+import { minimumOrderNotional } from "./limits";
 
 const basket: BasketInfo = {
   basket_name: "TOP20-OCTOBER",
@@ -270,6 +271,22 @@ describe("buildOrder", () => {
       trigger_price: 27.25,
       max_slippage_bps: 150,
     });
+  });
+
+  it("does not send a size just below the engine minimum for a minimum-sized order", () => {
+    // This price makes notional / price evaluate to 9.999999999999998 without
+    // the 6-decimal rounding; the engine would reject it as size_below_min.
+    const indexPrice = 73.867;
+    const request = buildOrder({
+      basketName: "TOP20-OCTOBER",
+      side: "buy",
+      orderType: "market",
+      notionalUsdc: minimumOrderNotional(indexPrice),
+      indexPrice,
+      leverage: 2,
+      slippageBps: 100,
+    });
+    expect(request.size).toBe(10);
   });
 
   it("builds a market order identical to buildMarketOrder", () => {

@@ -9,6 +9,7 @@ describe("getRejectionMessage", () => {
   it("maps known rejection codes to user-facing messages", () => {
     expect(getRejectionMessage("insufficient_margin")).toContain("margin");
     expect(getRejectionMessage("size_below_min")).toContain("minimum");
+    expect(getRejectionMessage("size_below_min")).toContain("contracts");
   });
 
   it("maps auth codes to sign-in messages", () => {

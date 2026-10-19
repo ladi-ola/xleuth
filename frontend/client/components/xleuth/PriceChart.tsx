@@ -151,7 +151,7 @@ export function PriceChart(props: {
           ))}
         </div>
       </div>
-      <div className="relative h-[338px] w-full">
+      <div className="relative h-[480px] w-full">
         {/* The chart container stays mounted (sized) so the chart instance is
             ready; it is only hidden while there is no data to plot. */}
         <div

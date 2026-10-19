@@ -1,5 +1,6 @@
 import type { HTTPValidationError, RejectionCode, AuthErrorCode } from './schemas';
 import { isAuthErrorCode, isRejectionCode } from './schemas';
+import { MIN_ORDER_CONTRACTS } from './limits';
 
 // Rejection code to user-friendly message mapping
 export const REJECTION_MESSAGES: Record<Exclude<RejectionCode, AuthErrorCode>, string> = {
@@ -7,7 +8,7 @@ export const REJECTION_MESSAGES: Record<Exclude<RejectionCode, AuthErrorCode>, s
   insufficient_margin: 'Insufficient margin for this order.',
   basket_not_tradeable: 'This market is not currently tradeable.',
   price_not_on_tick: 'Price must be on a valid tick (0.01 increments).',
-  size_below_min: 'Order size is below the minimum (10 USDC).',
+  size_below_min: `Order size is below the minimum of ${MIN_ORDER_CONTRACTS} contracts. Increase the order size.`,
   leverage_out_of_range: 'Leverage must be between 1x and 5x.',
   leverage_above_cap: 'Leverage exceeds the maximum allowed for this market.',
   oracle_price_zero: 'Oracle price is unavailable.',
