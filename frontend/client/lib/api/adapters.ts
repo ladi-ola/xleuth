@@ -381,11 +381,53 @@ export function adaptAccount(user: UserInfo): { address: string; alias: string |
   };
 }
 
-// Build a market (FOK + slippage guard) order request from the trade modal's
-// USDC-notional input. API size is in index units (contracts) with
-// notional ~= price x size, so size = notional / price. The server is the
-// authority on min size, tick, margin and slippage: this only translates
-// units, it never validates.
+export type TradeOrderType = 'market' | 'limit' | 'stop';
+
+// Build an order request from the trade modal's USDC-notional input. API size
+// is in index units (contracts) with notional ~= indexPrice x size, so
+// size = notional / indexPrice for every order type. Limit orders additionally
+// carry the resting price; stop orders carry the trigger price plus the same
+// slippage guard as market orders. The server is the authority on min size,
+// tick, margin and slippage: this only translates units, it never validates.
+export function buildOrder(args: {
+  basketName: string;
+  side: 'buy' | 'sell';
+  orderType: TradeOrderType;
+  notionalUsdc: number;
+  indexPrice: number;
+  leverage: number;
+  slippageBps?: number;
+  limitPrice?: number;
+  triggerPrice?: number;
+}): OrderRequest {
+  const side: Side = args.side;
+  const size = args.indexPrice > 0 ? args.notionalUsdc / args.indexPrice : 0;
+  const base = {
+    basket_name: args.basketName,
+    side,
+    size,
+    leverage: args.leverage,
+  };
+  if (args.orderType === 'limit') {
+    return { ...base, order_type: 'limit', price: args.limitPrice ?? null };
+  }
+  if (args.orderType === 'stop') {
+    return {
+      ...base,
+      order_type: 'stop',
+      trigger_price: args.triggerPrice ?? null,
+      max_slippage_bps: Math.floor(args.slippageBps ?? 0),
+    };
+  }
+  return {
+    ...base,
+    order_type: 'market',
+    max_slippage_bps: Math.floor(args.slippageBps ?? 0),
+  };
+}
+
+// Build a market (FOK + slippage guard) order request. Kept as a named
+// convenience wrapper around buildOrder for existing callers/tests.
 export function buildMarketOrder(args: {
   basketName: string;
   side: 'buy' | 'sell';
@@ -394,14 +436,13 @@ export function buildMarketOrder(args: {
   leverage: number;
   slippageBps: number;
 }): OrderRequest {
-  const side: Side = args.side;
-  const size = args.price > 0 ? args.notionalUsdc / args.price : 0;
-  return {
-    basket_name: args.basketName,
-    side,
-    size,
+  return buildOrder({
+    basketName: args.basketName,
+    side: args.side,
+    orderType: 'market',
+    notionalUsdc: args.notionalUsdc,
+    indexPrice: args.price,
     leverage: args.leverage,
-    order_type: 'market',
-    max_slippage_bps: args.slippageBps,
-  };
+    slippageBps: args.slippageBps,
+  });
 }

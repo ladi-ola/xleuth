@@ -9,6 +9,7 @@ import {
   adaptCandles,
   adaptOrderBook,
   buildMarketOrder,
+  buildOrder,
 } from "./adapters";
 import type {
   BasketInfo,
@@ -224,6 +225,73 @@ describe("buildMarketOrder", () => {
       slippageBps: 100,
     });
     expect(request.size).toBe(0);
+  });
+});
+
+describe("buildOrder", () => {
+  it("builds a limit order with the resting price and no slippage field", () => {
+    const request = buildOrder({
+      basketName: "TOP20-OCTOBER",
+      side: "buy",
+      orderType: "limit",
+      notionalUsdc: 600,
+      indexPrice: 30,
+      leverage: 2,
+      limitPrice: 29.5,
+      slippageBps: 100,
+    });
+    expect(request).toEqual({
+      basket_name: "TOP20-OCTOBER",
+      side: "buy",
+      size: 20,
+      leverage: 2,
+      order_type: "limit",
+      price: 29.5,
+    });
+  });
+
+  it("builds a stop order with trigger price and slippage guard", () => {
+    const request = buildOrder({
+      basketName: "TOP20-OCTOBER",
+      side: "sell",
+      orderType: "stop",
+      notionalUsdc: 600,
+      indexPrice: 30,
+      leverage: 3,
+      triggerPrice: 27.25,
+      slippageBps: 150,
+    });
+    expect(request).toEqual({
+      basket_name: "TOP20-OCTOBER",
+      side: "sell",
+      size: 20,
+      leverage: 3,
+      order_type: "stop",
+      trigger_price: 27.25,
+      max_slippage_bps: 150,
+    });
+  });
+
+  it("builds a market order identical to buildMarketOrder", () => {
+    const args = {
+      basketName: "TOP20-OCTOBER",
+      side: "buy" as const,
+      notionalUsdc: 600,
+      price: 30,
+      leverage: 5,
+      slippageBps: 100,
+    };
+    expect(
+      buildOrder({
+        basketName: args.basketName,
+        side: args.side,
+        orderType: "market",
+        notionalUsdc: args.notionalUsdc,
+        indexPrice: args.price,
+        leverage: args.leverage,
+        slippageBps: args.slippageBps,
+      }),
+    ).toEqual(buildMarketOrder(args));
   });
 });
 

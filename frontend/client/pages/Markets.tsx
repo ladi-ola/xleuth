@@ -9,7 +9,7 @@ import {
   useOrderBook,
   usePlaceOrder,
 } from "@/lib/api/hooks";
-import { adaptBasket, adaptCandles, adaptOrderBook, buildMarketOrder } from "@/lib/api/adapters";
+import { adaptBasket, adaptCandles, adaptOrderBook, buildOrder } from "@/lib/api/adapters";
 import { useToast } from "@/hooks/use-toast";
 import { Layout } from "@/components/xleuth/Layout";
 import { IndexHeader } from "@/components/xleuth/IndexHeader";
@@ -17,7 +17,7 @@ import { PriceChart } from "@/components/xleuth/PriceChart";
 import { OrderBook } from "@/components/xleuth/OrderBook";
 import { IndexDetailsCard } from "@/components/xleuth/IndexDetailsCard";
 import { TradeButtons } from "@/components/xleuth/TradeButtons";
-import { TradeModal } from "@/components/xleuth/TradeModal";
+import { TradeModal, type TradeSubmission } from "@/components/xleuth/TradeModal";
 import { OrderResultModal } from "@/components/xleuth/OrderResultModal";
 import { SignInSheet } from "@/components/xleuth/SignInSheet";
 import { SegmentedControl } from "@/components/xleuth/SegmentedControl";
@@ -98,18 +98,60 @@ export default function Markets() {
     setTradeSide(side);
   };
 
-  // Phase 6: market-order placement. Only Market is enabled in the UI, so
-  // only market orders are sent. Limit/Stop buttons are disabled in the modal
-  // and stay unwired. Rejections surface through usePlaceOrder's mapped
-  // toasts; the modal closes on submit (as before) so resubmission while a
-  // request is in flight is impossible.
-  const handleOrderSubmitted = async (order: {
-    side: "buy" | "sell";
-    amount: number;
-    leverage: number;
-    slippageBps: number;
-    idempotencyKey: string;
-  }) => {
+  // Phase 6/7: Market, Limit and Stop entry orders are all supported by the
+  // matching engine; the modal builds the type-specific price/trigger fields.
+  // TP/SL are attached to an existing position (the API requires position_id
+  // and cannot attach them to a brand-new entry). Rejections surface through
+  // usePlaceOrder's mapped toasts; the modal closes on submit so resubmission
+  // while a request is in flight is impossible.
+  const attachProtectiveOrders = async (order: TradeSubmission, marketName: string) => {
+    const ocoGroupId =
+      order.takeProfit && order.stopLoss
+        ? typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+        : undefined;
+    const maxSlippage = Math.max(1, Math.floor(order.slippageBps) || 100);
+    const requests: Parameters<typeof placeOrder.mutateAsync>[0][] = [];
+    if (order.stopLoss) {
+      requests.push({
+        order: {
+          basket_name: marketName,
+          order_type: "stop_loss",
+          trigger_price: order.stopLoss,
+          max_slippage_bps: maxSlippage,
+          position_id: order.positionId,
+          oco_group_id: ocoGroupId,
+        },
+      });
+    }
+    if (order.takeProfit) {
+      requests.push({
+        order: {
+          basket_name: marketName,
+          order_type: "take_profit",
+          trigger_price: order.takeProfit,
+          max_slippage_bps: maxSlippage,
+          position_id: order.positionId,
+          oco_group_id: ocoGroupId,
+        },
+      });
+    }
+    if (requests.length === 0) return;
+    try {
+      for (const request of requests) {
+        await placeOrder.mutateAsync(request);
+      }
+      toast({
+        title: "TP/SL set",
+        description: "Protective orders attached to your position.",
+      });
+    } catch {
+      // usePlaceOrder already toasted the failure.
+    }
+  };
+
+  const handleOrderSubmitted = async (order: TradeSubmission) => {
     setTradeSide(null);
     if (!user) {
       setShowSignIn(true);
@@ -123,24 +165,32 @@ export default function Markets() {
       toast({ title: "Invalid size", description: "Enter an amount greater than 0." });
       return;
     }
-    if (!(order.slippageBps > 0)) {
+    if (order.orderType !== "limit" && !(order.slippageBps > 0)) {
       toast({ title: "Slippage required", description: "Enter max slippage (bps) greater than 0." });
       return;
     }
     try {
       const response = await placeOrder.mutateAsync({
-        order: buildMarketOrder({
+        order: buildOrder({
           basketName,
           side: order.side,
+          orderType: order.orderType,
           notionalUsdc: order.amount,
-          price: basket.price,
+          indexPrice: basket.price,
           leverage: order.leverage,
           slippageBps: Math.floor(order.slippageBps),
+          limitPrice: order.limitPrice,
+          triggerPrice: order.triggerPrice,
         }),
         idempotencyKey: order.idempotencyKey,
       });
       if (response.status === "filled") {
         setFilledOrder({ side: order.side, amount: order.amount, leverage: order.leverage });
+      } else if (response.status === "open" || response.status === "partially_filled") {
+        toast({
+          title: `Order ${response.status.replace("_", " ")}`,
+          description: "Your order is resting on the book. Track it in Portfolio.",
+        });
       } else {
         toast({
           title: `Order ${response.status.replace("_", " ")}`,
@@ -148,7 +198,12 @@ export default function Markets() {
         });
       }
     } catch {
-      // usePlaceOrder already toasted the mapped rejection/auth message.
+      // usePlaceOrder already toasted the mapped rejection/auth message. Do
+      // not attach TP/SL when the entry order failed.
+      return;
+    }
+    if (order.positionId && (order.takeProfit || order.stopLoss)) {
+      await attachProtectiveOrders(order, basketName);
     }
   };
 
