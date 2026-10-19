@@ -1,9 +1,14 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from xleuth_api.auth.dynamic_jwt import DynamicAuthHandler
 from xleuth_api.db import Database
 from xleuth_api.dependencies import get_current_user, get_db, get_dynamic_auth_handler
+from xleuth_shared.auth.dynamic_jwt import DynamicJWTError
 from xleuth_shared.schemas.auth import DynamicVerifyRequest, TokenResponse, UserInfo
+
+logger = logging.getLogger("xleuth_api.routes.auth")
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -16,8 +21,16 @@ async def verify_dynamic_token(
 ):
     try:
         wallet = auth_handler.verify_dynamic_token(body.token)
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+    except DynamicJWTError as e:
+        # Log the real reason server-side, but return a stable machine-readable
+        # code so the client can tell the user "sign in again" instead of
+        # surfacing an internal verification detail.
+        logger.warning("Dynamic token verification failed: %s (%s)", e.code, e)
+        detail = "token_expired" if e.code == "TOKEN_EXPIRED" else "token_invalid"
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+    except Exception:
+        logger.exception("Unexpected error verifying Dynamic token")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="token_invalid")
 
     normalized = wallet.lower()
     await db.upsert_user(normalized)

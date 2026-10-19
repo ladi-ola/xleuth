@@ -58,7 +58,7 @@ export default function Portfolio() {
   const [showSignIn, setShowSignIn] = useState(false);
   const { user } = useDynamicContext();
   const { toast } = useToast();
-  const { mutate: claimFaucet, isPending } = useFaucetClaim();
+  const { mutateAsync: claimFaucet, isPending } = useFaucetClaim();
   const { mutate: cancelOrder, isPending: isCancelling } = useCancelOrder();
 
   // Phase 4: authenticated reads. The hooks poll while the screen is mounted
@@ -83,23 +83,12 @@ export default function Portfolio() {
 
   const handleDeposit = async () => {
     if (!user) return setShowSignIn(true);
+    // useFaucetClaim surfaces success/error/cooldown toasts itself.
     try {
       track("deposit_submitted");
       await claimFaucet();
-      toast({ title: "Faucet claim successful", description: "Test USDC added to your available balance", variant: "destructive" });
-    } catch (error) {
-      if (error?.status === 429 || error?.code === 'cooldown') {
-        const retryAfter = error?.retryAfter || 86400;
-        toast({ title: "Faucet on cooldown", description: `Try again in ${Math.ceil(retryAfter / 3600)} hours.`, variant: "destructive" });
-      } else if (error?.status === 401 || error?.code === 'token_missing' || error?.code === 'token_invalid' || error?.code === 'token_expired') {
-        toast({ title: "Authentication error", description: "Please sign in again.", variant: "destructive" });
-      } else if (error?.code === 'settlement_failed' || error?.code === 'faucet_depleted') {
-        toast({ title: "Faucet depleted", description: error?.message || "Faucet is out of funds.", variant: "destructive" });
-      } else if (error?.message) {
-        toast({ title: "Claim failed", description: error.message, variant: "destructive" });
-      } else {
-        toast({ title: "Claim failed", description: "Unknown error occurred.", variant: "destructive" });
-      }
+    } catch {
+      // Error already reported by the mutation hook.
     }
   };
 

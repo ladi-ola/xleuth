@@ -65,6 +65,20 @@ def test_auth_invalid_dynamic_token(client: TestClient):
         json={"token": "invalid-dynamic-token"},
     )
     assert resp.status_code == 401
+    # Stable machine-readable code so the UI can prompt a re-sign-in.
+    assert resp.json()["detail"] == "token_invalid"
+
+
+def test_auth_expired_dynamic_token(client: TestClient, monkeypatch):
+    handler = client.app.state.dynamic_auth_handler
+
+    def _raise_expired(_token: str) -> str:
+        raise DynamicJWTError("Token has expired", "TOKEN_EXPIRED")
+
+    monkeypatch.setattr(handler, "verify_dynamic_token", _raise_expired)
+    resp = client.post("/auth/verify", json={"token": "expired"})
+    assert resp.status_code == 401
+    assert resp.json()["detail"] == "token_expired"
 
 
 def test_auth_no_token(client: TestClient):

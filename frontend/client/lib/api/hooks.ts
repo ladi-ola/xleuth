@@ -320,17 +320,23 @@ export function useFaucetClaim() {
         });
         return;
       }
+      const isAuthFailure = apiError.status === 401;
       toast({
-        title: apiError.isCooldown() ? 'Faucet Cooldown' : 'Claim Failed',
-        description: apiError.message,
+        title: apiError.isCooldown()
+          ? 'Faucet Cooldown'
+          : isAuthFailure
+            ? 'Authentication Error'
+            : 'Claim Failed',
+        description: isAuthFailure
+          ? 'Your session could not be verified. Please sign in again.'
+          : apiError.message,
         variant: 'destructive',
       });
     },
     onSuccess: (data) => {
       toast({
         title: 'Claim Successful',
-        description: `Transaction: ${data.tx_hash}`,
-        variant: 'destructive', // Using destructive as success variant may not exist
+        description: `1,000 test-USDC added to your available balance. Tx: ${data.tx_hash}`,
       });
       // Invalidate to refetch balance
       queryClient.invalidateQueries({ queryKey: queryKeys.account.all });

@@ -56,6 +56,19 @@ describe("exchangeDynamicToken", () => {
     await expect(exchangeDynamicToken()).resolves.toBe("internal-token");
     expect(mockVerifyToken).toHaveBeenCalledTimes(2);
   });
+
+  it("maps a rejected /auth/verify response to a stable auth code", async () => {
+    mockVerifyToken.mockRejectedValueOnce(
+      Object.assign(new Error("API Error: 401"), {
+        status: 401,
+        data: { detail: "token_invalid" },
+      })
+    );
+    await expect(exchangeDynamicToken()).rejects.toMatchObject({
+      status: 401,
+      code: "token_invalid",
+    });
+  });
 });
 
 describe("authenticatedFetch", () => {
@@ -87,6 +100,31 @@ describe("authenticatedFetch", () => {
       .fn()
       .mockRejectedValue(Object.assign(new Error("x"), { status: 422 }));
     await expect(authenticatedFetch(fetchFn)).rejects.toMatchObject({ status: 422 });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a raw backend 401 whose code lives in data.detail", async () => {
+    const fetchFn = vi
+      .fn()
+      .mockRejectedValueOnce(
+        Object.assign(new Error("API Error: 401"), {
+          status: 401,
+          data: { detail: "token_invalid" },
+        })
+      )
+      .mockResolvedValueOnce("ok");
+    await expect(authenticatedFetch(fetchFn)).resolves.toBe("ok");
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry token_missing (no session to refresh)", async () => {
+    const fetchFn = vi.fn().mockRejectedValue(
+      Object.assign(new Error("missing"), {
+        status: 401,
+        data: { detail: "token_missing" },
+      })
+    );
+    await expect(authenticatedFetch(fetchFn)).rejects.toMatchObject({ status: 401 });
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 });

@@ -164,6 +164,28 @@ def create_app() -> FastAPI:
 
     chain_reader = Web3ChainStateReader(chain_config) if chain_config.rpc_url else None
 
+    # Surface misconfiguration that would otherwise show up as a silent $0
+    # portfolio balance (the chain reader and collateral-token addresses are
+    # deployment env, not committed to the image).
+    if chain_reader is None:
+        logger.warning(
+            "Chain reader disabled: POLYGON_AMOY_RPC_URL/RPC_URL is unset; "
+            "/accounts/summary will return zeros"
+        )
+    else:
+        logger.info(
+            "Chain reader enabled (vault=%s, collateral_token=%s, legacy_token=%s)",
+            chain_config.vault_address or "<unset>",
+            chain_config.collateral_token_address or "<unset>",
+            chain_config.legacy_token_address or "<unset>",
+        )
+    if not chain_config.collateral_token_address:
+        logger.warning(
+            "No TEST_USDC_ADDRESS/MOCK_USDC_ADDRESS set; portfolio wallet "
+            "balances cannot be read"
+        )
+    logger.info("Dynamic environment id: %s", dynamic_env_id)
+
     app.state.db = db
     app.state.dynamic_auth_handler = dynamic_auth_handler
     app.state.chain_reader = chain_reader

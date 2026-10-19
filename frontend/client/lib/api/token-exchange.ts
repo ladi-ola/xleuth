@@ -1,5 +1,6 @@
 import { backendApi } from './backend';
 import { ApiError } from './errors';
+import { isAuthErrorCode } from './schemas';
 import { getAuthToken } from '@dynamic-labs/sdk-react-core';
 
 interface TokenState {
@@ -50,6 +51,15 @@ export async function exchangeDynamicToken(): Promise<string> {
         expiresAt: Date.now() + response.expires_in_minutes * 60 * 1000,
       };
       return tokenState.accessToken!;
+    } catch (error) {
+      // Attach a stable code so callers/UI can distinguish "sign in again"
+      // from a transient failure instead of getting a bare 401.
+      const apiError =
+        error instanceof ApiError ? error : ApiError.fromUnknown(error);
+      throw new ApiError(apiError.message, {
+        status: apiError.status,
+        code: apiError.code ?? 'token_invalid',
+      });
     } finally {
       refreshPromise = null;
     }
@@ -67,6 +77,28 @@ export function getCachedToken(): string | null {
   return isTokenValid() ? tokenState.accessToken : null;
 }
 
+/**
+ * Read the auth error code from either an ApiError or a raw backend error.
+ *
+ * `handleResponse` (backend.ts) throws a plain Error carrying `status` and
+ * `data`; the machine-readable code lives in `data.detail`. Older call sites
+ * (and tests) set `code` directly, so honour both shapes.
+ */
+function authErrorCode(error: unknown): { status?: number; code?: string } {
+  if (error instanceof ApiError) {
+    return { status: error.status, code: error.code };
+  }
+  const raw = error as {
+    status?: number;
+    code?: string;
+    data?: { detail?: unknown };
+  } | null;
+  if (!raw || typeof raw !== 'object') return {};
+  const detail = typeof raw.data?.detail === 'string' ? raw.data.detail : undefined;
+  const code = raw.code ?? (detail && isAuthErrorCode(detail) ? detail : undefined);
+  return { status: raw.status, code };
+}
+
 // Utility for making authenticated requests with automatic 401 retry
 export async function authenticatedFetch<T>(
   fetchFn: (token: string) => Promise<T>,
@@ -81,11 +113,11 @@ export async function authenticatedFetch<T>(
     } catch (error) {
       lastError = error as Error;
 
-      // Check if it's a 401 that we can retry
-      const apiError = error as { status?: number; code?: string };
+      // Check if it's a 401 that we can retry by re-exchanging the token.
+      const { status, code } = authErrorCode(error);
       if (
-        apiError.status === 401 &&
-        (apiError.code === 'token_expired' || apiError.code === 'token_invalid') &&
+        status === 401 &&
+        (code === 'token_expired' || code === 'token_invalid') &&
         attempt < maxRetries
       ) {
         // Clear token to force re-exchange
