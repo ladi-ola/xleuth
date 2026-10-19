@@ -35,7 +35,7 @@ export default function Account() {
     if (!user) return setShowAuthFlow(true);
     try {
       await claimFaucet();
-      toast({ title: "Faucet claim successful", description: "Test USDC deposited", variant: "destructive" });
+      toast({ title: "Faucet claim successful", description: "Test USDC added to your available balance", variant: "destructive" });
     } catch (error) {
       if (error?.status === 429 || error?.code === 'cooldown') {
         const retryAfter = error?.retryAfter || 86400;

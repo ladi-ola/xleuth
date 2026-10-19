@@ -90,7 +90,7 @@ Response: `TransactionHistoryResponse` — `wallet_address`, `transactions[]` (i
 **`GET /accounts/summary`**  
 Response: `PortfolioSummaryResponse`:
 - `total_balance` = free_margin + used_margin
-- `free_margin` = free vault balance (after resting-order locks)
+- `free_margin` = free vault balance (after resting-order locks) + collateral-token balance held in the user's wallet (test-USDC delivered by the faucet)
 - `used_margin` = margin locked by open positions + margin reserved for resting orders
 - `unrealized_pnl` = sum of unrealized PnL across open positions
 - `realized_pnl` = from transaction history (not yet fully implemented)

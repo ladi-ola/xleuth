@@ -21,6 +21,12 @@ class ChainConfig:
     position_manager_address: str
     oracle_consumer_address: str
     chain_id: int
+    # Collateral ERC-20 (test-USDC). Used to read the balance a user holds in
+    # their own wallet before depositing it into the CollateralVault.
+    collateral_token_address: str = ""
+    # Optional legacy faucet token. Some testnet claims were delivered from a
+    # separate MockUSDC; counting it keeps those balances visible too.
+    legacy_token_address: str = ""
 
 
 class ChainStateReader(ABC):
@@ -29,6 +35,15 @@ class ChainStateReader(ABC):
     @abstractmethod
     def free_balance(self, wallet: str) -> int:
         """User's free (unlocked) USDC balance in the CollateralVault (6-dp units)."""
+
+    def wallet_balance(self, wallet: str) -> int:
+        """User's collateral-token balance held in their own wallet (6-dp units).
+
+        Funds from the faucet land here first, so the portfolio's available
+        balance has to account for them. Defaults to zero for readers that
+        cannot resolve the collateral token.
+        """
+        return 0
 
     @abstractmethod
     def get_position(self, wallet: str, basket_name: str) -> tuple[int, int, int, int, int] | None:
@@ -63,6 +78,15 @@ class Web3ChainStateReader(ChainStateReader):
         {
             "inputs": [{"internalType": "address", "name": "user", "type": "address"}],
             "name": "freeBalance",
+            "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+            "stateMutability": "view",
+            "type": "function",
+        }
+    ]
+    ERC20_ABI = [
+        {
+            "inputs": [{"internalType": "address", "name": "account", "type": "address"}],
+            "name": "balanceOf",
             "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
             "stateMutability": "view",
             "type": "function",
@@ -105,6 +129,13 @@ class Web3ChainStateReader(ChainStateReader):
         self._pm = self._w3.eth.contract(
             address=config.position_manager_address, abi=self.PM_ABI
         )
+        token_addresses = {
+            a for a in (config.collateral_token_address, config.legacy_token_address) if a
+        }
+        self._tokens = [
+            self._w3.eth.contract(address=self._checksum(address), abi=self.ERC20_ABI)
+            for address in token_addresses
+        ]
 
     @staticmethod
     def basket_id(basket_name: str) -> bytes:
@@ -116,6 +147,16 @@ class Web3ChainStateReader(ChainStateReader):
         except Exception:
             logger.warning("freeBalance read failed for %s", wallet, exc_info=True)
             return 0
+
+    def wallet_balance(self, wallet: str) -> int:
+        checksummed = self._checksum(wallet)
+        total = 0
+        for token in self._tokens:
+            try:
+                total += int(token.functions.balanceOf(checksummed).call())
+            except Exception:
+                logger.warning("collateral balanceOf read failed for %s", wallet, exc_info=True)
+        return total
 
     def get_position(self, wallet: str, basket_name: str) -> tuple[int, int, int, int, int] | None:
         try:

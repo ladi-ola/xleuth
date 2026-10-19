@@ -18,10 +18,16 @@ from xleuth_shared.schemas.faucet import (
 
 router = APIRouter(prefix="/faucet", tags=["faucet"])
 
-# ERC-20 transfer function signature
+# ERC-20 function signatures
 ERC20_TRANSFER_SELECTOR = "0xa9059cbb"
+ERC20_BALANCE_OF_SELECTOR = "0x70a08231"
+ERC20_MINT_SELECTOR = "0x40c10f19"
 # Amount: 1,000 USDC with 6 decimals = 1,000 * 10^6 (max 1,000 per 24h claim)
 FAUCET_AMOUNT = 1_000 * 10**6
+# How long to wait for the funding transaction to be mined. A short wait lets
+# the client's immediate balance refetch see the claim; the portfolio also
+# polls, so a timeout is not fatal.
+RECEIPT_TIMEOUT_SECONDS = 90
 
 ADDRESS_REGEX = re.compile(r"^0x[a-fA-F0-9]{40}$")
 
@@ -30,13 +36,29 @@ def is_valid_address(address: str) -> bool:
     return bool(ADDRESS_REGEX.match(address))
 
 
+def _encode_call(selector: str, args: list) -> str:
+    # ABI-encode a function call:
+    # selector (4 bytes) + each 32-byte, left-padded argument.
+    encoded = selector[2:]
+    for arg in args:
+        encoded += hex(arg)[2:].zfill(64)
+    return "0x" + encoded
+
+
 def build_transfer_calldata(to_address: str, amount: int) -> str:
     # ERC-20 transfer(address,uint256)
-    # selector (4 bytes) + padded address (32 bytes) + padded amount (32 bytes)
-    selector = ERC20_TRANSFER_SELECTOR
-    padded_address = to_address[2:].lower().zfill(64)
-    padded_amount = hex(amount)[2:].zfill(64)
-    return "0x" + selector[2:] + padded_address + padded_amount
+    return _encode_call(ERC20_TRANSFER_SELECTOR, [int(to_address, 16), amount])
+
+
+def build_mint_calldata(to_address: str, amount: int) -> str:
+    # ERC-20 mint(address,uint256) — the test-USDC faucet token exposes an
+    # open (testnet-only) mint, so the operator can fund itself or a user even
+    # when its reserve is empty.
+    return _encode_call(ERC20_MINT_SELECTOR, [int(to_address, 16), amount])
+
+
+def build_balance_of_calldata(holder: str) -> str:
+    return _encode_call(ERC20_BALANCE_OF_SELECTOR, [int(holder, 16)])
 
 
 @router.post(
@@ -83,20 +105,22 @@ async def claim_faucet(
                 headers={"Retry-After": str(retry_after)},
             )
 
-    # Get environment variables
+    # Get environment variables. The faucet must fund the vault's collateral
+    # token (TEST_USDC_ADDRESS); MOCK_USDC_ADDRESS is only a fallback for
+    # deployments that mint a separate faucet token.
     operator_private_key = os.getenv("OPERATOR_PRIVATE_KEY")
-    mock_usdc_address = os.getenv("MOCK_USDC_ADDRESS")
-    rpc_url = os.getenv("POLYGON_AMOY_RPC_URL")
+    token_address = os.getenv("TEST_USDC_ADDRESS") or os.getenv("MOCK_USDC_ADDRESS")
+    rpc_url = os.getenv("POLYGON_AMOY_RPC_URL") or os.getenv("RPC_URL")
 
     if not operator_private_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Operator private key not configured",
         )
-    if not mock_usdc_address:
+    if not token_address:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="MockUSDC address not configured",
+            detail="Test-USDC address not configured",
         )
     if not rpc_url:
         raise HTTPException(
@@ -112,10 +136,29 @@ async def claim_faucet(
         nonce = await w3.eth.get_transaction_count(operator_account.address)
         gas_price = await w3.eth.gas_price
 
-        calldata = build_transfer_calldata(address, FAUCET_AMOUNT)
+        # Prefer transferring from the operator's reserve; fall back to the
+        # testnet faucet token's open mint when the reserve is short so claims
+        # keep working (and still land in the same asset the vault custodies).
+        operator_reserve = 0
+        try:
+            raw_balance = await w3.eth.call(
+                {
+                    "to": token_address,
+                    "data": build_balance_of_calldata(operator_account.address),
+                }
+            )
+            operator_reserve = int.from_bytes(raw_balance, "big")
+        except Exception:
+            # A token without balanceOf is unusable; let the send surface it.
+            operator_reserve = 0
+
+        if operator_reserve >= FAUCET_AMOUNT:
+            calldata = build_transfer_calldata(address, FAUCET_AMOUNT)
+        else:
+            calldata = build_mint_calldata(address, FAUCET_AMOUNT)
 
         tx = {
-            "to": mock_usdc_address,
+            "to": token_address,
             "data": calldata,
             "value": 0,
             "nonce": nonce,
@@ -145,4 +188,18 @@ async def claim_faucet(
     # Record claim in database
     await db.record_faucet_claim(address)
 
-    return FaucetClaimResponse(tx_hash=tx_hash_hex, status="submitted")
+    # Wait briefly for the transfer to be mined so the client's immediate
+    # balance refetch reflects the claim. If it is still pending, the
+    # portfolio polling picks it up later.
+    tx_status = "submitted"
+    try:
+        receipt = await w3.eth.wait_for_transaction_receipt(
+            tx_hash, timeout=RECEIPT_TIMEOUT_SECONDS
+        )
+        if receipt.get("status") == 1:
+            tx_status = "confirmed"
+    except Exception:
+        # Timeout or receipt lookup failure: leave it as submitted.
+        pass
+
+    return FaucetClaimResponse(tx_hash=tx_hash_hex, status=tx_status)

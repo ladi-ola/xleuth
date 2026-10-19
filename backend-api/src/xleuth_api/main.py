@@ -136,6 +136,13 @@ def create_app() -> FastAPI:
     redis_port = int(os.getenv("REDIS_PORT", "6379"))
     redis_db = int(os.getenv("REDIS_DB", "0"))
 
+    # The vault's collateral token is the asset the faucet dispenses and the
+    # asset whose wallet balance counts toward the portfolio's available
+    # balance before it is deposited into the vault. The legacy faucet token is
+    # summed too so earlier claims stay visible.
+    test_usdc_address = os.getenv("TEST_USDC_ADDRESS", "")
+    legacy_usdc_address = os.getenv("MOCK_USDC_ADDRESS", "")
+
     # Chain config for on-chain reads
     chain_config = ChainConfig(
         rpc_url=os.getenv("POLYGON_AMOY_RPC_URL") or os.getenv("RPC_URL", ""),
@@ -143,6 +150,8 @@ def create_app() -> FastAPI:
         position_manager_address=os.getenv("POSITION_MANAGER_ADDRESS", ""),
         oracle_consumer_address=os.getenv("INDEX_ORACLE_CONSUMER_ADDRESS", ""),
         chain_id=int(os.getenv("CHAIN_ID", "80002")),
+        collateral_token_address=test_usdc_address or legacy_usdc_address,
+        legacy_token_address=legacy_usdc_address if test_usdc_address else "",
     )
 
     db = Database(dsn=database_url)

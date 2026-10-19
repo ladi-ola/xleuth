@@ -86,7 +86,7 @@ export default function Portfolio() {
     try {
       track("deposit_submitted");
       await claimFaucet();
-      toast({ title: "Faucet claim successful", description: "Test USDC deposited", variant: "destructive" });
+      toast({ title: "Faucet claim successful", description: "Test USDC added to your available balance", variant: "destructive" });
     } catch (error) {
       if (error?.status === 429 || error?.code === 'cooldown') {
         const retryAfter = error?.retryAfter || 86400;
