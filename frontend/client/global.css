@@ -8,55 +8,119 @@
 
 @layer base {
   /**
-   * Xleuth dark theme
-   * tailwind.config.ts expects the following color variables to be expressed as HSL values.
-  */
+   * Xleuth light theme (default).
+   *
+   * tailwind.config.ts expects the following color variables to be expressed as
+   * HSL values. Every foreground/background pairing below meets WCAG 2.1 AA
+   * (4.5:1) for normal text, including the muted and semantic tones.
+   */
   :root {
-    --background: 0 0% 4%;
-    --foreground: 0 0% 96%;
+    --background: 240 20% 98%;
+    --foreground: 240 10% 10%;
 
-    --card: 0 0% 6%;
-    --card-foreground: 0 0% 96%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 10%;
 
-    --popover: 0 0% 10%;
-    --popover-foreground: 0 0% 96%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 10%;
 
-    --primary: 291 20% 51%;
+    /* Brand purple: 7.3:1 with white text. */
+    --primary: 291 35% 38%;
     --primary-foreground: 0 0% 100%;
 
-    --primary-dark: 291 47% 11%;
+    --primary-dark: 291 40% 94%;
 
-    --secondary: 0 0% 6%;
-    --secondary-foreground: 0 0% 96%;
+    --secondary: 240 10% 95%;
+    --secondary-foreground: 240 10% 12%;
 
-    --muted: 0 0% 10%;
-    --muted-foreground: 0 0% 45%;
+    --muted: 240 10% 95%;
+    --muted-foreground: 240 5% 36%;
 
-    --accent: 0 0% 10%;
-    --accent-foreground: 0 0% 96%;
+    --accent: 291 40% 96%;
+    --accent-foreground: 291 35% 30%;
 
-    --destructive: 355 96% 60%;
+    --destructive: 355 80% 42%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 145 72% 44%;
+    --success: 145 70% 27%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 46 100% 63%;
+    --warning: 35 100% 28%;
 
-    --border: 0 0% 25%;
-    --input: 0 0% 25%;
-    --ring: 291 20% 51%;
+    --border: 240 6% 84%;
+    --input: 240 5% 58%;
+    --ring: 291 35% 38%;
 
     --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 10%;
-    --sidebar-foreground: 0 0% 96%;
-    --sidebar-primary: 291 20% 51%;
+    --sidebar-background: 240 14% 96%;
+    --sidebar-foreground: 240 10% 12%;
+    --sidebar-primary: 291 35% 38%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 0 0% 15%;
-    --sidebar-accent-foreground: 0 0% 96%;
-    --sidebar-border: 0 0% 25%;
-    --sidebar-ring: 291 20% 51%;
+    --sidebar-accent: 291 40% 93%;
+    --sidebar-accent-foreground: 291 35% 32%;
+    --sidebar-border: 240 6% 86%;
+    --sidebar-ring: 291 35% 38%;
+
+    color-scheme: light;
+  }
+
+  /**
+   * Dark theme — the same design language as light: a soft tinted canvas,
+   * clearly elevated card surfaces, visible hairline borders and the brand
+   * purple used for accents. The neutrals carry a slight plum tint instead of
+   * pure black so charts, cards and chrome keep the same material feel.
+   *
+   * Every foreground/background pairing meets WCAG 2.1 AA (4.5:1). Solid
+   * buttons use a light foreground token so text stays readable on the
+   * lighter semantic fills.
+   */
+  .dark {
+    --background: 270 12% 8%;
+    --foreground: 270 10% 95%;
+
+    --card: 270 10% 11%;
+    --card-foreground: 270 10% 95%;
+
+    --popover: 270 10% 13%;
+    --popover-foreground: 270 10% 95%;
+
+    --primary: 291 45% 74%;
+    --primary-foreground: 291 45% 9%;
+
+    --primary-dark: 291 40% 18%;
+
+    --secondary: 270 8% 16%;
+    --secondary-foreground: 270 10% 95%;
+
+    --muted: 270 8% 15%;
+    --muted-foreground: 270 6% 68%;
+
+    --accent: 291 20% 18%;
+    --accent-foreground: 291 55% 88%;
+
+    --destructive: 355 75% 68%;
+    --destructive-foreground: 355 60% 8%;
+
+    --success: 145 55% 58%;
+    --success-foreground: 150 80% 6%;
+
+    --warning: 35 90% 60%;
+
+    --border: 270 8% 24%;
+    --input: 270 7% 30%;
+    --ring: 291 45% 74%;
+
+    --sidebar-background: 270 15% 6%;
+    --sidebar-foreground: 270 10% 95%;
+    --sidebar-primary: 291 45% 74%;
+    --sidebar-primary-foreground: 291 45% 9%;
+    --sidebar-accent: 291 25% 16%;
+    --sidebar-accent-foreground: 291 60% 90%;
+    --sidebar-border: 270 8% 20%;
+    --sidebar-ring: 291 45% 74%;
+
+    color-scheme: dark;
   }
 
   * {
@@ -65,6 +129,11 @@
 
   html {
     background: hsl(var(--background));
+    color-scheme: light;
+  }
+
+  .dark html,
+  html.dark {
     color-scheme: dark;
   }
 
@@ -76,12 +145,22 @@
       Roboto,
       Helvetica,
       sans-serif;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
   }
 
+  ::selection {
+    background: hsl(var(--primary) / 0.22);
+    color: hsl(var(--foreground));
+  }
+
+  /* Dynamic.xyz is themed via its `theme` prop; these selectors keep the
+     embedded auth surfaces on the same tokens as the rest of the app. */
   .login-view__container,
   .dynamic-footer.dynamic-footer__top-border,
   .modal-header.modal-header--border {
-    background-color: #0f0f0f !important;
+    background-color: hsl(var(--popover)) !important;
+    color: hsl(var(--popover-foreground));
   }
 
   :where(p, span, li, h1, h2, h3, h4, h5, h6, a, button, label, td, th) {
@@ -104,4 +183,20 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+}
+
+/* Keyboard-only focus indicator, visible on every interactive element in both
+   themes. Kept unlayered so component `outline-none` utilities cannot hide it. */
+:where(
+  a,
+  button,
+  [role="button"],
+  input,
+  select,
+  textarea,
+  summary,
+  [tabindex]:not([tabindex="-1"])
+):focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
 }

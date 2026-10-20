@@ -17,7 +17,7 @@ export function HistoryCard({ order }: { order: HistoryOrder }) {
     const isDeposit = order.type === "Deposit";
 
     return (
-      <div className="flex w-full items-center gap-4 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-900 p-3">
+      <div className="flex w-full items-center gap-4 rounded-xl border-[0.4px] border-border bg-card p-3">
         <div
           className={cn(
             "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg",
@@ -33,12 +33,16 @@ export function HistoryCard({ order }: { order: HistoryOrder }) {
 
         <div className="flex flex-1 items-center justify-between">
           <div className="flex flex-col items-start gap-1">
-            <span className="text-xs font-medium tracking-[-0.12px] text-white">
+            <span className="text-xs font-medium tracking-[-0.12px] text-foreground">
               {order.type}
             </span>
             <div className="flex items-end gap-1">
-              <span className="text-[9px] text-neutral-400">{order.date}</span>
-              <span className="text-[9px] text-neutral-400">{order.time}</span>
+              <span className="text-[9px] text-muted-foreground">
+                {order.date}
+              </span>
+              <span className="text-[9px] text-muted-foreground">
+                {order.time}
+              </span>
             </div>
           </div>
 
@@ -46,12 +50,18 @@ export function HistoryCard({ order }: { order: HistoryOrder }) {
             <span
               className={cn(
                 "text-xs font-semibold tracking-[-0.12px]",
-                isPending ? "text-neutral-300" : isDeposit ? "text-success" : "text-destructive",
+                isPending
+                  ? "text-foreground/80"
+                  : isDeposit
+                    ? "text-success"
+                    : "text-destructive",
               )}
             >
               {formatAmount(order.amount)}
             </span>
-            <span className="text-[9px] text-neutral-400">{order.status}</span>
+            <span className="text-[9px] text-muted-foreground">
+              {order.status}
+            </span>
           </div>
         </div>
       </div>
@@ -62,7 +72,7 @@ export function HistoryCard({ order }: { order: HistoryOrder }) {
   const isProfit = order.pnl >= 0;
 
   return (
-    <div className="flex w-full items-center gap-4 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-900 p-3">
+    <div className="flex w-full items-center gap-4 rounded-xl border-[0.4px] border-border bg-card p-3">
       <div
         className={cn(
           "flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg",
@@ -72,23 +82,30 @@ export function HistoryCard({ order }: { order: HistoryOrder }) {
         {isLong ? (
           <TrendingUp className="h-6 w-6 text-success" strokeWidth={1.6} />
         ) : (
-          <TrendingDown className="h-6 w-6 text-destructive" strokeWidth={1.6} />
+          <TrendingDown
+            className="h-6 w-6 text-destructive"
+            strokeWidth={1.6}
+          />
         )}
       </div>
 
       <div className="flex flex-1 items-center justify-between">
         <div className="flex flex-col items-start gap-1">
           <div className="flex items-center gap-3">
-            <span className="text-xs font-medium tracking-[-0.12px] text-white">
+            <span className="text-xs font-medium tracking-[-0.12px] text-foreground">
               {order.side} • {order.symbol}
             </span>
-            <span className="text-[10px] font-medium text-white">
+            <span className="text-[10px] font-medium text-foreground">
               {order.size} @ {order.entry}
             </span>
           </div>
           <div className="flex items-end gap-1">
-            <span className="text-[9px] text-neutral-400">{order.date}</span>
-            <span className="text-[9px] text-neutral-400">{order.time}</span>
+            <span className="text-[9px] text-muted-foreground">
+              {order.date}
+            </span>
+            <span className="text-[9px] text-muted-foreground">
+              {order.time}
+            </span>
           </div>
         </div>
 
@@ -96,12 +113,18 @@ export function HistoryCard({ order }: { order: HistoryOrder }) {
           <span
             className={cn(
               "text-xs font-semibold tracking-[-0.12px]",
-              isPending ? "text-neutral-300" : isProfit ? "text-success" : "text-destructive",
+              isPending
+                ? "text-foreground/80"
+                : isProfit
+                  ? "text-success"
+                  : "text-destructive",
             )}
           >
             {formatAmount(order.pnl)}
           </span>
-          <span className="text-[9px] text-neutral-400">{order.status}</span>
+          <span className="text-[9px] text-muted-foreground">
+            {order.status}
+          </span>
         </div>
       </div>
     </div>

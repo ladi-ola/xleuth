@@ -17,31 +17,44 @@ export function PriceChange({
 
   if (absText === DELTA_FALLBACK || pctText === DELTA_FALLBACK) {
     return (
-      <span className="flex items-center gap-1">
-        <span className="text-[9px] font-medium leading-[10px] text-warning">
-          {DELTA_FALLBACK}
-        </span>
-        <span className="rounded-lg bg-warning/10 px-2 py-0.5 text-[9px] font-medium leading-[10px] text-warning">
-          {DELTA_FALLBACK}
-        </span>
+      <span
+        className="text-[9px] font-medium leading-[10px] text-muted-foreground"
+        title="24h change not available"
+      >
+        {DELTA_FALLBACK}
       </span>
     );
   }
 
   const isUp = (abs ?? 0) >= 0;
-  const tone = muted ? "text-neutral-400" : isUp ? "text-success" : "text-destructive";
+  const tone = muted
+    ? "text-muted-foreground"
+    : isUp
+      ? "text-success"
+      : "text-destructive";
   const toneBg = muted
-    ? "bg-neutral-400/20 text-neutral-400"
+    ? "bg-muted text-muted-foreground"
     : isUp
       ? "bg-success/10 text-success"
       : "bg-destructive/10 text-destructive";
 
   return (
     <span className="flex items-center gap-1">
-      <span className={cn("font-medium leading-[10px]", tone, size === "sm" ? "text-[9px]" : "text-[9px]")}>
+      <span
+        className={cn(
+          "font-medium leading-[10px]",
+          tone,
+          size === "sm" ? "text-[9px]" : "text-[9px]",
+        )}
+      >
         {absText}
       </span>
-      <span className={cn("rounded-lg px-2 py-0.5 text-[9px] font-medium leading-[10px]", toneBg)}>
+      <span
+        className={cn(
+          "rounded-lg px-2 py-0.5 text-[9px] font-medium leading-[10px]",
+          toneBg,
+        )}
+      >
         {pctText}
       </span>
     </span>

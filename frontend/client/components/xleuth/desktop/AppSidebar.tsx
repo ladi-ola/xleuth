@@ -23,8 +23,8 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 
-const LOGO_SRC =
-  "https://api.builder.io/api/v1/image/assets/TEMP/393e66ec13238cbe7c7af025ce6845c7bb6e3029?width=191";
+const LOGO_SRC = "/brand/xleuth-wordmark.png";
+const MARK_SRC = "/brand/xleuth-mark.png";
 
 type NavItem = {
   to: string;
@@ -84,13 +84,13 @@ export function AppSidebar() {
           <img
             src={LOGO_SRC}
             alt="xleuth"
-            className="h-7 w-[88px] object-contain object-left group-data-[collapsible=icon]:hidden"
+            className="h-7 w-[88px] object-contain object-left group-data-[collapsible=icon]:hidden dark:invert"
           />
           <img
-            src={LOGO_SRC}
+            src={MARK_SRC}
             alt=""
             aria-hidden
-            className="hidden h-6 w-6 object-cover object-left group-data-[collapsible=icon]:block"
+            className="hidden h-6 w-6 object-contain group-data-[collapsible=icon]:block dark:invert"
           />
         </div>
       </SidebarHeader>
@@ -140,11 +140,11 @@ export function AppSidebar() {
 
       <SidebarFooter>
         {user && shortAddress ? (
-          <div className="flex flex-col items-start gap-2 rounded-lg bg-neutral-800 p-3 group-data-[collapsible=icon]:hidden">
-            <span className="text-[9px] leading-[10px] text-neutral-400">
+          <div className="flex flex-col items-start gap-2 rounded-lg bg-muted p-3 group-data-[collapsible=icon]:hidden">
+            <span className="text-[9px] leading-[10px] text-muted-foreground">
               Connected wallet
             </span>
-            <span className="text-xs font-medium leading-4 tracking-[-0.12px] text-neutral-200">
+            <span className="text-xs font-medium leading-4 tracking-[-0.12px] text-foreground">
               {shortAddress}
             </span>
             <div className="flex items-center gap-1.5 rounded bg-warning/10 px-2 py-2">
@@ -174,12 +174,12 @@ export function AppSidebar() {
             {pathname !== "/account" ? (
               <button
                 onClick={() => setShowAuthFlow(true)}
-                className="flex h-8 items-center justify-center rounded-lg bg-primary px-4 text-xs text-white group-data-[collapsible=icon]:hidden"
+                className="flex h-8 items-center justify-center rounded-lg bg-primary px-4 text-xs text-primary-foreground group-data-[collapsible=icon]:hidden"
               >
                 Sign up
               </button>
             ) : null}
-            <span className="px-2 text-[10px] leading-3 text-neutral-400 group-data-[collapsible=icon]:hidden">
+            <span className="px-2 text-[10px] leading-3 text-muted-foreground group-data-[collapsible=icon]:hidden">
               2026 • Xleuth - Polygon Amoy Testnet
             </span>
           </>

@@ -8,7 +8,16 @@
       flip with VITE_ROBOTS_CONTENT="index, follow" at build time. -->
     <meta name="robots" content="%VITE_ROBOTS_CONTENT%" />
     <meta name="description" content="Xleuth" />
-    <meta name="theme-color" content="#09090b" />
+    <meta name="theme-color" content="#f8f8fa" />
+    <script>
+      // Apply the saved theme before first paint to avoid a light flash.
+      try {
+        var stored = localStorage.getItem("xleuth-theme");
+        if (stored && stored.replace(/"/g, "") === "dark") {
+          document.documentElement.classList.add("dark");
+        }
+      } catch (e) {}
+    </script>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
@@ -16,11 +25,17 @@
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Xleuth" />
     <meta property="og:title" content="Xleuth" />
-    <meta property="og:description" content="Trade leveraged index futures on prediction-market baskets. Polygon Amoy testnet, no real funds." />
+    <meta
+      property="og:description"
+      content="Trade leveraged index futures on prediction-market baskets. Polygon Amoy testnet, no real funds."
+    />
     <meta property="og:image" content="/og-image.png" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content="Xleuth" />
-    <meta name="twitter:description" content="Trade leveraged index futures on prediction-market baskets. Polygon Amoy testnet, no real funds." />
+    <meta
+      name="twitter:description"
+      content="Trade leveraged index futures on prediction-market baskets. Polygon Amoy testnet, no real funds."
+    />
     <meta name="twitter:image" content="/og-image.png" />
     <title>Xleuth</title>
   </head>

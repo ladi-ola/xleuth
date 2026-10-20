@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  abbreviateBasketName,
   adaptBasket,
   adaptPortfolioSummary,
   adaptPosition,
@@ -42,6 +43,13 @@ const price: BasketPriceResponseWithChange = {
   change_24h_abs: 0.89,
   change_24h_pct: 3.7,
 };
+
+describe("abbreviateBasketName", () => {
+  it("abbreviates month names but keeps four-digit year suffixes", () => {
+    expect(abbreviateBasketName("TOP20-OCTOBER")).toBe("TOP20-OCT");
+    expect(abbreviateBasketName("ELECTION-2026")).toBe("ELECTION-2026");
+  });
+});
 
 describe("adaptBasket", () => {
   it("maps the API basket onto the component Basket shape", () => {

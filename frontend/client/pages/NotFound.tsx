@@ -12,7 +12,8 @@ const NotFound = () => {
 
   usePageMeta({
     title: "Page not found — Xleuth (testnet)",
-    description: "The page you asked for does not exist. Return to the Xleuth testnet markets.",
+    description:
+      "The page you asked for does not exist. Return to the Xleuth testnet markets.",
     path: location.pathname,
   });
 
@@ -29,8 +30,8 @@ const NotFound = () => {
   return (
     <Layout width="md">
       <div className="flex flex-col items-center gap-4 px-4 py-16 text-center md:px-0 md:py-24">
-        <span className="text-4xl font-bold text-neutral-100">404</span>
-        <p className="text-sm text-neutral-300">
+        <span className="text-4xl font-bold text-foreground">404</span>
+        <p className="text-sm text-foreground/80">
           {slug
             ? `Unknown basket "${slug}". It may have expired, been renamed, or never existed.`
             : "This page does not exist."}
@@ -38,13 +39,13 @@ const NotFound = () => {
         <div className="flex gap-3">
           <Link
             to="/"
-            className="rounded-lg bg-primary px-4 py-2 text-sm text-white"
+            className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground"
           >
             Launch app
           </Link>
           <Link
             to="/explore"
-            className="rounded-lg border-[0.4px] border-neutral-600 px-4 py-2 text-sm text-neutral-200"
+            className="rounded-lg border-[0.4px] border-border px-4 py-2 text-sm text-foreground"
           >
             Browse baskets
           </Link>

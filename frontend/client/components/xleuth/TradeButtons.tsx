@@ -14,7 +14,7 @@ export function TradeButtons({
     <div
       className={cn(
         variant === "floating"
-          ? "fixed inset-x-0 bottom-16 z-20 mx-auto flex w-full max-w-md justify-center gap-3 bg-neutral-950 px-4 py-3 md:hidden"
+          ? "fixed inset-x-0 bottom-16 z-20 mx-auto flex w-full max-w-md justify-center gap-3 bg-background px-4 py-3 md:hidden"
           : "flex w-full justify-center gap-3",
       )}
     >

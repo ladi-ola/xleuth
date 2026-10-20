@@ -46,8 +46,8 @@ function formatPrice(price: number): string {
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
-      <span className="text-[10px] font-light text-neutral-300">{label}</span>
-      <span className="text-[10px] font-medium text-white">{value}</span>
+      <span className="text-[10px] font-light text-foreground/80">{label}</span>
+      <span className="text-[10px] font-medium text-foreground">{value}</span>
     </div>
   );
 }
@@ -85,10 +85,13 @@ export function TradeModal({
   // basket_name, so the current position is the one on this basket, if any.
   const { data: positionsData } = usePositions();
   const { data: summaryData } = usePortfolioSummary();
-  const livePosition = positionsData?.positions.find((p) => p.basket_name === basket.listName);
+  const livePosition = positionsData?.positions.find(
+    (p) => p.basket_name === basket.listName,
+  );
   const hasPosition = !!livePosition;
   const positionSide = livePosition
-    ? livePosition.side.toLowerCase() === "buy" || livePosition.side.toLowerCase() === "long"
+    ? livePosition.side.toLowerCase() === "buy" ||
+      livePosition.side.toLowerCase() === "long"
       ? "Long"
       : "Short"
     : null;
@@ -112,13 +115,15 @@ export function TradeModal({
 
   // Task 15: client-side validation is UX only — the matching engine
   // re-validates everything server-side (min size, tick, margin, slippage).
-  const amountError =
-    !hasLivePrice ? "Waiting for a live index price to size this order." :
-    notional <= 0 ? "Enter an amount greater than 0." :
-    notional < MIN_ORDER_USDC
-      ? `Minimum order is $${formatUsdc(MIN_ORDER_USDC)} USDC.`
-      : null;
-  const priceError = needsPrice && priceValue <= 0 ? "Enter a price greater than 0." : null;
+  const amountError = !hasLivePrice
+    ? "Waiting for a live index price to size this order."
+    : notional <= 0
+      ? "Enter an amount greater than 0."
+      : notional < MIN_ORDER_USDC
+        ? `Minimum order is $${formatUsdc(MIN_ORDER_USDC)} USDC.`
+        : null;
+  const priceError =
+    needsPrice && priceValue <= 0 ? "Enter a price greater than 0." : null;
   const slippageError =
     needsSlippage && (slippageBps < 1 || slippageBps > 10000)
       ? "Slippage must be 1–10000 bps."
@@ -166,7 +171,8 @@ export function TradeModal({
       slippageBps,
       limitPrice: orderType === "limit" ? priceValue : undefined,
       triggerPrice: orderType === "stop" ? priceValue : undefined,
-      takeProfit: hasPosition && takeProfit !== "" ? Number(takeProfit) : undefined,
+      takeProfit:
+        hasPosition && takeProfit !== "" ? Number(takeProfit) : undefined,
       stopLoss: hasPosition && stopLoss !== "" ? Number(stopLoss) : undefined,
       positionId: hasPosition ? livePosition.position_id : undefined,
       idempotencyKey: idempotencyKey.current,
@@ -180,24 +186,38 @@ export function TradeModal({
       aria-label="Trade"
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
     >
-      <div className="absolute inset-0 bg-neutral-950/88 backdrop-blur-[6px]" onClick={onClose} />
-      <div className="no-scrollbar relative flex max-h-[92vh] w-full max-w-[370px] flex-col gap-2 overflow-y-auto rounded-3xl border-[0.8px] border-neutral-600 bg-neutral-800 px-4 py-6 md:max-w-md">
+      <div
+        className="absolute inset-0 bg-black/45 backdrop-blur-[6px]"
+        onClick={onClose}
+      />
+      <div className="no-scrollbar relative flex max-h-[92vh] w-full max-w-[370px] flex-col gap-2 overflow-y-auto rounded-3xl border-[0.8px] border-border bg-card px-4 py-6 md:max-w-md">
         <div className="flex items-center justify-between">
-          <span className="text-base font-semibold leading-6 text-neutral-100">Trade</span>
+          <span className="text-base font-semibold leading-6 text-foreground">
+            Trade
+          </span>
           <button onClick={onClose} aria-label="Close">
-            <X className="h-4 w-4 p-1 text-neutral-500" strokeWidth={1.4} />
+            <X
+              className="h-4 w-4 p-1 text-muted-foreground"
+              strokeWidth={1.4}
+            />
           </button>
         </div>
 
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-neutral-200">{basket.symbol}</span>
-          <span className="text-[9px] font-light text-neutral-400">Amoy Testnet</span>
+          <span className="text-sm font-medium text-foreground">
+            {basket.symbol}
+          </span>
+          <span className="text-[9px] font-light text-muted-foreground">
+            Amoy Testnet
+          </span>
         </div>
 
         <div className="flex flex-col gap-2 py-2">
-          <span className="text-xs font-medium text-neutral-300">Current Position</span>
+          <span className="text-xs font-medium text-foreground/80">
+            Current Position
+          </span>
           <div className="flex items-center justify-between">
-            <span className="text-xs font-normal text-neutral-400">
+            <span className="text-xs font-normal text-muted-foreground">
               {livePosition
                 ? `${positionSide} ${livePosition.size} @ ${livePosition.entry_price.toFixed(2)}`
                 : "No open position"}
@@ -216,13 +236,15 @@ export function TradeModal({
           </div>
         </div>
 
-        <div className="flex items-center gap-0.5 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-800 p-0.5">
+        <div className="flex items-center gap-0.5 rounded-xl border-[0.4px] border-border bg-muted p-0.5">
           <button
             onClick={() => setSide("buy")}
             aria-pressed={side === "buy"}
             className={cn(
               "flex-1 rounded-[10px] py-2 text-[10px] font-medium transition-colors",
-              side === "buy" ? "bg-success/10 text-success" : "text-neutral-500",
+              side === "buy"
+                ? "bg-success/10 text-success"
+                : "text-muted-foreground",
             )}
           >
             BUY
@@ -232,14 +254,16 @@ export function TradeModal({
             aria-pressed={side === "sell"}
             className={cn(
               "flex-1 rounded-[10px] py-2 text-[10px] font-medium transition-colors",
-              side === "sell" ? "bg-destructive/10 text-destructive" : "text-neutral-500",
+              side === "sell"
+                ? "bg-destructive/10 text-destructive"
+                : "text-muted-foreground",
             )}
           >
             SELL
           </button>
         </div>
 
-        <div className="flex items-center gap-0.5 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-800 p-0.5">
+        <div className="flex items-center gap-0.5 rounded-xl border-[0.4px] border-border bg-muted p-0.5">
           {ORDER_TYPES.map((type) => (
             <button
               key={type.value}
@@ -248,8 +272,8 @@ export function TradeModal({
               className={cn(
                 "flex-1 rounded-[10px] py-2 text-[10px] font-medium transition-colors",
                 orderType === type.value
-                  ? "bg-[#020003] text-neutral-50"
-                  : "text-neutral-500",
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground",
               )}
             >
               {type.label}
@@ -257,8 +281,8 @@ export function TradeModal({
           ))}
         </div>
 
-        <div className="flex items-center justify-between rounded-xl border-[0.4px] border-neutral-600 bg-neutral-950 px-3 py-3">
-          <span className="text-[10px] font-medium text-neutral-500">
+        <div className="flex items-center justify-between rounded-xl border-[0.4px] border-border bg-background px-3 py-3">
+          <span className="text-[10px] font-medium text-muted-foreground">
             {needsPrice ? priceLabel : "Index Price"}
           </span>
           {needsPrice ? (
@@ -270,18 +294,20 @@ export function TradeModal({
               onChange={(e) => setOrderPrice(e.target.value)}
               placeholder={basket.price > 0 ? basket.price.toFixed(2) : "0.000"}
               aria-label={priceLabel}
-              className="w-28 bg-transparent text-right text-[10px] font-medium text-neutral-100 outline-none placeholder:text-neutral-500"
+              className="w-28 bg-transparent text-right text-[10px] font-medium text-foreground outline-none placeholder:text-muted-foreground"
             />
           ) : (
-            <span className="text-[10px] font-medium text-neutral-300">
+            <span className="text-[10px] font-medium text-foreground/80">
               {formatPrice(basket.price)}
             </span>
           )}
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <span className="text-xs font-medium text-neutral-300">Size (USDC Notional)</span>
-          <div className="flex items-center gap-2 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-950 px-3 py-3 focus-within:border-neutral-500">
+          <span className="text-xs font-medium text-foreground/80">
+            Size (USDC Notional)
+          </span>
+          <div className="flex items-center gap-2 rounded-xl border-[0.4px] border-border bg-background px-3 py-3 focus-within:border-ring">
             <input
               type="number"
               inputMode="decimal"
@@ -290,17 +316,19 @@ export function TradeModal({
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.00"
               aria-label="Size in USDC notional"
-              className="w-full min-w-0 bg-transparent text-right text-[10px] font-medium text-neutral-100 outline-none placeholder:text-neutral-500"
+              className="w-full min-w-0 bg-transparent text-right text-[10px] font-medium text-foreground outline-none placeholder:text-muted-foreground"
             />
-            <span className="flex-shrink-0 whitespace-nowrap text-[10px] font-medium text-neutral-500">
+            <span className="flex-shrink-0 whitespace-nowrap text-[10px] font-medium text-muted-foreground">
               USDC
             </span>
           </div>
-          <span className="text-[9px] font-normal text-neutral-500">
+          <span className="text-[9px] font-normal text-muted-foreground">
             Min order: ${formatUsdc(MIN_ORDER_USDC)} USDC
           </span>
           {amountError && (
-            <span role="alert" className="text-[9px] text-destructive">{amountError}</span>
+            <span role="alert" className="text-[9px] text-destructive">
+              {amountError}
+            </span>
           )}
         </div>
 
@@ -309,17 +337,21 @@ export function TradeModal({
             <button
               key={pct}
               onClick={() => handlePercentage(pct)}
-              className="flex-1 rounded-[10px] bg-neutral-950 py-2.5 text-[10px] font-medium text-neutral-400 transition-colors hover:text-neutral-200"
+              className="flex-1 rounded-[10px] bg-background py-2.5 text-[10px] font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               {pct === 100 ? "Max" : `${pct}%`}
             </button>
           ))}
         </div>
 
-        <div className="flex flex-col gap-3 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-950 p-3">
+        <div className="flex flex-col gap-3 rounded-xl border-[0.4px] border-border bg-background p-3">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-300">Leverage</span>
-            <span className="text-xs font-medium text-neutral-200">{leverage}x</span>
+            <span className="text-xs font-medium text-foreground/80">
+              Leverage
+            </span>
+            <span className="text-xs font-medium text-foreground">
+              {leverage}x
+            </span>
           </div>
           <div className="flex items-center gap-2">
             {LEVERAGE_OPTIONS.map((lev) => (
@@ -330,8 +362,8 @@ export function TradeModal({
                 className={cn(
                   "flex-1 rounded-lg py-1.5 text-[10px] font-medium transition-colors",
                   leverage === lev
-                    ? "bg-neutral-700 text-neutral-100"
-                    : "text-neutral-400 hover:text-neutral-200",
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {lev}x
@@ -342,14 +374,18 @@ export function TradeModal({
 
         <div
           className={cn(
-            "flex flex-col gap-2 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-950 p-3",
+            "flex flex-col gap-2 rounded-xl border-[0.4px] border-border bg-background p-3",
             !hasPosition && "opacity-60",
           )}
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-neutral-300">TP/SL</span>
+            <span className="text-xs font-medium text-foreground/80">
+              TP/SL
+            </span>
             {!hasPosition && (
-              <span className="text-[9px] text-neutral-500">Open a position to set</span>
+              <span className="text-[9px] text-muted-foreground">
+                Open a position to set
+              </span>
             )}
           </div>
           <div className="flex items-center gap-4">
@@ -362,7 +398,7 @@ export function TradeModal({
               disabled={!hasPosition}
               placeholder="Take Profit"
               aria-label="Take profit price"
-              className="h-6 w-full rounded-lg bg-neutral-800 px-3 text-[9px] text-neutral-100 outline-none placeholder:text-neutral-500 disabled:cursor-not-allowed disabled:opacity-70"
+              className="h-6 w-full rounded-lg bg-muted px-3 text-[9px] text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-70"
             />
             <input
               type="number"
@@ -373,26 +409,43 @@ export function TradeModal({
               disabled={!hasPosition}
               placeholder="Stop Loss"
               aria-label="Stop loss price"
-              className="h-6 w-full rounded-lg bg-neutral-800 px-3 text-[9px] text-neutral-100 outline-none placeholder:text-neutral-500 disabled:cursor-not-allowed disabled:opacity-70"
+              className="h-6 w-full rounded-lg bg-muted px-3 text-[9px] text-foreground outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-70"
             />
           </div>
           {takeProfitError && (
-            <span role="alert" className="text-[9px] text-destructive">{takeProfitError}</span>
+            <span role="alert" className="text-[9px] text-destructive">
+              {takeProfitError}
+            </span>
           )}
           {stopLossError && (
-            <span role="alert" className="text-[9px] text-destructive">{stopLossError}</span>
+            <span role="alert" className="text-[9px] text-destructive">
+              {stopLossError}
+            </span>
           )}
         </div>
 
-        <div className="flex flex-col gap-2 rounded-xl border-[0.2px] border-[#8855FF] bg-[#8855FF]/10 p-3">
-          <span className="text-xs font-medium text-neutral-200">Order Summary</span>
+        <div className="flex flex-col gap-2 rounded-xl border-[0.4px] border-primary/40 bg-accent p-3">
+          <span className="text-xs font-medium text-foreground">
+            Order Summary
+          </span>
           <SummaryRow label="Notional" value={`$${notional.toFixed(2)}`} />
-          <SummaryRow label="Margin required" value={`$${marginRequired.toFixed(2)}`} />
-          <SummaryRow label="Available required" value={`$${availableBefore.toFixed(2)}`} />
-          <SummaryRow label="Free after order" value={`$${freeAfterOrder.toFixed(2)}`} />
+          <SummaryRow
+            label="Margin required"
+            value={`$${marginRequired.toFixed(2)}`}
+          />
+          <SummaryRow
+            label="Available required"
+            value={`$${availableBefore.toFixed(2)}`}
+          />
+          <SummaryRow
+            label="Free after order"
+            value={`$${freeAfterOrder.toFixed(2)}`}
+          />
           {needsSlippage && (
             <div className="flex items-center justify-between">
-              <span className="text-[10px] font-light text-neutral-300">Max slippage (bps)</span>
+              <span className="text-[10px] font-light text-foreground/80">
+                Max slippage (bps)
+              </span>
               <input
                 type="number"
                 min={1}
@@ -401,12 +454,14 @@ export function TradeModal({
                 onChange={(e) => setSlippage(e.target.value)}
                 placeholder="100"
                 aria-label="Max slippage in basis points"
-                className="w-20 bg-transparent text-right text-[10px] font-medium text-white outline-none placeholder:text-neutral-500"
+                className="w-20 bg-transparent text-right text-[10px] font-medium text-foreground outline-none placeholder:text-muted-foreground"
               />
             </div>
           )}
           {slippageError && (
-            <span role="alert" className="text-[9px] text-destructive">{slippageError}</span>
+            <span role="alert" className="text-[9px] text-destructive">
+              {slippageError}
+            </span>
           )}
         </div>
 
@@ -415,18 +470,23 @@ export function TradeModal({
           disabled={formInvalid}
           aria-disabled={formInvalid}
           className={cn(
-            "mt-1 rounded-lg px-4 py-2 text-xs font-normal text-white transition-opacity",
-            formInvalid && "cursor-not-allowed opacity-40",
-            !formInvalid && side === "buy" && "bg-success",
-            !formInvalid && side === "sell" && "bg-destructive",
+            "mt-1 rounded-lg px-4 py-2 text-xs font-normal transition-opacity",
+            formInvalid &&
+              "cursor-not-allowed bg-muted text-muted-foreground opacity-60",
+            !formInvalid &&
+              side === "buy" &&
+              "bg-success text-success-foreground",
+            !formInvalid &&
+              side === "sell" &&
+              "bg-destructive text-destructive-foreground",
           )}
         >
           Place {side === "buy" ? "Buy" : "Sell"} Order
         </button>
 
-        <p className="text-center text-[9px] leading-[10px] text-neutral-500">
-          Fill or Kill policy. Order will be executed at market conditions, difference with
-          requested price may be significant!
+        <p className="text-center text-[9px] leading-[10px] text-muted-foreground">
+          Fill or Kill policy. Order will be executed at market conditions,
+          difference with requested price may be significant!
         </p>
       </div>
     </div>

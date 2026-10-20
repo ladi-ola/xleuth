@@ -19,7 +19,7 @@ export function SegmentedControl<T extends string>({
   return (
     <div
       className={cn(
-        "flex h-10 items-center justify-between gap-0.5 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-900 p-0.5",
+        "flex h-10 items-center justify-between gap-0.5 rounded-xl border-[0.4px] border-border bg-card p-0.5",
         className,
       )}
     >
@@ -30,8 +30,8 @@ export function SegmentedControl<T extends string>({
           className={cn(
             "flex-1 self-stretch rounded-[10px] px-3 py-1 text-[10px] font-medium",
             value === option.value
-              ? "bg-primary-dark text-neutral-50"
-              : "text-neutral-400",
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground",
           )}
         >
           {option.label}

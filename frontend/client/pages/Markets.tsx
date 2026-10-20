@@ -10,7 +10,12 @@ import {
   useOrderBook,
   usePlaceOrder,
 } from "@/lib/api/hooks";
-import { adaptBasket, adaptCandles, adaptOrderBook, buildOrder } from "@/lib/api/adapters";
+import {
+  adaptBasket,
+  adaptCandles,
+  adaptOrderBook,
+  buildOrder,
+} from "@/lib/api/adapters";
 import { useToast } from "@/hooks/use-toast";
 import { Layout } from "@/components/xleuth/Layout";
 import { IndexHeader } from "@/components/xleuth/IndexHeader";
@@ -18,7 +23,10 @@ import { PriceChart } from "@/components/xleuth/PriceChart";
 import { OrderBook } from "@/components/xleuth/OrderBook";
 import { IndexDetailsCard } from "@/components/xleuth/IndexDetailsCard";
 import { TradeButtons } from "@/components/xleuth/TradeButtons";
-import { TradeModal, type TradeSubmission } from "@/components/xleuth/TradeModal";
+import {
+  TradeModal,
+  type TradeSubmission,
+} from "@/components/xleuth/TradeModal";
 import { OrderResultModal } from "@/components/xleuth/OrderResultModal";
 import { SignInSheet } from "@/components/xleuth/SignInSheet";
 import { SegmentedControl } from "@/components/xleuth/SegmentedControl";
@@ -29,15 +37,30 @@ import { useIsTablet } from "@/hooks/use-media-query";
 type Tab = "chart" | "order-book";
 type Order = { side: "buy" | "sell"; amount: number; leverage: number };
 
-function basketNameFromSlug(slug: string | undefined, basketNames: string[]): string | undefined {
-  if (!slug) return basketNames[0];
+function basketNameFromSlug(
+  slug: string | undefined,
+  baskets: { basket_name: string; slug?: string | null }[],
+): string | undefined {
+  if (!slug) return baskets[0]?.basket_name;
+  // Prefer the API-provided slug (e.g. "top20-2026-10"), then fall back to the
+  // name-derived form ("top20-october") used by older basket rows.
+  const match = baskets.find(
+    (basket) =>
+      basket.slug === slug ||
+      basket.basket_name.toLowerCase().replace(/_/g, "-") === slug,
+  );
   // Task 13: unknown slugs resolve to undefined (distinct "unknown basket"
   // state) instead of silently falling back to the first basket.
-  return basketNames.find((name) => name.toLowerCase().replace(/_/g, "-") === slug);
+  return match?.basket_name;
 }
 
 export default function Markets() {
-  usePageMeta({ title: 'Xleuth — prediction-market index futures (testnet)', description: 'Trade leveraged index futures on prediction-market baskets. Live prices, order book and 5x leverage on Polygon Amoy testnet.', path: '/' });
+  usePageMeta({
+    title: "Xleuth — prediction-market index futures (testnet)",
+    description:
+      "Trade leveraged index futures on prediction-market baskets. Live prices, order book and 5x leverage on Polygon Amoy testnet.",
+    path: "/",
+  });
   const { slug } = useParams<{ slug?: string }>();
   const [tab, setTab] = useState<Tab>("chart");
   const [showOrderBook, setShowOrderBook] = useState(true);
@@ -52,21 +75,24 @@ export default function Markets() {
   // Phase 3: public reads. Basket -> price -> candles/book/constituents.
   const { data: basketList, isLoading: basketsLoading } = useBaskets();
   const basketOptions = basketList?.baskets ?? [];
-  const basketName = basketNameFromSlug(
-    slug,
-    basketOptions.map((b) => b.basket_name),
-  );
+  const basketName = basketNameFromSlug(slug, basketOptions);
   const apiBasket = basketOptions.find((b) => b.basket_name === basketName);
 
   const { data: priceData } = useBasketPrice(basketName);
-  const { data: candlesData } = useCandles(basketName, { interval: "15m", limit: 180 });
+  const { data: candlesData } = useCandles(basketName, {
+    interval: "15m",
+    limit: 180,
+  });
   const { data: orderBookData } = useOrderBook(basketName);
   const { data: constituentsData } = useBasketConstituents(basketName);
 
   if (basketsLoading) {
     return (
       <Layout>
-        <EmptyState title="Loading markets" caption="Fetching live market data" />
+        <EmptyState
+          title="Loading markets"
+          caption="Fetching live market data"
+        />
       </Layout>
     );
   }
@@ -76,7 +102,9 @@ export default function Markets() {
     return (
       <Layout>
         <EmptyState
-          title={unknownSlug ? `Unknown basket "${slug}"` : "Markets unavailable"}
+          title={
+            unknownSlug ? `Unknown basket "${slug}"` : "Markets unavailable"
+          }
           caption={
             unknownSlug
               ? "It may have expired or never existed — see current baskets"
@@ -108,7 +136,10 @@ export default function Markets() {
   // and cannot attach them to a brand-new entry). Rejections surface through
   // usePlaceOrder's mapped toasts; the modal closes on submit so resubmission
   // while a request is in flight is impossible.
-  const attachProtectiveOrders = async (order: TradeSubmission, marketName: string) => {
+  const attachProtectiveOrders = async (
+    order: TradeSubmission,
+    marketName: string,
+  ) => {
     const ocoGroupId =
       order.takeProfit && order.stopLoss
         ? typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -162,15 +193,24 @@ export default function Markets() {
       return;
     }
     if (!basketName) {
-      toast({ title: "Market unavailable", description: "Basket data has not loaded yet." });
+      toast({
+        title: "Market unavailable",
+        description: "Basket data has not loaded yet.",
+      });
       return;
     }
     if (!(order.amount > 0)) {
-      toast({ title: "Invalid size", description: "Enter an amount greater than 0." });
+      toast({
+        title: "Invalid size",
+        description: "Enter an amount greater than 0.",
+      });
       return;
     }
     if (order.orderType !== "limit" && !(order.slippageBps > 0)) {
-      toast({ title: "Slippage required", description: "Enter max slippage (bps) greater than 0." });
+      toast({
+        title: "Slippage required",
+        description: "Enter max slippage (bps) greater than 0.",
+      });
       return;
     }
     try {
@@ -189,16 +229,25 @@ export default function Markets() {
         idempotencyKey: order.idempotencyKey,
       });
       if (response.status === "filled") {
-        setFilledOrder({ side: order.side, amount: order.amount, leverage: order.leverage });
-      } else if (response.status === "open" || response.status === "partially_filled") {
+        setFilledOrder({
+          side: order.side,
+          amount: order.amount,
+          leverage: order.leverage,
+        });
+      } else if (
+        response.status === "open" ||
+        response.status === "partially_filled"
+      ) {
         toast({
           title: `Order ${response.status.replace("_", " ")}`,
-          description: "Your order is resting on the book. Track it in Portfolio.",
+          description:
+            "Your order is resting on the book. Track it in Portfolio.",
         });
       } else {
         toast({
           title: `Order ${response.status.replace("_", " ")}`,
-          description: "The order did not fill. Check Portfolio for its current state.",
+          description:
+            "The order did not fill. Check Portfolio for its current state.",
         });
       }
     } catch {
@@ -218,7 +267,7 @@ export default function Markets() {
           <IndexHeader basket={basket} className="px-0 pt-0" />
 
           <div className="flex items-center justify-between gap-3">
-            <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Chart
             </span>
             <button
@@ -226,7 +275,7 @@ export default function Markets() {
               onClick={() => setShowOrderBook((visible) => !visible)}
               aria-pressed={showOrderBook}
               aria-controls="desktop-order-book"
-              className="flex items-center gap-1.5 rounded-lg border-[0.4px] border-neutral-600 bg-neutral-800 px-2.5 py-1.5 text-[10px] font-medium text-neutral-300 transition-colors hover:bg-neutral-700 hover:text-neutral-100"
+              className="flex items-center gap-1.5 rounded-lg border-[0.4px] border-border bg-muted px-2.5 py-1.5 text-[10px] font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
             >
               {showOrderBook ? (
                 <EyeOff className="h-3.5 w-3.5" strokeWidth={1.6} />
@@ -247,10 +296,10 @@ export default function Markets() {
                 footer={
                   <div className="flex flex-col gap-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-neutral-200">
+                      <span className="text-sm font-medium text-foreground">
                         {basket.symbol}
                       </span>
-                      <span className="text-[9px] font-light text-neutral-400">
+                      <span className="text-[9px] font-light text-muted-foreground">
                         Amoy Testnet
                       </span>
                     </div>
@@ -261,7 +310,7 @@ export default function Markets() {
                       onBuy={() => openTrade("buy")}
                     />
 
-                    <p className="text-center text-[9px] leading-[10px] text-neutral-500">
+                    <p className="text-center text-[9px] leading-[10px] text-muted-foreground">
                       Choose a side to open the order ticket.
                     </p>
                   </div>
@@ -317,7 +366,10 @@ export default function Markets() {
             <IndexDetailsCard basket={basket} constituents={constituents} />
           </div>
 
-          <TradeButtons onSell={() => openTrade("sell")} onBuy={() => openTrade("buy")} />
+          <TradeButtons
+            onSell={() => openTrade("sell")}
+            onBuy={() => openTrade("buy")}
+          />
         </>
       )}
 
@@ -331,10 +383,16 @@ export default function Markets() {
       )}
 
       {filledOrder && (
-        <OrderResultModal basket={basket} order={filledOrder} onClose={() => setFilledOrder(null)} />
+        <OrderResultModal
+          basket={basket}
+          order={filledOrder}
+          onClose={() => setFilledOrder(null)}
+        />
       )}
 
-      {showSignIn && <SignInSheet basket={basket} onClose={() => setShowSignIn(false)} />}
+      {showSignIn && (
+        <SignInSheet basket={basket} onClose={() => setShowSignIn(false)} />
+      )}
     </Layout>
   );
 }

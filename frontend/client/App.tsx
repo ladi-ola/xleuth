@@ -9,6 +9,7 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
 import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
 import { useEffect } from "react";
+import { ThemeProvider, useTheme } from "next-themes";
 import { DYNAMIC_ENVIRONMENT_ID } from "@/lib/dynamic";
 import { pageview } from "@/lib/analytics";
 import { CookieNotice } from "@/components/xleuth/CookieNotice";
@@ -34,40 +35,68 @@ function RouteTracker() {
   return null;
 }
 
+function ThemedApp() {
+  const { resolvedTheme } = useTheme();
+
+  useEffect(() => {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    meta?.setAttribute(
+      "content",
+      resolvedTheme === "dark" ? "#141217" : "#f8f8fa",
+    );
+  }, [resolvedTheme]);
+
+  return (
+    <DynamicContextProvider
+      settings={{
+        environmentId: DYNAMIC_ENVIRONMENT_ID,
+        walletConnectors: [EthereumWalletConnectors],
+      }}
+      theme={resolvedTheme === "dark" ? "dark" : "light"}
+    >
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <ErrorBoundary>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <RouteTracker />
+              <CookieNotice />
+              <Routes>
+                <Route path="/" element={<Markets />} />
+                <Route path="/market/:slug" element={<Markets />} />
+                <Route path="/explore" element={<Explore />} />
+                <Route path="/portfolio" element={<Portfolio />} />
+                <Route path="/account" element={<Account />} />
+                <Route path="/how-it-works" element={<HowItWorks />} />
+                <Route
+                  path="/legal-risk-disclosure"
+                  element={<LegalRiskDisclosure />}
+                />
+                <Route path="/support" element={<Support />} />
+                <Route path="/privacy" element={<Privacy />} />
+                <Route path="/terms" element={<Terms />} />
+                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </BrowserRouter>
+          </ErrorBoundary>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </DynamicContextProvider>
+  );
+}
+
 const App = () => (
-  <DynamicContextProvider
-    settings={{
-      environmentId: DYNAMIC_ENVIRONMENT_ID,
-      walletConnectors: [EthereumWalletConnectors],
-    }}
+  <ThemeProvider
+    attribute="class"
+    defaultTheme="light"
+    enableSystem={false}
+    storageKey="xleuth-theme"
+    disableTransitionOnChange
   >
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <ErrorBoundary>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <RouteTracker />
-          <CookieNotice />
-          <Routes>
-            <Route path="/" element={<Markets />} />
-            <Route path="/market/:slug" element={<Markets />} />
-            <Route path="/explore" element={<Explore />} />
-            <Route path="/portfolio" element={<Portfolio />} />
-            <Route path="/account" element={<Account />} />
-            <Route path="/how-it-works" element={<HowItWorks />} />
-            <Route path="/legal-risk-disclosure" element={<LegalRiskDisclosure />} />
-            <Route path="/support" element={<Support />} />
-            <Route path="/privacy" element={<Privacy />} />
-            <Route path="/terms" element={<Terms />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-        </ErrorBoundary>
-      </TooltipProvider>
-    </QueryClientProvider>
-  </DynamicContextProvider>
+    <ThemedApp />
+  </ThemeProvider>
 );
 
 createRoot(document.getElementById("root")!).render(<App />);

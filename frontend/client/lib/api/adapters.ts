@@ -189,7 +189,12 @@ export function abbreviateBasketName(name: string): string {
   const parts = name.split('-');
   if (parts.length < 2) return name;
   const head = parts[0];
-  const tail = parts.slice(1).map((p) => (p.length > 3 ? p.slice(0, 3) : p));
+  const tail = parts.slice(1).map((p) => {
+    // Keep four-digit years intact ("2026"), abbreviate month names ("OCTOBER"
+    // -> "OCT") — otherwise the ticker reads like a truncated number.
+    if (/^\d{4}$/.test(p)) return p;
+    return p.length > 3 ? p.slice(0, 3) : p;
+  });
   return [head, ...tail].join('-');
 }
 
@@ -201,20 +206,21 @@ export function adaptBasket(basket: BasketInfo, priceData?: BasketPriceResponseW
   const slug = basket.slug ?? basket.basket_name.toLowerCase().replace(/_/g, '-');
   const expiryIso = basket.expiry_at ?? priceData?.expiry_at ?? null;
   const count = basket.total_constituents ?? priceData?.constituent_count ?? 0;
+  const resolvesOn = expiryIso ? formatDate(expiryIso) : 'TBD';
 
   return {
     slug,
     symbol: abbreviateBasketName(basket.basket_name),
     listName: basket.basket_name,
     status: mapStatus(basket.status),
-    description: `Tracks the ${count} highest-volume markets in this index.`,
+    description: `Tracks the ${count} highest-volume prediction markets resolving by ${resolvesOn}.`,
     price,
     priceLabel: formatPriceLabel(price),
     changeAbs,
     changePct,
     updatedLabel: priceData?.computed_at ? `Updated ${formatRelativeTime(priceData.computed_at)}` : 'Not yet live',
-    resolvesOn: expiryIso ? formatDate(expiryIso) : 'TBD',
-    vol: '$---', // Not available from API
+    resolvesOn,
+    vol: '—', // 24h volume is not exposed by the basket endpoints yet.
     creator: '@xleuth',
     maxLeverage: GLOBAL_MAX_LEVERAGE_DISPLAY,
     resolutionCriteria:

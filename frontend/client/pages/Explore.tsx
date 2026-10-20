@@ -10,7 +10,12 @@ import { adaptBasket } from "@/lib/api/adapters";
 import { usePageMeta } from "@/hooks/use-page-meta";
 
 export default function Explore() {
-  usePageMeta({ title: 'Explore index baskets — Xleuth (testnet)', description: 'Browse active, upcoming and resolved prediction-market index baskets with live prices on the Amoy testnet.', path: '/explore' });
+  usePageMeta({
+    title: "Explore index baskets — Xleuth (testnet)",
+    description:
+      "Browse active, upcoming and resolved prediction-market index baskets with live prices on the Amoy testnet.",
+    path: "/explore",
+  });
   const [tab, setTab] = useState<BasketStatus>("active");
   const [query, setQuery] = useState("");
 
@@ -18,7 +23,9 @@ export default function Explore() {
   const basketOptions = basketList?.baskets ?? [];
   const prices = useBasketPrices(basketOptions.map((b) => b.basket_name));
 
-  const baskets = basketOptions.map((basket, index) => adaptBasket(basket, prices[index]?.data));
+  const baskets = basketOptions.map((basket, index) =>
+    adaptBasket(basket, prices[index]?.data),
+  );
 
   const filtered = baskets.filter(
     (basket) =>
@@ -29,13 +36,16 @@ export default function Explore() {
   return (
     <Layout width="lg">
       <div className="flex flex-col gap-4 px-4 pt-4 md:px-0 md:pt-0">
-        <label className="flex h-10 items-center gap-2 rounded-lg border-[0.2px] border-neutral-600 bg-neutral-800 px-2">
-          <Search className="h-4 w-4 p-0.5 text-neutral-500" strokeWidth={1.4} />
+        <label className="flex h-10 items-center gap-2 rounded-lg border-[0.2px] border-border bg-muted px-2">
+          <Search
+            className="h-4 w-4 p-0.5 text-muted-foreground"
+            strokeWidth={1.4}
+          />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search"
-            className="w-full bg-transparent text-xs text-neutral-100 outline-none placeholder:text-neutral-500"
+            className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
           />
         </label>
 
@@ -51,9 +61,14 @@ export default function Explore() {
 
         <div className="flex flex-col gap-2">
           {filtered.length > 0 ? (
-            filtered.map((basket) => <MarketCard key={basket.slug} basket={basket} />)
+            filtered.map((basket) => (
+              <MarketCard key={basket.slug} basket={basket} />
+            ))
           ) : (
-            <EmptyState title="No markets found" caption="Try a different search or tab" />
+            <EmptyState
+              title="No markets found"
+              caption="Try a different search or tab"
+            />
           )}
         </div>
       </div>

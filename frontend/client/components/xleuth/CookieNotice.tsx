@@ -36,10 +36,11 @@ export function CookieNotice() {
       aria-live="polite"
       className="fixed inset-x-0 bottom-16 z-40 mx-auto flex max-w-md items-center gap-3 px-4 md:bottom-6 md:left-auto md:right-6 md:mx-0"
     >
-      <div className="flex w-full items-center gap-3 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-900/95 p-3 shadow-lg">
-        <p className="flex-1 text-[11px] leading-4 text-neutral-300">
+      <div className="flex w-full items-center gap-3 rounded-xl border-[0.4px] border-border bg-card/95 p-3 shadow-lg">
+        <p className="flex-1 text-[11px] leading-4 text-foreground/80">
           Xleuth uses strictly necessary storage only (sign-in session, wallet
-          connection{analyticsEnabled() ? ", plus cookieless usage counts" : ""}). See the{" "}
+          connection{analyticsEnabled() ? ", plus cookieless usage counts" : ""}
+          ). See the{" "}
           <Link to="/privacy" className="underline underline-offset-2">
             Privacy Policy
           </Link>
@@ -47,7 +48,7 @@ export function CookieNotice() {
         </p>
         <button
           onClick={dismiss}
-          className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs text-white"
+          className="shrink-0 rounded-lg bg-primary px-3 py-1.5 text-xs text-primary-foreground"
         >
           Got it
         </button>

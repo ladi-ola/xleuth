@@ -37,8 +37,8 @@ export function Layout({
   }
 
   return (
-    <div className="min-h-screen bg-neutral-950">
-      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col bg-neutral-950">
+    <div className="min-h-screen bg-background">
+      <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col bg-background">
         <TopBar />
         <main className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto pb-40">
           {children}

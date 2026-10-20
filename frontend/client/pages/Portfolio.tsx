@@ -52,7 +52,12 @@ const EMPTY_SUMMARY = {
 };
 
 export default function Portfolio() {
-  usePageMeta({ title: 'Portfolio — Xleuth (testnet)', description: 'Track test-USDC balances, open positions, orders and trade history on the Polygon Amoy testnet.', path: '/portfolio' });
+  usePageMeta({
+    title: "Portfolio — Xleuth (testnet)",
+    description:
+      "Track test-USDC balances, open positions, orders and trade history on the Polygon Amoy testnet.",
+    path: "/portfolio",
+  });
   const [tab, setTab] = useState<Tab>("position");
   const [period, setPeriod] = useState<PnlPeriod>("YTD");
   const [showSignIn, setShowSignIn] = useState(false);
@@ -72,10 +77,15 @@ export default function Portfolio() {
   const { data: historyData } = useOrderHistory();
   const { data: transactionsData } = useTransactions();
 
-  const summary = summaryData ? adaptPortfolioSummary(summaryData) : EMPTY_SUMMARY;
-  const positions: Position[] = positionsData?.positions.map(adaptPosition) ?? [];
-  const openOrders: OpenOrder[] = openOrdersData?.orders.map(adaptOpenOrder) ?? [];
-  const tradeHistory: HistoryOrder[] = historyData?.orders.map(adaptHistoryOrder) ?? [];
+  const summary = summaryData
+    ? adaptPortfolioSummary(summaryData)
+    : EMPTY_SUMMARY;
+  const positions: Position[] =
+    positionsData?.positions.map(adaptPosition) ?? [];
+  const openOrders: OpenOrder[] =
+    openOrdersData?.orders.map(adaptOpenOrder) ?? [];
+  const tradeHistory: HistoryOrder[] =
+    historyData?.orders.map(adaptHistoryOrder) ?? [];
   const transferHistory: HistoryOrder[] = (transactionsData?.transactions ?? [])
     .map(adaptTransaction)
     .filter((entry) => entry.kind === "transfer");
@@ -94,45 +104,56 @@ export default function Portfolio() {
 
   const handleWithdraw = () => {
     // Withdraw is explicitly out of scope for this batch.
-    toast({ title: "Withdraw coming soon", description: "This flow isn't wired up yet." });
+    toast({
+      title: "Withdraw coming soon",
+      description: "This flow isn't wired up yet.",
+    });
   };
 
   return (
     <Layout width="lg">
       <div className="flex flex-col gap-4 px-4 pt-4 md:px-0 md:pt-0">
         {user && (
-          <div className="flex flex-col gap-4 rounded-2xl border-[0.4px] border-neutral-600 bg-neutral-900 p-4">
+          <div className="flex flex-col gap-4 rounded-2xl border-[0.4px] border-border bg-card p-4">
             <div className="flex items-start gap-8">
               <div className="flex flex-1 flex-col gap-2">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[9px] text-neutral-300">Total Balance</span>
-                  <span className="text-base font-semibold text-neutral-100">
+                  <span className="text-[9px] text-foreground/80">
+                    Total Balance
+                  </span>
+                  <span className="text-base font-semibold text-foreground">
                     ${summary.totalBalance.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex items-end gap-3">
                   <div className="flex items-end gap-1">
-                    <span className="text-[9px] font-light text-neutral-400">Free margin:</span>
-                    <span className="text-[10px] font-medium text-neutral-100">
+                    <span className="text-[9px] font-light text-muted-foreground">
+                      Free margin:
+                    </span>
+                    <span className="text-[10px] font-medium text-foreground">
                       ${summary.freeMargin.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex items-end gap-1">
-                    <span className="text-[9px] font-light text-neutral-400">Used margin:</span>
-                    <span className="text-[10px] font-medium text-neutral-100">
+                    <span className="text-[9px] font-light text-muted-foreground">
+                      Used margin:
+                    </span>
+                    <span className="text-[10px] font-medium text-foreground">
                       ${summary.usedMargin.toFixed(2)}
                     </span>
                   </div>
                 </div>
               </div>
               <div className="flex w-[88px] flex-col items-end gap-1">
-                <span className="text-right text-[9px] font-light text-neutral-400">
+                <span className="text-right text-[9px] font-light text-muted-foreground">
                   Unrealized PnL
                 </span>
                 <span
                   className={cn(
                     "text-right text-xs font-medium tracking-[-0.12px]",
-                    summary.unrealizedPnl >= 0 ? "text-success" : "text-destructive",
+                    summary.unrealizedPnl >= 0
+                      ? "text-success"
+                      : "text-destructive",
                   )}
                 >
                   {summary.unrealizedPnl >= 0 ? "+" : ""}$
@@ -143,8 +164,10 @@ export default function Portfolio() {
 
             <div className="flex items-start justify-between">
               <div className="flex flex-col gap-1">
-                <span className="text-[9px] text-neutral-400">Profit/Loss</span>
-                <span className="text-sm font-semibold text-neutral-100">
+                <span className="text-[9px] text-muted-foreground">
+                  Profit/Loss
+                </span>
+                <span className="text-sm font-semibold text-foreground">
                   ${summary.profitLoss.toFixed(2)}
                 </span>
               </div>
@@ -155,7 +178,9 @@ export default function Portfolio() {
                     onClick={() => setPeriod(p)}
                     className={cn(
                       "rounded-md px-2 py-1 text-[10px] font-medium",
-                      period === p ? "bg-primary-dark text-neutral-50" : "text-neutral-400",
+                      period === p
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground",
                     )}
                   >
                     {p}
@@ -167,7 +192,7 @@ export default function Portfolio() {
             <div className="flex items-center gap-3">
               <button
                 onClick={handleDeposit}
-                className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-primary px-4 py-2 text-xs font-medium tracking-[-0.12px] text-neutral-50"
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-primary px-4 py-2 text-xs font-medium tracking-[-0.12px] text-primary-foreground"
                 disabled={isPending}
               >
                 <Download className="h-4 w-4" strokeWidth={1.4} />
@@ -176,7 +201,7 @@ export default function Portfolio() {
               <button
                 onClick={handleWithdraw}
                 disabled
-                className="flex flex-1 items-center justify-center gap-1 rounded-lg border-[0.4px] border-neutral-600 bg-neutral-800 px-4 py-2 text-xs font-medium tracking-[-0.12px] text-neutral-300"
+                className="flex flex-1 items-center justify-center gap-1 rounded-lg border-[0.4px] border-border bg-muted px-4 py-2 text-xs font-medium tracking-[-0.12px] text-foreground/80"
               >
                 <Upload className="h-4 w-4" strokeWidth={1.4} />
                 Withdraw
@@ -210,7 +235,10 @@ export default function Portfolio() {
                   ))}
                 </div>
               ) : (
-                <EmptyState title="No open positions" caption="Your running positions show here" />
+                <EmptyState
+                  title="No open positions"
+                  caption="Your running positions show here"
+                />
               )
             ) : tab === "open" ? (
               openOrders.length > 0 ? (
@@ -225,7 +253,10 @@ export default function Portfolio() {
                   ))}
                 </div>
               ) : (
-                <EmptyState title="No open orders" caption="Your limit orders show here" />
+                <EmptyState
+                  title="No open orders"
+                  caption="Your limit orders show here"
+                />
               )
             ) : historyOrders.length > 0 ? (
               <div className="flex flex-col gap-2">
@@ -234,14 +265,20 @@ export default function Portfolio() {
                 ))}
               </div>
             ) : (
-              <EmptyState title="No trade history" caption="Your closed trades show here" />
+              <EmptyState
+                title="No trade history"
+                caption="Your closed trades show here"
+              />
             )}
           </>
         )}
       </div>
 
       {showSignIn && (
-        <SignInSheet basket={getBasket(undefined)} onClose={() => setShowSignIn(false)} />
+        <SignInSheet
+          basket={getBasket(undefined)}
+          onClose={() => setShowSignIn(false)}
+        />
       )}
     </Layout>
   );

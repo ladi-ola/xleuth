@@ -4,8 +4,7 @@ import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { useLocation } from "react-router-dom";
 import { SideMenu } from "./SideMenu";
 
-const LOGO_SRC =
-  "https://api.builder.io/api/v1/image/assets/TEMP/393e66ec13238cbe7c7af025ce6845c7bb6e3029?width=191";
+const LOGO_SRC = "/brand/xleuth-wordmark.png";
 
 export function TopBar() {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -18,23 +17,23 @@ export function TopBar() {
         <img
           src={LOGO_SRC}
           alt="xleuth brand logo tightly cropped 1"
-          className="h-8 w-[100px] object-contain object-left"
+          className="h-8 w-[100px] object-contain object-left dark:invert"
         />
         <div className="flex items-center gap-3">
           {user ? (
-            <button className="flex h-8 items-center justify-center rounded-lg border-[0.8px] border-neutral-600 px-4 text-xs text-neutral-300">
+            <button className="flex h-8 items-center justify-center rounded-lg border-[0.8px] border-border px-4 text-xs text-foreground/80">
               Amoy
             </button>
           ) : pathname !== "/account" ? (
             <button
               onClick={() => setShowAuthFlow(true)}
-              className="flex h-8 items-center justify-center rounded-lg bg-primary px-4 text-xs text-white"
+              className="flex h-8 items-center justify-center rounded-lg bg-primary px-4 text-xs text-primary-foreground"
             >
               Sign up
             </button>
           ) : null}
           <button onClick={() => setMenuOpen(true)} aria-label="Open menu">
-            <Menu className="h-6 w-6 text-neutral-50" strokeWidth={2} />
+            <Menu className="h-6 w-6 text-foreground" strokeWidth={2} />
           </button>
         </div>
       </div>
