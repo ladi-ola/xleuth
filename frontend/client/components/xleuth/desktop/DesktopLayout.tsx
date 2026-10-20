@@ -19,7 +19,7 @@ export function DesktopLayout({ children }: PropsWithChildren) {
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
       <AppSidebar />
-      <SidebarInset className="h-svh overflow-hidden bg-neutral-950">
+      <SidebarInset className="my-2 mr-2 h-[calc(100svh-1rem)] min-h-0 overflow-hidden rounded-xl border-[0.4px] border-neutral-800 bg-neutral-950">
         <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
       </SidebarInset>
     </SidebarProvider>

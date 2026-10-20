@@ -78,7 +78,7 @@ export function AppSidebar() {
       : pathname === item.to || pathname.startsWith(`${item.to}/`));
 
   return (
-    <Sidebar collapsible="icon" aria-label="Primary">
+    <Sidebar variant="floating" collapsible="icon" aria-label="Primary">
       <SidebarHeader>
         <div className="flex h-10 items-center px-1 group-data-[collapsible=icon]:justify-center">
           <img

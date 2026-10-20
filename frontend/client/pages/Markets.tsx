@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import {
   useBaskets,
@@ -39,6 +40,7 @@ export default function Markets() {
   usePageMeta({ title: 'Xleuth — prediction-market index futures (testnet)', description: 'Trade leveraged index futures on prediction-market baskets. Live prices, order book and 5x leverage on Polygon Amoy testnet.', path: '/' });
   const { slug } = useParams<{ slug?: string }>();
   const [tab, setTab] = useState<Tab>("chart");
+  const [showOrderBook, setShowOrderBook] = useState(true);
   const [tradeSide, setTradeSide] = useState<"buy" | "sell" | null>(null);
   const [showSignIn, setShowSignIn] = useState(false);
   const [filledOrder, setFilledOrder] = useState<Order | null>(null);
@@ -215,55 +217,75 @@ export default function Markets() {
         <div className="@container flex w-full flex-col gap-5">
           <IndexHeader basket={basket} className="px-0 pt-0" />
 
-          <div className="flex flex-col gap-4 @min-[640px]:flex-row @min-[640px]:items-start">
-            {/* Chart hero, with the index details beneath it. */}
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs font-medium uppercase tracking-wide text-neutral-400">
+              Chart
+            </span>
+            <button
+              type="button"
+              onClick={() => setShowOrderBook((visible) => !visible)}
+              aria-pressed={showOrderBook}
+              aria-controls="desktop-order-book"
+              className="flex items-center gap-1.5 rounded-lg border-[0.4px] border-neutral-600 bg-neutral-800 px-2.5 py-1.5 text-[10px] font-medium text-neutral-300 transition-colors hover:bg-neutral-700 hover:text-neutral-100"
+            >
+              {showOrderBook ? (
+                <EyeOff className="h-3.5 w-3.5" strokeWidth={1.6} />
+              ) : (
+                <Eye className="h-3.5 w-3.5" strokeWidth={1.6} />
+              )}
+              {showOrderBook ? "Hide order book" : "Show order book"}
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-4 @min-[1000px]:flex-row @min-[1000px]:items-start">
+            {/* Chart hero, with the trade ticket at its foot and the index
+                details beneath. It grows into any space freed by hiding the
+                order book. */}
             <div className="flex min-w-0 flex-1 flex-col gap-4">
-              <PriceChart candles={candles} />
+              <PriceChart
+                candles={candles}
+                footer={
+                  <div className="flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-neutral-200">
+                        {basket.symbol}
+                      </span>
+                      <span className="text-[9px] font-light text-neutral-400">
+                        Amoy Testnet
+                      </span>
+                    </div>
+
+                    <TradeButtons
+                      variant="inline"
+                      onSell={() => openTrade("sell")}
+                      onBuy={() => openTrade("buy")}
+                    />
+
+                    <p className="text-center text-[9px] leading-[10px] text-neutral-500">
+                      Choose a side to open the order ticket.
+                    </p>
+                  </div>
+                }
+              />
               <IndexDetailsCard basket={basket} constituents={constituents} />
             </div>
 
-            {/* Order book column; it stacks above the order panel until there
-                is room for the three-column trading layout. */}
-            <div className="flex flex-col gap-4 @min-[640px]:w-[330px] @min-[640px]:flex-shrink-0 @min-[1000px]:w-auto @min-[1000px]:flex-row @min-[1000px]:items-start">
-              <div className="min-w-0 @min-[1000px]:w-[320px] @min-[1000px]:flex-shrink-0 @min-[1240px]:w-[360px]">
+            {/* Optional order book column. Hidden via the toggle above, which
+                lets the chart reclaim the full width. It stacks below the
+                chart until there is room for the two-column desktop layout. */}
+            {showOrderBook ? (
+              <aside
+                id="desktop-order-book"
+                aria-label="Order book"
+                className="min-w-0 @min-[1000px]:sticky @min-[1000px]:top-5 @min-[1000px]:w-[320px] @min-[1000px]:flex-shrink-0 @min-[1240px]:w-[360px]"
+              >
                 <OrderBook
                   priceLabel={basket.priceLabel}
                   buys={orderBook?.buys}
                   sells={orderBook?.sells}
                 />
-              </div>
-
-              <aside
-                aria-label="Order panel"
-                className="min-w-0 @min-[640px]:sticky @min-[640px]:top-5 @min-[1000px]:w-[360px] @min-[1000px]:flex-shrink-0 @min-[1240px]:w-[400px]"
-              >
-                <div className="flex flex-col gap-3 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-900 p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-base font-semibold leading-6 text-neutral-100">
-                      Trade
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium text-neutral-200">
-                      {basket.symbol}
-                    </span>
-                    <span className="text-[9px] font-light text-neutral-400">
-                      Amoy Testnet
-                    </span>
-                  </div>
-
-                  <TradeButtons
-                    variant="inline"
-                    onSell={() => openTrade("sell")}
-                    onBuy={() => openTrade("buy")}
-                  />
-
-                  <p className="text-center text-[9px] leading-[10px] text-neutral-500">
-                    Choose a side to open the order ticket.
-                  </p>
-                </div>
               </aside>
-            </div>
+            ) : null}
           </div>
         </div>
       ) : (

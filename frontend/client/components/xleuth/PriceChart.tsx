@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   createChart,
   ColorType,
@@ -16,6 +16,8 @@ type Timeframe = (typeof TIMEFRAMES)[number];
 
 export function PriceChart(props: {
   candles?: { time: number; open: number; high: number; low: number; close: number }[];
+  /** Optional desktop-only controls rendered at the bottom of the chart card. */
+  footer?: ReactNode;
 }) {
   const liveCandles = props.candles ?? [];
   const hasData = liveCandles.length > 0;
@@ -167,6 +169,9 @@ export function PriceChart(props: {
           </div>
         )}
       </div>
+      {props.footer ? (
+        <div className="border-t-[0.4px] border-neutral-700 pt-3">{props.footer}</div>
+      ) : null}
     </div>
   );
 }
