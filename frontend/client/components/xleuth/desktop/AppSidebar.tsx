@@ -1,8 +1,8 @@
 import {
   type LucideIcon,
+  BookOpen,
   ChartColumnIncreasing,
   CircleQuestionMark,
-  FileDown,
   FileText,
   House,
   LifeBuoy,
@@ -48,7 +48,7 @@ const secondaryItems: NavItem[] = [
   {
     to: "/xleuth-whitepaper.pdf",
     label: "Whitepaper",
-    icon: FileDown,
+    icon: BookOpen,
     external: true,
   },
   {
@@ -122,7 +122,7 @@ export function AppSidebar() {
                 tooltip={item.label}
               >
                 {item.external ? (
-                  <a href={item.to} download={item.label === "Whitepaper"}>
+                  <a href={item.to} target="_blank" rel="noopener noreferrer">
                     <item.icon strokeWidth={1.4} />
                     <span>{item.label}</span>
                   </a>
