@@ -112,10 +112,14 @@ def test_price_not_on_tick_rejected():
     assert result.ok
 
 
-def test_size_below_min_rejected():
-    result, _ = check(size=9.99)
+def test_size_below_min_notional_rejected():
+    # MIN_ORDER_SIZE is USDC notional, so at a 50 index price the floor is
+    # 10 / 50 = 0.2 contracts.
+    result, _ = check(size=0.19)
     assert result.reason == "size_below_min"
-    result, _ = check(size=10.0)
+    assert result.details["notional_usdc"] == 9.5
+    assert result.details["min_usdc"] == 10
+    result, _ = check(size=0.2)
     assert result.ok
 
 

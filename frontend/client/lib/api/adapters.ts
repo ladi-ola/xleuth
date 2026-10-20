@@ -401,10 +401,9 @@ export function buildOrder(args: {
   triggerPrice?: number;
 }): OrderRequest {
   const side: Side = args.side;
-  // Round the derived size so an amount exactly at the minimum doesn't send
-  // e.g. 9.999999999999998 from floating-point division and trip the engine's
-  // strict `size < min_order_size` check. Six decimals is enough to preserve
-  // any meaningful notional precision.
+  // Round the derived size so a notional that should produce a whole number
+  // doesn't send e.g. 9.999999999999998 from floating-point division. Six
+  // decimals is enough to preserve any meaningful notional precision.
   const size =
     args.indexPrice > 0 ? Number((args.notionalUsdc / args.indexPrice).toFixed(6)) : 0;
   const base = {

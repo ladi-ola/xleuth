@@ -12,7 +12,7 @@ Required:
 
 Optional (defaults shown):
   MAX_LEVERAGE=5
-  MIN_ORDER_SIZE=10
+  MIN_ORDER_SIZE=10               (minimum order notional in USDC)
   TICK_SIZE=0.01
   TRADING_FEE_BPS=10
   ORACLE_MAX_PRICE_STALENESS_SECONDS=60

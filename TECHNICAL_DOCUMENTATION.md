@@ -52,7 +52,7 @@ Deployed Amoy addresses (see `docs/deployment-status.md`, root `.env`):
 | `SettlementEngine` | `0x68aa3697b1783cb671c575D01C5622c2FA8570e8` |
 | `MockUSDC` / `TEST_USDC` | `0xc8783E…` / `0xC12782…` (faucet token) |
 
-Global risk defaults: `MAX_LEVERAGE=5`, `MIN_ORDER_SIZE=10`, `TICK_SIZE=0.01`, `TRADING_FEE_BPS=10` (reporting-only v1), `INDEX_PRICE_SCALE=100` (0–100 points), `ORACLE_MAX_PRICE_STALENESS_SECONDS=60`, `MAINTENANCE_MARGIN_RATIO≈6.25% (625 bps)`, `LIQUIDATION_FEE_BPS=50`.
+Global risk defaults: `MAX_LEVERAGE=5`, `MIN_ORDER_SIZE=10` (USDC notional), `TICK_SIZE=0.01`, `TRADING_FEE_BPS=10` (reporting-only v1), `INDEX_PRICE_SCALE=100` (0–100 points), `ORACLE_MAX_PRICE_STALENESS_SECONDS=60`, `MAINTENANCE_MARGIN_RATIO≈6.25% (625 bps)`, `LIQUIDATION_FEE_BPS=50`.
 
 ---
 
@@ -528,7 +528,7 @@ Rollback: `migrations/down/001_baskets.down.sql` (`DROP basket_events, baskets`)
 - **Faucet guards:** JWT-bound (403 cross-wallet), 24h cooldown (429+`Retry-After`), EVM-format 400, 10/min/IP.
 - **Alias validation (Task15):** 1–32 chars, `^[A-Za-z0-9 _.\-]+$`, 422 + safe messages; tests in `test_tasks_15_16.py`.
 - **Rate limiting (Task16, `shared/rate_limit.py`):** per-IP sliding window, `429 rate_limited+Retry-After`, `413` >1MB, `TRUST_PROXY=0` default. Tunables `RL_AUTH_VERIFY_PER_MIN=30, RL_FAUCET_PER_MIN=10, RL_ORDERS_PER_MIN, MAX_BODY_BYTES`.
-- **Trading guards:** margin on oracle price, staleness 60s, tick 0.01, min size 10, lev 1–5 + on-chain cap, self-trade reject, FOK+slippage, OCO SL/TP, idempotency keys, ownership checks (403), both-legs-mined confirmation.
+- **Trading guards:** margin on oracle price, staleness 60s, tick 0.01, min order notional 10 USDC, lev 1–5 + on-chain cap, self-trade reject, FOK+slippage, OCO SL/TP, idempotency keys, ownership checks (403), both-legs-mined confirmation.
 - **Contracts:** `onlyOwner` wiring, `onlyPM` margin moves, `only settlementEngine` for `settleBasket`, `ReentrancyGuard` on deposit, monotonic + range + EIP-712 sig checks, once-only settlement, loss floored at 0.
 - **Operational (PLAN tasks 3-4):** secrets audit (proxy secrets, rotate if ever in git/bundle, `VITE_*` allowlist, disable sourcemaps, `check-bundle-secrets.sh`), HTTPS 301/HSTS/mixed-content/`wss`, secure cookies, CORS https-only, CSP/`X-Content-Type-Options`/`Referrer-Policy`/frame protections, `curl` verify. See `docs/security-review.md`, `deployment-https.md`.
 

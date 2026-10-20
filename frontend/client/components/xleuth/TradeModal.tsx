@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { track } from "@/lib/analytics";
 import type { Basket } from "@/lib/market-data";
 import { usePositions, usePortfolioSummary } from "@/lib/api/hooks";
-import { MIN_ORDER_CONTRACTS, formatUsdc, minimumOrderNotional } from "@/lib/api/limits";
+import { MIN_ORDER_USDC, formatUsdc } from "@/lib/api/limits";
 
 const LEVERAGE_OPTIONS = [1, 2, 3, 4, 5] as const;
 const QUICK_PERCENTAGES = [25, 50, 75, 100] as const;
@@ -101,12 +101,10 @@ export function TradeModal({
   const availableBefore = summaryData?.free_margin ?? 0;
   const freeAfterOrder = availableBefore - marginRequired;
 
-  // The engine enforces its minimum in contracts (index units), and the order
-  // request converts USDC notional -> size = notional / indexPrice. Derive the
-  // equivalent USDC floor so the user is told the real minimum instead of the
-  // old (wrong) "10 USDC" hint that let sub-minimum orders through.
+  // MIN_ORDER_SIZE is a USDC notional floor. The order request converts it to
+  // contracts (size = notional / indexPrice), so validate the amount directly
+  // instead of comparing a contract count to a USDC value.
   const hasLivePrice = basket.price > 0;
-  const minNotional = minimumOrderNotional(basket.price);
 
   const needsPrice = orderType !== "market";
   const needsSlippage = orderType !== "limit";
@@ -117,8 +115,8 @@ export function TradeModal({
   const amountError =
     !hasLivePrice ? "Waiting for a live index price to size this order." :
     notional <= 0 ? "Enter an amount greater than 0." :
-    notional < minNotional
-      ? `Minimum order is $${formatUsdc(minNotional)} (${MIN_ORDER_CONTRACTS} contracts at the current index price).`
+    notional < MIN_ORDER_USDC
+      ? `Minimum order is $${formatUsdc(MIN_ORDER_USDC)} USDC.`
       : null;
   const priceError = needsPrice && priceValue <= 0 ? "Enter a price greater than 0." : null;
   const slippageError =
@@ -299,9 +297,7 @@ export function TradeModal({
             </span>
           </div>
           <span className="text-[9px] font-normal text-neutral-500">
-            {hasLivePrice
-              ? `Min order: ${MIN_ORDER_CONTRACTS} contracts (~$${formatUsdc(minNotional)} USDC)`
-              : `Min order: ${MIN_ORDER_CONTRACTS} contracts`}
+            Min order: ${formatUsdc(MIN_ORDER_USDC)} USDC
           </span>
           {amountError && (
             <span role="alert" className="text-[9px] text-destructive">{amountError}</span>

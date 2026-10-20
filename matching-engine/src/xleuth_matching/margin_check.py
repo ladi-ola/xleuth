@@ -4,12 +4,14 @@ Every order must clear validation against live on-chain state (via web3.py)
 before it is accepted:
 
   1. static rules: basket known + tradeable, price in (0, scale] and on the
-     configured tick, size >= MIN_ORDER_SIZE, leverage in [1, MAX_LEVERAGE]
+     configured tick, leverage in [1, MAX_LEVERAGE]
   2. oracle freshness: the IndexOracleConsumer price for the basket must
      exist and be newer than ORACLE_MAX_PRICE_STALENESS_SECONDS — the
      PositionManager requires the same at execution, so we reject early
      with a specific reason instead of failing at fill time
-  3. margin: required margin = (oracle_price * size) / leverage must be
+  3. order size: notional (oracle_price * size) must be at least
+     MIN_ORDER_SIZE USDC
+  4. margin: required margin = (oracle_price * size) / leverage must be
      covered by the user's free balance in the CollateralVault. Margin uses
      the on-chain oracle price (0-100 integer scale) because that is exactly
      what PositionManager.updatePosition locks at execution; the fill price
@@ -223,7 +225,6 @@ class MarginCheck:
     ) -> CheckResult:
         checks = [
             self._check_basket(basket_name),
-            self._check_size(size),
             self._check_leverage(leverage),
         ]
         # Only validate price for limit orders
@@ -248,6 +249,12 @@ class MarginCheck:
                 "oracle_price_stale",
                 {"age_seconds": age, "max_staleness_seconds": self.config.max_price_staleness_seconds},
             )
+
+        # Minimum size is a USDC notional, not a contract count: at an index
+        # price of 50 a $10 order is 0.2 contracts, which is valid here.
+        size_check = self._check_size(price_int, size)
+        if not size_check.ok:
+            return size_check
 
         max_lev = self.chain.max_leverage()
         if max_lev <= 0:
@@ -311,10 +318,18 @@ class MarginCheck:
             return CheckResult(False, "price_not_on_tick", {"price": price, "tick": tick})
         return CheckResult(True)
 
-    def _check_size(self, size: float) -> CheckResult:
-        if size < self.config.min_order_size:
+    def _check_size(self, price: float, size: float) -> CheckResult:
+        notional = price * size
+        if notional + 1e-9 < self.config.min_order_size:
             return CheckResult(
-                False, "size_below_min", {"size": size, "min": self.config.min_order_size}
+                False,
+                "size_below_min",
+                {
+                    "size": size,
+                    "price": price,
+                    "notional_usdc": round(notional, 2),
+                    "min_usdc": self.config.min_order_size,
+                },
             )
         return CheckResult(True)
 

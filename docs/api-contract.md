@@ -102,7 +102,7 @@ Trading lives here; auth uses Dynamic JWT verification (same env ID as backend).
 
 - `basket_name`: string (e.g., `TOP20-SEPTEMBER`)
 - `side`: `"buy"` | `"sell"`
-- `size`: float (> 0, ≥ `min_order_size` = 10)
+- `size`: float (> 0; `price * size` must be ≥ `min_order_size` = 10 USDC)
 - `leverage`: int (1–`max_leverage` = 5)
 - `order_type`: `"limit"` | `"market"` | `"stop"` | `"stop_loss"` | `"take_profit"` (default: `"limit"`)
 - `price`: float (> 0, on tick 0.01) — **required for limit only**
@@ -113,8 +113,9 @@ Trading lives here; auth uses Dynamic JWT verification (same env ID as backend).
 
 ### Order Placement Contract
 
-- Price is in 0–100 index points, must be on `tick_size` (0.01); `size` must
-  be ≥ `min_order_size` (10); leverage 1–`max_leverage`.
+- Price is in 0–100 index points, must be on `tick_size` (0.01); the order
+  notional `price * size` must be ≥ `min_order_size` (10 USDC); leverage
+  1–`max_leverage`.
 - `Idempotency-Key` header (optional): replaying a key within 24h returns the
   original order instead of placing a duplicate (same wallet). The UI sends
   one key per trade dialog.
