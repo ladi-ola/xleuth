@@ -34,7 +34,7 @@ export function CookieNotice() {
     <div
       role="status"
       aria-live="polite"
-      className="fixed inset-x-0 bottom-16 z-40 mx-auto flex max-w-md items-center gap-3 px-4"
+      className="fixed inset-x-0 bottom-16 z-40 mx-auto flex max-w-md items-center gap-3 px-4 md:bottom-6 md:left-auto md:right-6 md:mx-0"
     >
       <div className="flex w-full items-center gap-3 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-900/95 p-3 shadow-lg">
         <p className="flex-1 text-[11px] leading-4 text-neutral-300">

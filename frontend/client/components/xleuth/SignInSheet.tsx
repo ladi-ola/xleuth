@@ -10,9 +10,9 @@ export function SignInSheet({ basket, onClose }: { basket: Basket; onClose: () =
   const { setShowAuthFlow } = useDynamicContext();
 
   return (
-    <div className="fixed inset-0 z-50 mx-auto flex max-w-md items-end justify-center">
+    <div className="fixed inset-0 z-50 flex items-end justify-center md:items-center md:px-4">
       <div className="absolute inset-0 bg-neutral-950/88" onClick={onClose} />
-      <div className="relative flex min-h-[62vh] w-full flex-col items-center justify-center gap-12 rounded-t-3xl border-x-[0.4px] border-t-[0.4px] border-neutral-800 bg-neutral-900 px-8 py-16">
+      <div className="relative flex min-h-[62vh] w-full max-w-md flex-col items-center justify-center gap-12 rounded-t-3xl border-x-[0.4px] border-t-[0.4px] border-neutral-800 bg-neutral-900 px-8 py-16 md:min-h-0 md:rounded-3xl md:border-[0.4px]">
         <img src={LOGO_SRC} alt="Xleuth logo" className="h-8 w-[100px] object-contain" />
         <div className="flex flex-col items-center gap-3">
           <p className="text-center text-base font-medium leading-[22px] tracking-[-0.18px] text-white">

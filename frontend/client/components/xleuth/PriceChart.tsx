@@ -117,7 +117,7 @@ export function PriceChart(props: {
 
   return (
     <div className="flex w-full flex-col gap-3 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-900 p-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1 rounded-lg border-[0.4px] border-neutral-600 bg-neutral-800 p-0.5">
           {(["line", "candlestick"] as const).map((type) => (
             <button
@@ -151,7 +151,7 @@ export function PriceChart(props: {
           ))}
         </div>
       </div>
-      <div className="relative h-[480px] w-full">
+      <div className="relative h-[338px] w-full md:h-[420px] lg:h-[520px]">
         {/* The chart container stays mounted (sized) so the chart instance is
             ready; it is only hidden while there is no data to plot. */}
         <div

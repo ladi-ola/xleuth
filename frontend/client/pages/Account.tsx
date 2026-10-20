@@ -42,8 +42,8 @@ export default function Account() {
   };
 
   return (
-    <Layout>
-      <div className="flex flex-col gap-4 px-4 pt-4">
+    <Layout width="md">
+      <div className="flex flex-col gap-4 px-4 pt-4 md:px-0 md:pt-0">
         <h1 className="text-lg font-semibold text-neutral-100">Account</h1>
 
         {user && shortAddress && (

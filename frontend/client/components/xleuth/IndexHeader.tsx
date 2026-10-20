@@ -1,7 +1,14 @@
 import type { Basket } from "@/lib/market-data";
+import { cn } from "@/lib/utils";
 import { PriceChange } from "./PriceChange";
 
-export function IndexHeader({ basket }: { basket: Basket }) {
+export function IndexHeader({
+  basket,
+  className,
+}: {
+  basket: Basket;
+  className?: string;
+}) {
   const statusLabel = basket.status.toUpperCase();
   const statusTone =
     basket.status === "active"
@@ -16,7 +23,7 @@ export function IndexHeader({ basket }: { basket: Basket }) {
         ? "bg-warning"
         : "bg-neutral-400";
   return (
-    <div className="flex items-start justify-between px-4 pt-5">
+    <div className={cn("flex items-start justify-between px-4 pt-5", className)}>
       <div className="flex flex-col items-start gap-1">
         <span className={`flex items-center gap-1 rounded-lg px-2 py-0.5 ${statusTone}`}>
           <span className={`h-1 w-1 rounded-full ${dotTone}`} />

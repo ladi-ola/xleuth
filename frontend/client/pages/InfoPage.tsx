@@ -15,8 +15,8 @@ export function InfoPage({
   sections: InfoSection[];
 }) {
   return (
-    <Layout>
-      <div className="flex flex-col gap-4 px-4 pt-4 pb-8">
+    <Layout width="md">
+      <div className="flex flex-col gap-4 px-4 pt-4 pb-8 md:px-0 md:pt-0 md:pb-0">
         <h1 className="text-lg font-semibold text-neutral-100">{title}</h1>
         <div className="rounded-xl border-[0.4px] border-neutral-600 bg-neutral-900 p-4">
           <p className="text-xs leading-5 text-neutral-300">{intro}</p>

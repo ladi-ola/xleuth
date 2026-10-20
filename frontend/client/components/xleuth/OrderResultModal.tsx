@@ -11,9 +11,9 @@ export function OrderResultModal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 mx-auto flex max-w-md items-center justify-center px-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
       <div className="absolute inset-0 bg-neutral-950/88 backdrop-blur-[5px]" onClick={onClose} />
-      <div className="relative flex w-full flex-col gap-8 rounded-2xl border-[0.4px] border-neutral-600 bg-neutral-900">
+      <div className="relative flex w-full max-w-md flex-col gap-8 rounded-2xl border-[0.4px] border-neutral-600 bg-neutral-900">
         <div className="flex flex-col gap-2.5 border-b-[0.4px] border-neutral-600 px-5 pb-3 pt-5">
           <div className="flex items-center justify-between">
             <span className="text-base font-semibold leading-6 text-neutral-100">Trade</span>

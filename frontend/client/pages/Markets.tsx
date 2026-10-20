@@ -23,6 +23,7 @@ import { SignInSheet } from "@/components/xleuth/SignInSheet";
 import { SegmentedControl } from "@/components/xleuth/SegmentedControl";
 import { EmptyState } from "@/components/xleuth/EmptyState";
 import { usePageMeta } from "@/hooks/use-page-meta";
+import { useIsTablet } from "@/hooks/use-media-query";
 
 type Tab = "chart" | "order-book";
 type Order = { side: "buy" | "sell"; amount: number; leverage: number };
@@ -44,6 +45,7 @@ export default function Markets() {
   const { user } = useDynamicContext();
   const { toast } = useToast();
   const placeOrder = usePlaceOrder();
+  const isTablet = useIsTablet();
 
   // Phase 3: public reads. Basket -> price -> candles/book/constituents.
   const { data: basketList, isLoading: basketsLoading } = useBaskets();
@@ -208,35 +210,94 @@ export default function Markets() {
   };
 
   return (
-    <Layout>
-      <IndexHeader basket={basket} />
+    <Layout width="full">
+      {isTablet ? (
+        <div className="@container flex w-full flex-col gap-5">
+          <IndexHeader basket={basket} className="px-0 pt-0" />
 
-      <div className="mx-4 mt-5">
-        <SegmentedControl
-          value={tab}
-          onChange={(v) => setTab(v as Tab)}
-          options={[
-            { value: "chart", label: "Chart" },
-            { value: "order-book", label: "Order book" },
-          ]}
-          className="h-8 uppercase"
-        />
-      </div>
+          <div className="flex flex-col gap-4 @min-[640px]:flex-row @min-[640px]:items-start">
+            {/* Chart hero, with the index details beneath it. */}
+            <div className="flex min-w-0 flex-1 flex-col gap-4">
+              <PriceChart candles={candles} />
+              <IndexDetailsCard basket={basket} constituents={constituents} />
+            </div>
 
-      <div className="mt-3 flex flex-col gap-3 px-4">
-        {tab === "chart" ? (
-          <PriceChart candles={candles} />
-        ) : (
-          <OrderBook
-            priceLabel={basket.priceLabel}
-            buys={orderBook?.buys}
-            sells={orderBook?.sells}
-          />
-        )}
-        <IndexDetailsCard basket={basket} constituents={constituents} />
-      </div>
+            {/* Order book column; it stacks above the order panel until there
+                is room for the three-column trading layout. */}
+            <div className="flex flex-col gap-4 @min-[640px]:w-[330px] @min-[640px]:flex-shrink-0 @min-[1000px]:w-auto @min-[1000px]:flex-row @min-[1000px]:items-start">
+              <div className="min-w-0 @min-[1000px]:w-[320px] @min-[1000px]:flex-shrink-0 @min-[1240px]:w-[360px]">
+                <OrderBook
+                  priceLabel={basket.priceLabel}
+                  buys={orderBook?.buys}
+                  sells={orderBook?.sells}
+                />
+              </div>
 
-      <TradeButtons onSell={() => openTrade("sell")} onBuy={() => openTrade("buy")} />
+              <aside
+                aria-label="Order panel"
+                className="min-w-0 @min-[640px]:sticky @min-[640px]:top-5 @min-[1000px]:w-[360px] @min-[1000px]:flex-shrink-0 @min-[1240px]:w-[400px]"
+              >
+                <div className="flex flex-col gap-3 rounded-xl border-[0.4px] border-neutral-600 bg-neutral-900 p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-base font-semibold leading-6 text-neutral-100">
+                      Trade
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-neutral-200">
+                      {basket.symbol}
+                    </span>
+                    <span className="text-[9px] font-light text-neutral-400">
+                      Amoy Testnet
+                    </span>
+                  </div>
+
+                  <TradeButtons
+                    variant="inline"
+                    onSell={() => openTrade("sell")}
+                    onBuy={() => openTrade("buy")}
+                  />
+
+                  <p className="text-center text-[9px] leading-[10px] text-neutral-500">
+                    Choose a side to open the order ticket.
+                  </p>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <IndexHeader basket={basket} />
+
+          <div className="mx-4 mt-5">
+            <SegmentedControl
+              value={tab}
+              onChange={(v) => setTab(v as Tab)}
+              options={[
+                { value: "chart", label: "Chart" },
+                { value: "order-book", label: "Order book" },
+              ]}
+              className="h-8 uppercase"
+            />
+          </div>
+
+          <div className="mt-3 flex flex-col gap-3 px-4">
+            {tab === "chart" ? (
+              <PriceChart candles={candles} />
+            ) : (
+              <OrderBook
+                priceLabel={basket.priceLabel}
+                buys={orderBook?.buys}
+                sells={orderBook?.sells}
+              />
+            )}
+            <IndexDetailsCard basket={basket} constituents={constituents} />
+          </div>
+
+          <TradeButtons onSell={() => openTrade("sell")} onBuy={() => openTrade("buy")} />
+        </>
+      )}
 
       {tradeSide && (
         <TradeModal

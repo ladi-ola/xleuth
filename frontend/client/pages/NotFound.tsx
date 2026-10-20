@@ -27,8 +27,8 @@ const NotFound = () => {
   const slug = isMarketSlug ? location.pathname.split("/market/")[1] : null;
 
   return (
-    <Layout>
-      <div className="flex flex-col items-center gap-4 px-4 py-16 text-center">
+    <Layout width="md">
+      <div className="flex flex-col items-center gap-4 px-4 py-16 text-center md:px-0 md:py-24">
         <span className="text-4xl font-bold text-neutral-100">404</span>
         <p className="text-sm text-neutral-300">
           {slug

@@ -181,7 +181,7 @@ export function TradeModal({
       className="fixed inset-0 z-50 flex items-center justify-center px-4"
     >
       <div className="absolute inset-0 bg-neutral-950/88 backdrop-blur-[6px]" onClick={onClose} />
-      <div className="no-scrollbar relative flex max-h-[92vh] w-full max-w-[370px] flex-col gap-2 overflow-y-auto rounded-3xl border-[0.8px] border-neutral-600 bg-neutral-800 px-4 py-6">
+      <div className="no-scrollbar relative flex max-h-[92vh] w-full max-w-[370px] flex-col gap-2 overflow-y-auto rounded-3xl border-[0.8px] border-neutral-600 bg-neutral-800 px-4 py-6 md:max-w-md">
         <div className="flex items-center justify-between">
           <span className="text-base font-semibold leading-6 text-neutral-100">Trade</span>
           <button onClick={onClose} aria-label="Close">

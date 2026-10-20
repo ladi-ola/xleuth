@@ -27,8 +27,8 @@ export default function Explore() {
   );
 
   return (
-    <Layout>
-      <div className="flex flex-col gap-4 px-4 pt-4">
+    <Layout width="lg">
+      <div className="flex flex-col gap-4 px-4 pt-4 md:px-0 md:pt-0">
         <label className="flex h-10 items-center gap-2 rounded-lg border-[0.2px] border-neutral-600 bg-neutral-800 px-2">
           <Search className="h-4 w-4 p-0.5 text-neutral-500" strokeWidth={1.4} />
           <input

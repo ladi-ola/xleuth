@@ -98,8 +98,8 @@ export default function Portfolio() {
   };
 
   return (
-    <Layout>
-      <div className="flex flex-col gap-4 px-4 pt-4">
+    <Layout width="lg">
+      <div className="flex flex-col gap-4 px-4 pt-4 md:px-0 md:pt-0">
         {user && (
           <div className="flex flex-col gap-4 rounded-2xl border-[0.4px] border-neutral-600 bg-neutral-900 p-4">
             <div className="flex items-start gap-8">
