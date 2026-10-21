@@ -40,6 +40,17 @@ describe("parseApiError", () => {
     expect(parsed.message).toContain("margin");
   });
 
+  it("parses rejection codes that the engine suffixes with details", () => {
+    const parsed = parseApiError(
+      apiError(422, {
+        detail:
+          "insufficient_margin ({'required_usdc': 10.0, 'free_usdc': 0.0})",
+      })
+    );
+    expect(parsed.code).toBe("insufficient_margin");
+    expect(parsed.message).toContain("vault margin");
+  });
+
   it("parses FastAPI validation-error arrays", () => {
     const parsed = parseApiError(
       apiError(422, { detail: [{ loc: ["body", "size"], msg: "bad", type: "x" }] })

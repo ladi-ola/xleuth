@@ -282,7 +282,7 @@ Init `PolymarketClient + Storage + RedisPublisher`; `storage.connect() (asyncpg 
 | GET | `/accounts/me` | Fresh `db.get_user` else token stub → `UserInfo` |
 | PUT | `/accounts/alias?alias=` | Validate + `update_user_alias`; Task15: 1–32 chars, `^[A-Za-z0-9 _.\-]+$`, else 422 |
 | GET | `/accounts/transactions?limit=50` | `get_transactions → TransactionHistoryResponse` |
-| GET | `/accounts/summary` | `chain.free_balance/1e6 → PortfolioSummaryResponse{total=free,free_margin=free,used=0,unrealized=0,realized=0}`; zeros if `chain_reader is None` |
+| GET | `/accounts/summary` | `vault_free=chain.free_balance/1e6`, `wallet_balance=chain.wallet_balance/1e6` → `PortfolioSummaryResponse{total=vault_free+wallet_balance,free_margin=vault_free,used=0,unrealized=0,realized=0}`; zeros if `chain_reader is None`. Only `vault_free` is tradeable margin. |
 
 **Baskets (public, no auth, `routes/baskets.py`, `prefix=/baskets`):**
 
@@ -298,7 +298,9 @@ Lifecycle (`:30-51`): DB `status/expiry_at` wins if registry row exists (`active
 
 **Faucet (`routes/faucet.py`, `prefix=/faucet`):**
 
-`POST /faucet/claim` — transfer 1000 MockUSDC (6dp) via operator key on Amoy. Body `{smart_account_address}` → `{tx_hash,status=submitted}`. Guards: internal JWT (401 `token_missing`); 400 bad EVM format; 403 if `address != wallet`; 429 if <24h since last claim + `Retry-After`; 500 if env/RPC fails; 10/min/IP. `AsyncWeb3` transfer, gas×1.2 buffer, sign+send (`:117-136`).
+`POST /faucet/claim` — transfer 1,000 test-USDC (6dp) via operator key on Amoy. Body `{smart_account_address}` → `{tx_hash,status=submitted}`. Guards: internal JWT (401 `token_missing`); 400 bad EVM format; 403 if `address != wallet`; 429 if <24h since last claim + `Retry-After`; 500 if env/RPC fails; 10/min/IP. `AsyncWeb3` transfer, gas×1.2 buffer, sign+send (`:117-136`).
+
+The faucet only delivers USDC to the user's wallet. Trading margin is `CollateralVault.freeBalance`, so the frontend's Portfolio page has a separate **Deposit to vault** action that signs `USDC.approve(vault, amount)` followed by `vault.deposit(amount)` with the user's connected wallet (`frontend/client/lib/contracts.ts`). The helper reads `balanceOf(wallet)` on-chain for the amount, so a stale summary cannot over- or under-deposit. The backend never holds user keys.
 
 **WebSocket (`routes/websocket.py`, no auth):**
 
@@ -490,9 +492,9 @@ State: `PM immutable`; `authorizedSigner` (single realized-fraction signer); `pr
 - `lib/dynamic.ts` — `DYNAMIC_ENVIRONMENT_ID`, `XLEUTH_CHAIN{id:80002}`, placeholder contract addrs. `lib/market-data.ts, portfolio-data.ts, analytics.ts (cookieless pageview)`, `components/xleuth/{Layout,TopBar,BottomNav,SideMenu,IndexHeader,PriceChart,OrderBook,TradeModal,TradeButtons,OrderResultModal,PositionCard,OpenOrderCard,HistoryCard,SignInSheet,…}` + `components/ui/*` (Radix).
 - `server/index.ts` stub: only `GET /api/ping, /api/demo`.
 
-**Env (`VITE_*`, public by design):** `VITE_DYNAMIC_ENVIRONMENT_ID`, `VITE_BACKEND_API_URL=http://localhost:8000`, `VITE_MATCHING_ENGINE_URL=http://localhost:8001`, `VITE_BACKEND_WS_URL=ws://localhost:8000`, `VITE_MATCHING_WS_URL`, `VITE_CHAIN_ID=80002`, `VITE_CHAIN_NAME/RPC_URL`, `VITE_USDC_CONTRACT_ADDRESS`, `VITE_FAUCET_WALLET_ADDRESS`, `VITE_ROBOTS_CONTENT=noindex,nofollow`, `VITE_PUBLIC_SITE_URL=https://xleuth.xyz`, `VITE_ANALYTICS_URL/SITE`.
+**Env (`VITE_*`, public by design):** `VITE_DYNAMIC_ENVIRONMENT_ID`, `VITE_BACKEND_API_URL=http://localhost:8000`, `VITE_MATCHING_ENGINE_URL=http://localhost:8001`, `VITE_BACKEND_WS_URL=ws://localhost:8000`, `VITE_MATCHING_WS_URL`, `VITE_CHAIN_ID=80002`, `VITE_CHAIN_NAME/RPC_URL`, `VITE_COLLATERAL_TOKEN_ADDRESS=0xc8783E…`, `VITE_COLLATERAL_VAULT_ADDRESS=0x6dbeEb…`, `VITE_USDC_CONTRACT_ADDRESS` (legacy alias), `VITE_FAUCET_WALLET_ADDRESS`, `VITE_ROBOTS_CONTENT=noindex,nofollow`, `VITE_PUBLIC_SITE_URL=https://xleuth.xyz`, `VITE_ANALYTICS_URL/SITE`.
 
-**Flows:** Dynamic SDK JWT → `POST {BACKEND}/auth/verify` → internal JWT (memory) → `Authorization: Bearer` to `:8000/accounts|faucet`, `:8001/orders|positions`. Public `GET /baskets…/candles + :8001/…/book`. WS with `ping/subscribe`. Trade: `Markets → buildMarketOrder(notional,price,lev,slipBps) → POST /orders + Idempotency-Key → toast/reconcile via GET /orders`.
+**Flows:** Dynamic SDK JWT → `POST {BACKEND}/auth/verify` → internal JWT (memory) → `Authorization: Bearer` to `:8000/accounts|faucet`, `:8001/orders|positions`. Public `GET /baskets…/candles + :8001/…/book`. WS with `ping/subscribe`. Funding: `Portfolio → Get test USDC` (faucet → wallet) then `Portfolio → Deposit to vault` (`approve` + `vault.deposit` signed by the user's wallet). Trade: `Markets → buildMarketOrder(notional,price,lev,slipBps) → POST /orders + Idempotency-Key → toast/reconcile via GET /orders`.
 
 **PLAN.md frontend tasks (1,2,5-19):** privacy/terms pages + docs, secrets audit (public `VITE_*` justified, domain-restrict WalletConnect/RPC, disable prod sourcemaps, bundle secret check), HTTPS/HSTS/CSP, cookie notice (cookieless analytics default), meta/OG/favicon/robots/sitemap (noindex testnet default, env-flag flip), alt-text lint, WebP, Lighthouse, 404/500, link checks, form validation, Turnstile+honeypot+rate limits, Plausible/Umami analytics (no wallet/balance in events), single CTA "Launch app (testnet)".
 
@@ -550,7 +552,7 @@ Rollback: `migrations/down/001_baskets.down.sql` (`DROP basket_events, baskets`)
 | Oracle | `ORACLE_PUSH_INTERVAL_SECONDS=15, ORACLE_MAX_PRICE_STALENESS_SECONDS=60, ORACLE_RETRY_MAX_ATTEMPTS=5, ORACLE_RETRY_BACKOFF_SECONDS=2, ORACLE_BASKET_CACHE_TTL_S=60` |
 | Risk/matching | `MAX_LEVERAGE=5, MAINTENANCE_MARGIN_RATIO=0.0625 (625bps), LIQUIDATION_FEE_BPS=50, TRADING_FEE_BPS=10, MIN_ORDER_SIZE=10, TICK_SIZE=0.01, ENGINE_HOST/PORT, ENGINE_BASKET_REFRESH_SECONDS=60, ENGINE_BASKET_CACHE_TTL_S=60, STOP_TRIGGER_CHECK_INTERVAL_SECONDS=5, IDEMPOTENCY_TTL_SECONDS=86400` |
 | Deploy/infra | `DOCKER_NETWORK=xleuth_net, FRONTEND_ORIGIN, BASKET_EXPIRY_SECONDS=0, BASKET_INITIAL_PRICES=50, ACTIVE_BASKETS` |
-| Frontend (`VITE_*` public) | `VITE_DYNAMIC_ENVIRONMENT_ID, VITE_BACKEND_API_URL, VITE_MATCHING_ENGINE_URL, VITE_BACKEND_WS_URL, VITE_MATCHING_WS_URL, VITE_CHAIN_ID=80002, VITE_CHAIN_NAME/RPC_URL, VITE_USDC_CONTRACT_ADDRESS, VITE_FAUCET_WALLET_ADDRESS, VITE_ROBOTS_CONTENT=noindex,nofollow, VITE_PUBLIC_SITE_URL, VITE_ANALYTICS_URL/SITE` |
+| Frontend (`VITE_*` public) | `VITE_DYNAMIC_ENVIRONMENT_ID, VITE_BACKEND_API_URL, VITE_MATCHING_ENGINE_URL, VITE_BACKEND_WS_URL, VITE_MATCHING_WS_URL, VITE_CHAIN_ID=80002, VITE_CHAIN_NAME/RPC_URL, VITE_COLLATERAL_TOKEN_ADDRESS, VITE_COLLATERAL_VAULT_ADDRESS, VITE_USDC_CONTRACT_ADDRESS (legacy alias), VITE_FAUCET_WALLET_ADDRESS, VITE_ROBOTS_CONTENT=noindex,nofollow, VITE_PUBLIC_SITE_URL, VITE_ANALYTICS_URL/SITE` |
 | Contracts deploy | `CHAIN_ID, RPC_URL, DEPLOYER_PRIVATE_KEY, *_ADDRESS, TEST_USDC_ADDRESS, ORACLE/SIGNER keys, MAX_LEVERAGE/STALENESS/SCALE/MAINT_BPS/FEE_BPS/SETTLE_STALENESS, ACTIVE_BASKETS, BASKET_INITIAL_PRICES, CHAIN_ID` |
 
 ---

@@ -14,6 +14,12 @@
 [build.environment]
   VITE_PUBLIC_SITE_URL = "https://xleuth.xyz"
   VITE_ROBOTS_CONTENT = "noindex, nofollow"
+  # Public Amoy deployment addresses. Pinned here so previews/production use
+  # the live contracts; contracts.ts also ignores the known-dead USDC address.
+  VITE_CHAIN_ID = "80002"
+  VITE_CHAIN_RPC_URL = "https://polygon-amoy-bor-rpc.publicnode.com"
+  VITE_COLLATERAL_TOKEN_ADDRESS = "0xc8783E02f3EE944BdE2990DbcDFefbe8adc3e86D"
+  VITE_COLLATERAL_VAULT_ADDRESS = "0x6dbeEb6a5bE0cD63159b1dBD5525dE125A1CECef"
 
 # SPA fallback: /market/:slug, /portfolio, /account, etc. resolve on refresh.
 [[redirects]]

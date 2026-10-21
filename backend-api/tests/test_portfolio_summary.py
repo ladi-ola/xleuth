@@ -1,8 +1,9 @@
 """Portfolio summary + faucet funding tests.
 
-The faucet delivers test-USDC to the user's wallet, so the available balance
-has to include both the vault's free balance and the collateral token still
-held in the wallet. These tests cover that with a fake chain reader, and pin
+The faucet delivers test-USDC to the user's wallet. Only the vault's free
+balance is tradeable margin, so the summary reports the two balances
+separately: wallet funds are visible but do not count as free margin until
+they are deposited. These tests cover that with a fake chain reader, and pin
 the faucet's ABI encoders to the token the vault actually custodies.
 """
 
@@ -45,26 +46,30 @@ class FakeChain(ChainStateReader):
         return 5
 
 
-def test_summary_includes_wallet_collateral(client: TestClient, app):
-    """A faucet claim (wallet balance) must move the available balance."""
+def test_summary_shows_wallet_collateral_but_not_as_margin(client: TestClient, app):
+    """A faucet claim is visible in the total, but not tradeable until deposited."""
     app.state.chain_reader = FakeChain(free=0.0, wallet=1000.0)
     token = _internal_token(client)
     resp = client.get("/accounts/summary", headers={"Authorization": f"Bearer {token}"})
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["total_balance"] == 1000.0
-    assert body["free_margin"] == 1000.0
+    assert body["free_margin"] == 0.0
+    assert body["vault_free"] == 0.0
+    assert body["wallet_balance"] == 1000.0
     assert body["used_margin"] == 0.0
 
 
-def test_summary_sums_wallet_and_vault(client: TestClient, app):
+def test_summary_sums_wallet_and_vault_for_total_only(client: TestClient, app):
     app.state.chain_reader = FakeChain(free=250.0, wallet=1000.0)
     token = _internal_token(client)
     body = client.get(
         "/accounts/summary", headers={"Authorization": f"Bearer {token}"}
     ).json()
     assert body["total_balance"] == 1250.0
-    assert body["free_margin"] == 1250.0
+    assert body["free_margin"] == 250.0
+    assert body["vault_free"] == 250.0
+    assert body["wallet_balance"] == 1000.0
 
 
 def test_summary_tolerates_reader_without_wallet_balance(client: TestClient, app):
@@ -81,6 +86,8 @@ def test_summary_tolerates_reader_without_wallet_balance(client: TestClient, app
     ).json()
     assert body["total_balance"] == 500.0
     assert body["free_margin"] == 500.0
+    assert body["vault_free"] == 500.0
+    assert body["wallet_balance"] == 0.0
 
 
 def test_wallet_balance_defaults_to_zero():

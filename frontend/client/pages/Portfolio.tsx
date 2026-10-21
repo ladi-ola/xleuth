@@ -6,6 +6,7 @@ import {
   useAccount,
   useCancelOrder,
   useFaucetClaim,
+  useVaultDeposit,
   usePortfolioSummary,
   usePositions,
   useOpenOrders,
@@ -49,6 +50,7 @@ const EMPTY_SUMMARY = {
   freeMargin: 0,
   usedMargin: 0,
   profitLoss: 0,
+  walletBalance: 0,
 };
 
 export default function Portfolio() {
@@ -63,7 +65,8 @@ export default function Portfolio() {
   const [showSignIn, setShowSignIn] = useState(false);
   const { user } = useDynamicContext();
   const { toast } = useToast();
-  const { mutateAsync: claimFaucet, isPending } = useFaucetClaim();
+  const { mutateAsync: claimFaucet, isPending: isClaiming } = useFaucetClaim();
+  const { mutateAsync: depositToVault, isPending: isDepositing } = useVaultDeposit();
   const { mutate: cancelOrder, isPending: isCancelling } = useCancelOrder();
 
   // Phase 4: authenticated reads. The hooks poll while the screen is mounted
@@ -91,12 +94,24 @@ export default function Portfolio() {
     .filter((entry) => entry.kind === "transfer");
   const historyOrders: HistoryOrder[] = [...tradeHistory, ...transferHistory];
 
-  const handleDeposit = async () => {
+  const handleClaim = async () => {
     if (!user) return setShowSignIn(true);
     // useFaucetClaim surfaces success/error/cooldown toasts itself.
     try {
-      track("deposit_submitted");
+      track("faucet_claim_submitted");
       await claimFaucet();
+    } catch {
+      // Error already reported by the mutation hook.
+    }
+  };
+
+  const handleDeposit = async () => {
+    if (!user) return setShowSignIn(true);
+    // useVaultDeposit re-reads the wallet balance and signs approve + deposit
+    // with the connected wallet. It surfaces success/error toasts itself.
+    try {
+      track("deposit_submitted");
+      await depositToVault(undefined);
     } catch {
       // Error already reported by the mutation hook.
     }
@@ -125,13 +140,21 @@ export default function Portfolio() {
                     ${summary.totalBalance.toFixed(2)}
                   </span>
                 </div>
-                <div className="flex items-end gap-3">
+                <div className="flex flex-wrap items-end gap-x-3 gap-y-1">
                   <div className="flex items-end gap-1">
                     <span className="text-[9px] font-light text-muted-foreground">
-                      Free margin:
+                      Vault margin:
                     </span>
                     <span className="text-[10px] font-medium text-foreground">
                       ${summary.freeMargin.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex items-end gap-1">
+                    <span className="text-[9px] font-light text-muted-foreground">
+                      Wallet USDC:
+                    </span>
+                    <span className="text-[10px] font-medium text-foreground">
+                      ${summary.walletBalance.toFixed(2)}
                     </span>
                   </div>
                   <div className="flex items-end gap-1">
@@ -189,23 +212,38 @@ export default function Portfolio() {
               </div>
             </div>
 
-            <div className="flex items-center gap-3">
-              <button
-                onClick={handleDeposit}
-                className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-primary px-4 py-2 text-xs font-medium tracking-[-0.12px] text-primary-foreground"
-                disabled={isPending}
-              >
-                <Download className="h-4 w-4" strokeWidth={1.4} />
-                Deposit
-              </button>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleClaim}
+                  className="flex flex-1 items-center justify-center gap-1 rounded-lg border-[0.4px] border-border bg-muted px-4 py-2 text-xs font-medium tracking-[-0.12px] text-foreground/80"
+                  disabled={isClaiming || isDepositing}
+                >
+                  <Download className="h-4 w-4" strokeWidth={1.4} />
+                  {isClaiming ? "Claiming..." : "Get test USDC"}
+                </button>
+                <button
+                  onClick={handleDeposit}
+                  className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-primary px-4 py-2 text-xs font-medium tracking-[-0.12px] text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isDepositing || isClaiming}
+                >
+                  <Upload className="h-4 w-4" strokeWidth={1.4} />
+                  {isDepositing ? "Depositing..." : "Deposit to vault"}
+                </button>
+              </div>
               <button
                 onClick={handleWithdraw}
                 disabled
-                className="flex flex-1 items-center justify-center gap-1 rounded-lg border-[0.4px] border-border bg-muted px-4 py-2 text-xs font-medium tracking-[-0.12px] text-foreground/80"
+                className="flex items-center justify-center gap-1 rounded-lg border-[0.4px] border-border bg-muted px-4 py-2 text-xs font-medium tracking-[-0.12px] text-foreground/80"
               >
-                <Upload className="h-4 w-4" strokeWidth={1.4} />
+                <Download className="h-4 w-4" strokeWidth={1.4} />
                 Withdraw
               </button>
+              <p className="text-[9px] leading-[12px] text-muted-foreground">
+                Only vault margin can back orders. Depositing moves your wallet
+                test-USDC into the CollateralVault. Keep a little Amoy POL in
+                this wallet for the approval and deposit gas.
+              </p>
             </div>
           </div>
         )}

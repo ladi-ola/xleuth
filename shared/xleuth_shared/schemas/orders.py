@@ -234,10 +234,24 @@ class PositionsResponse(BaseModel):
 # Portfolio summary response
 class PortfolioSummaryResponse(BaseModel):
     total_balance: float
+    # Tradeable margin: free (unlocked) collateral inside the CollateralVault.
+    # This is the only balance the matching engine counts for an order.
     free_margin: float
     used_margin: float
     unrealized_pnl: float
     realized_pnl: float
+    # Same value as free_margin, kept explicit so clients can label the vault
+    # balance without inferring it from the legacy free_margin field.
+    vault_free: float = Field(
+        default=0.0,
+        description="Free collateral inside the CollateralVault (tradeable margin).",
+    )
+    # Test-USDC held in the user's own wallet, not yet deposited into the
+    # vault. Visible for UX, but not spendable as order margin.
+    wallet_balance: float = Field(
+        default=0.0,
+        description="Test-USDC in the user's wallet, not yet deposited into the vault.",
+    )
 
 
 # Candles response

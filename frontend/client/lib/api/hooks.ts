@@ -4,6 +4,10 @@ import { queryKeys, queryOptions } from './queryKeys';
 import { authenticatedFetch, ApiError } from './token-exchange';
 import { useDynamicContext } from '@dynamic-labs/sdk-react-core';
 import { useToast } from '@/hooks/use-toast';
+import {
+  approveAndDepositToVault,
+  type DynamicWalletLike,
+} from '@/lib/contracts';
 
 // ============================================
 // Public queries (no auth required)
@@ -336,10 +340,80 @@ export function useFaucetClaim() {
     onSuccess: (data) => {
       toast({
         title: 'Claim Successful',
-        description: `1,000 test-USDC added to your available balance. Tx: ${data.tx_hash}`,
+        description: `1,000 test-USDC added to your wallet. Deposit it into the vault to trade. Tx: ${data.tx_hash}`,
       });
       // Invalidate to refetch balance
       queryClient.invalidateQueries({ queryKey: queryKeys.account.all });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.account.all });
+    },
+  });
+}
+
+/**
+ * Move test-USDC from the user's wallet into the CollateralVault.
+ *
+ * The matching engine only counts vault.freeBalance, so a faucet claim by
+ * itself is not tradeable margin. The user signs both transactions; the
+ * backend never touches their keys.
+ */
+export function useVaultDeposit() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const { primaryWallet } = useDynamicContext();
+
+  return useMutation({
+    mutationFn: async (amountUsdc?: number) => {
+      if (!primaryWallet) {
+        throw new Error('No wallet connected');
+      }
+
+      // The engine checks the JWT wallet. Refuse to deposit from a different
+      // connected account, otherwise the funds land in an invisible vault.
+      let account = queryClient.getQueryData<{ wallet_address?: string }>(
+        queryKeys.account.me(),
+      );
+      if (!account?.wallet_address) {
+        account = await authenticatedFetch(backendApi.getAccount);
+      }
+      const signedIn = account?.wallet_address;
+      if (!signedIn) {
+        throw new Error(
+          'Could not verify the signed-in wallet. Sign in again before depositing.',
+        );
+      }
+      const connected = primaryWallet.address;
+      if (connected && signedIn.toLowerCase() !== connected.toLowerCase()) {
+        throw new Error(
+          'Connected wallet does not match the signed-in account. Reconnect the wallet that owns the test USDC.',
+        );
+      }
+
+      // With no explicit amount, the contract helper reads the exact on-chain
+      // test-USDC balance and deposits all of it. This avoids a stale summary
+      // or an older backend deployment becoming the source of truth.
+      return approveAndDepositToVault({
+        wallet: primaryWallet as unknown as DynamicWalletLike,
+        amountUsdc,
+        expectedAddress: signedIn,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: 'Deposit Failed',
+        description:
+          error instanceof Error ? error.message : 'Could not deposit test USDC.',
+        variant: 'destructive',
+      });
+    },
+    onSuccess: (data) => {
+      toast({
+        title: 'Deposit Confirmed',
+        description: `Test USDC is now vault margin. Tx: ${data.depositTx}`,
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.account.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.positions.all });
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.account.all });

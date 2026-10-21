@@ -271,7 +271,7 @@
           "baskets"
         ],
         "summary": "Get Candles",
-        "description": "Get OHLC candles for a basket using TimescaleDB time_bucket.",
+        "description": "Get OHLC candles for a basket (portable PostgreSQL bucketing).\n\nReturns 200 with an empty ``candles`` list when the basket is known but\nhas no price history yet, 404 when the basket is unknown, and 400 for an\nunsupported interval.",
         "operationId": "get_candles_baskets__basket_name__candles_get",
         "parameters": [
           {
@@ -492,7 +492,7 @@
           "accounts"
         ],
         "summary": "Get Summary",
-        "description": "Get portfolio summary with margin breakdown.\n\nfree_margin = free vault balance (after resting-order locks)\nused_margin = margin locked by open positions + margin reserved for resting orders\ntotal_balance = free_margin + used_margin\nSL/TP orders carry no separate reservation",
+        "description": "Get portfolio summary with margin breakdown.\n\nfree_margin / vault_free = free (unlocked) collateral inside the\n    CollateralVault. This is the only balance the matching engine counts\n    as order margin.\nwallet_balance = test-USDC held in the user's own wallet. Faucet claims\n    land here; it becomes tradeable only after an approve + vault.deposit.\nused_margin = margin locked by open positions + margin reserved for resting orders\ntotal_balance = free_margin + wallet_balance + used_margin\nSL/TP orders carry no separate reservation",
         "operationId": "get_summary_accounts_summary_get",
         "responses": {
           "200": {
@@ -1269,6 +1269,18 @@
           "realized_pnl": {
             "type": "number",
             "title": "Realized Pnl"
+          },
+          "vault_free": {
+            "type": "number",
+            "title": "Vault Free",
+            "description": "Free collateral inside the CollateralVault (tradeable margin).",
+            "default": 0.0
+          },
+          "wallet_balance": {
+            "type": "number",
+            "title": "Wallet Balance",
+            "description": "Test-USDC in the user's wallet, not yet deposited into the vault.",
+            "default": 0.0
           }
         },
         "type": "object",

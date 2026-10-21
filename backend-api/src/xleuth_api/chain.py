@@ -24,8 +24,9 @@ class ChainConfig:
     # Collateral ERC-20 (test-USDC). Used to read the balance a user holds in
     # their own wallet before depositing it into the CollateralVault.
     collateral_token_address: str = ""
-    # Optional legacy faucet token. Some testnet claims were delivered from a
-    # separate MockUSDC; counting it keeps those balances visible too.
+    # Optional legacy faucet token. Kept for configuration compatibility; the
+    # vault only accepts `collateral_token_address`, so legacy balances are
+    # not counted as depositable margin.
     legacy_token_address: str = ""
 
 
@@ -37,11 +38,11 @@ class ChainStateReader(ABC):
         """User's free (unlocked) USDC balance in the CollateralVault (6-dp units)."""
 
     def wallet_balance(self, wallet: str) -> int:
-        """User's collateral-token balance held in their own wallet (6-dp units).
+        """User's vault-collateral balance held in their own wallet (6-dp units).
 
-        Funds from the faucet land here first, so the portfolio's available
-        balance has to account for them. Defaults to zero for readers that
-        cannot resolve the collateral token.
+        Funds from the faucet land here first. Only the token the vault
+        accepts is counted, because that is the amount the user can deposit.
+        Defaults to zero for readers that cannot resolve the collateral token.
         """
         return 0
 
@@ -129,13 +130,17 @@ class Web3ChainStateReader(ChainStateReader):
         self._pm = self._w3.eth.contract(
             address=config.position_manager_address, abi=self.PM_ABI
         )
-        token_addresses = {
-            a for a in (config.collateral_token_address, config.legacy_token_address) if a
-        }
-        self._tokens = [
-            self._w3.eth.contract(address=self._checksum(address), abi=self.ERC20_ABI)
-            for address in token_addresses
-        ]
+        # Only the vault's collateral token is depositable. A legacy faucet
+        # token may still be configured, but adding it to this balance would
+        # overstate the amount the vault can pull during `deposit`.
+        self._collateral_token = (
+            self._w3.eth.contract(
+                address=self._checksum(config.collateral_token_address),
+                abi=self.ERC20_ABI,
+            )
+            if config.collateral_token_address
+            else None
+        )
 
     @staticmethod
     def basket_id(basket_name: str) -> bytes:
@@ -149,14 +154,17 @@ class Web3ChainStateReader(ChainStateReader):
             return 0
 
     def wallet_balance(self, wallet: str) -> int:
-        checksummed = self._checksum(wallet)
-        total = 0
-        for token in self._tokens:
-            try:
-                total += int(token.functions.balanceOf(checksummed).call())
-            except Exception:
-                logger.warning("collateral balanceOf read failed for %s", wallet, exc_info=True)
-        return total
+        if self._collateral_token is None:
+            return 0
+        try:
+            return int(
+                self._collateral_token.functions.balanceOf(
+                    self._checksum(wallet)
+                ).call()
+            )
+        except Exception:
+            logger.warning("collateral balanceOf read failed for %s", wallet, exc_info=True)
+            return 0
 
     def get_position(self, wallet: str, basket_name: str) -> tuple[int, int, int, int, int] | None:
         try:

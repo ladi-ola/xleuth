@@ -73,13 +73,15 @@ describe("adaptBasket", () => {
 });
 
 describe("adaptPortfolioSummary", () => {
-  it("maps balances and combines realized + unrealized PnL", () => {
+  it("maps vault margin and wallet balance separately", () => {
     const result = adaptPortfolioSummary({
       total_balance: 1000,
       free_margin: 550,
       used_margin: 450,
       unrealized_pnl: 1250,
       realized_pnl: 7250,
+      vault_free: 550,
+      wallet_balance: 0,
     });
     expect(result).toEqual({
       totalBalance: 1000,
@@ -87,7 +89,34 @@ describe("adaptPortfolioSummary", () => {
       usedMargin: 450,
       unrealizedPnl: 1250,
       profitLoss: 8500,
+      walletBalance: 0,
     });
+  });
+
+  it("keeps undeposited wallet funds out of free margin", () => {
+    const result = adaptPortfolioSummary({
+      total_balance: 1000,
+      free_margin: 0,
+      used_margin: 0,
+      unrealized_pnl: 0,
+      realized_pnl: 0,
+      vault_free: 0,
+      wallet_balance: 1000,
+    });
+    expect(result.freeMargin).toBe(0);
+    expect(result.walletBalance).toBe(1000);
+  });
+
+  it("falls back to free_margin for older backends", () => {
+    const result = adaptPortfolioSummary({
+      total_balance: 500,
+      free_margin: 500,
+      used_margin: 0,
+      unrealized_pnl: 0,
+      realized_pnl: 0,
+    });
+    expect(result.freeMargin).toBe(500);
+    expect(result.walletBalance).toBe(0);
   });
 });
 

@@ -142,10 +142,15 @@ export interface TransactionHistoryResponse {
 
 export interface PortfolioSummaryResponse {
   total_balance: number;
+  /** Free (unlocked) collateral inside the CollateralVault — tradeable margin. */
   free_margin: number;
   used_margin: number;
   unrealized_pnl: number;
   realized_pnl: number;
+  /** Explicit vault-only balance (same as free_margin on current backends). */
+  vault_free?: number;
+  /** Test-USDC in the user's wallet, not yet deposited into the vault. */
+  wallet_balance?: number;
 }
 
 // ============================================

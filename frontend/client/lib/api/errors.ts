@@ -2,10 +2,22 @@ import type { HTTPValidationError, RejectionCode, AuthErrorCode } from './schema
 import { isAuthErrorCode, isRejectionCode } from './schemas';
 import { MIN_ORDER_USDC } from './limits';
 
+/**
+ * The matching engine returns rejection details as
+ * `"insufficient_margin ({'required_usdc': ...})"`. Extract the leading code
+ * so the UI can map it to a user-facing message instead of showing raw data.
+ */
+function rejectionCodeFromDetail(detail: string): RejectionCode | null {
+  const match = detail.trim().match(/^([a-z_]+)(?:\s|\(|$)/);
+  const candidate = match?.[1];
+  return candidate && isRejectionCode(candidate) ? candidate : null;
+}
+
 // Rejection code to user-friendly message mapping
 export const REJECTION_MESSAGES: Record<Exclude<RejectionCode, AuthErrorCode>, string> = {
   oracle_price_stale: 'Price feed is stale. Please try again.',
-  insufficient_margin: 'Insufficient margin for this order.',
+  insufficient_margin:
+    'Insufficient vault margin. Deposit test USDC from your wallet into the vault on the Portfolio page first.',
   basket_not_tradeable: 'This market is not currently tradeable.',
   price_not_on_tick: 'Price must be on a valid tick (0.01 increments).',
   size_below_min: `Order size is below the minimum of ${MIN_ORDER_USDC} USDC.`,
@@ -84,8 +96,11 @@ export function parseApiError(error: unknown): {
       message: err.msg,
     }));
     const firstError = data.detail[0];
-    const code = typeof firstError?.msg === 'string' ? firstError.msg : '';
-    if (isRejectionCode(code)) {
+    const code =
+      typeof firstError?.msg === 'string'
+        ? rejectionCodeFromDetail(firstError.msg)
+        : null;
+    if (code) {
       return { message: REJECTION_MESSAGES[code], code, status: 422, validationErrors };
     }
     if (isAuthErrorCode(code)) {
@@ -114,8 +129,9 @@ export function parseApiError(error: unknown): {
   // Other errors with detail string
   if (data && typeof data === 'object' && 'detail' in data && typeof data.detail === 'string') {
     const detail = data.detail;
-    if (isRejectionCode(detail)) {
-      return { message: REJECTION_MESSAGES[detail], code: detail, status };
+    const code = rejectionCodeFromDetail(detail);
+    if (code) {
+      return { message: REJECTION_MESSAGES[code], code, status };
     }
     if (isAuthErrorCode(detail)) {
       return { message: AUTH_ERROR_MESSAGES[detail], code: detail, status };

@@ -95,9 +95,12 @@ export type FrontendHistoryOrder =
 export interface FrontendPortfolioSummary {
   totalBalance: number;
   unrealizedPnl: number;
+  /** Tradeable margin held in the CollateralVault. */
   freeMargin: number;
   usedMargin: number;
   profitLoss: number;
+  /** Test-USDC still in the wallet; must be deposited before trading. */
+  walletBalance: number;
 }
 
 export interface FrontendOrderBookRow {
@@ -369,12 +372,16 @@ export function adaptTransaction(tx: TransactionInfo): FrontendHistoryOrder {
 
 // Map portfolio summary
 export function adaptPortfolioSummary(summary: PortfolioSummaryResponse): FrontendPortfolioSummary {
+  // Older backends only expose free_margin (which used to include wallet
+  // funds). Fall back to it so a frontend deployed ahead of the API still
+  // renders; the explicit fields take precedence once available.
   return {
     totalBalance: summary.total_balance,
     unrealizedPnl: summary.unrealized_pnl,
-    freeMargin: summary.free_margin,
+    freeMargin: summary.vault_free ?? summary.free_margin,
     usedMargin: summary.used_margin,
     profitLoss: summary.realized_pnl + summary.unrealized_pnl,
+    walletBalance: summary.wallet_balance ?? 0,
   };
 }
 

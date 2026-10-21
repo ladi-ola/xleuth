@@ -137,9 +137,9 @@ def create_app() -> FastAPI:
     redis_db = int(os.getenv("REDIS_DB", "0"))
 
     # The vault's collateral token is the asset the faucet dispenses and the
-    # asset whose wallet balance counts toward the portfolio's available
-    # balance before it is deposited into the vault. The legacy faucet token is
-    # summed too so earlier claims stay visible.
+    # only wallet balance the vault can pull during a deposit. The legacy
+    # faucet token is kept in config for older deployments but is not counted
+    # as depositable balance.
     test_usdc_address = os.getenv("TEST_USDC_ADDRESS", "")
     legacy_usdc_address = os.getenv("MOCK_USDC_ADDRESS", "")
 

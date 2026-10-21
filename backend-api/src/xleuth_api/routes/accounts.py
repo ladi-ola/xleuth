@@ -95,10 +95,13 @@ async def get_summary(
 ):
     """Get portfolio summary with margin breakdown.
 
-    free_margin = free vault balance (after resting-order locks) + test-USDC
-                  held in the user's wallet (e.g. an undeposited faucet claim)
+    free_margin / vault_free = free (unlocked) collateral inside the
+        CollateralVault. This is the only balance the matching engine counts
+        as order margin.
+    wallet_balance = test-USDC held in the user's own wallet. Faucet claims
+        land here; it becomes tradeable only after an approve + vault.deposit.
     used_margin = margin locked by open positions + margin reserved for resting orders
-    total_balance = free_margin + used_margin
+    total_balance = free_margin + wallet_balance + used_margin
     SL/TP orders carry no separate reservation
     """
     if chain is None:
@@ -113,14 +116,13 @@ async def get_summary(
     
     wallet = user["wallet_address"]
     
-    # Free balance from vault (USDC with 6 decimals) plus collateral the user
-    # still holds in their own wallet. Faucet claims are delivered to the
-    # wallet, so the two must be summed for the portfolio balance to reflect a
-    # claim immediately (funds become usable once deposited into the vault).
+    # Vault balance is the only tradeable margin. Wallet collateral is shown
+    # separately so a faucet claim is visible immediately without pretending
+    # it is already usable by the matching engine.
     vault_balance = chain.free_balance(wallet) / 1e6
     read_wallet_balance = getattr(chain, "wallet_balance", None)
     wallet_balance = read_wallet_balance(wallet) / 1e6 if callable(read_wallet_balance) else 0.0
-    free_balance = vault_balance + wallet_balance
+    total_balance = vault_balance + wallet_balance
     
     # Get all positions to calculate used margin and unrealized PnL
     used_margin = 0.0
@@ -134,9 +136,11 @@ async def get_summary(
     # For now, return basic summary with free balance
     # A full implementation would iterate through all baskets and sum up positions
     return PortfolioSummaryResponse(
-        total_balance=free_balance,
-        free_margin=free_balance,
+        total_balance=total_balance,
+        free_margin=vault_balance,
         used_margin=used_margin,
         unrealized_pnl=unrealized_pnl,
         realized_pnl=0.0,  # Would need transaction history to compute
+        vault_free=vault_balance,
+        wallet_balance=wallet_balance,
     )

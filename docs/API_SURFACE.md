@@ -89,8 +89,10 @@ Response: `TransactionHistoryResponse` — `wallet_address`, `transactions[]` (i
 
 **`GET /accounts/summary`**  
 Response: `PortfolioSummaryResponse`:
-- `total_balance` = free_margin + used_margin
-- `free_margin` = free vault balance (after resting-order locks) + collateral-token balance held in the user's wallet (test-USDC delivered by the faucet)
+- `total_balance` = free_margin + wallet_balance + used_margin
+- `free_margin` = free (unlocked) collateral inside the `CollateralVault` (after resting-order locks). This is the only balance the matching engine counts as order margin.
+- `vault_free` = explicit alias of `free_margin` (vault-only, tradeable)
+- `wallet_balance` = test-USDC held in the user's own wallet (e.g. an undeposited faucet claim). Visible in the UI, but not tradeable until the user calls `approve` + `vault.deposit`.
 - `used_margin` = margin locked by open positions + margin reserved for resting orders
 - `unrealized_pnl` = sum of unrealized PnL across open positions
 - `realized_pnl` = from transaction history (not yet fully implemented)

@@ -101,7 +101,10 @@ export function TradeModal({
   const priceValue = Number(orderPrice) || 0;
   const slippageBps = Math.floor(Number(slippage) || 0);
   const marginRequired = notional / leverage;
-  const availableBefore = summaryData?.free_margin ?? 0;
+  // Only vault free balance backs orders. Wallet USDC is displayed separately
+  // so the modal never promises margin the matching engine cannot see.
+  const availableBefore = summaryData?.vault_free ?? summaryData?.free_margin ?? 0;
+  const walletBalance = summaryData?.wallet_balance ?? 0;
   const freeAfterOrder = availableBefore - marginRequired;
 
   // MIN_ORDER_SIZE is a USDC notional floor. The order request converts it to
@@ -122,6 +125,14 @@ export function TradeModal({
       : notional < MIN_ORDER_USDC
         ? `Minimum order is $${formatUsdc(MIN_ORDER_USDC)} USDC.`
         : null;
+  // Only enforce once the summary has loaded; otherwise a slow first fetch
+  // would block an otherwise valid order.
+  const marginError =
+    summaryData && notional > 0 && marginRequired > availableBefore + 1e-9
+      ? walletBalance > 0
+        ? `Insufficient vault margin. Deposit your $${formatUsdc(walletBalance)} wallet USDC into the vault from Portfolio.`
+        : "Insufficient vault margin. Deposit test USDC into the vault from Portfolio."
+      : null;
   const priceError =
     needsPrice && priceValue <= 0 ? "Enter a price greater than 0." : null;
   const slippageError =
@@ -138,6 +149,7 @@ export function TradeModal({
       : null;
   const formInvalid =
     amountError !== null ||
+    marginError !== null ||
     priceError !== null ||
     slippageError !== null ||
     takeProfitError !== null ||
@@ -330,6 +342,11 @@ export function TradeModal({
               {amountError}
             </span>
           )}
+          {marginError && (
+            <span role="alert" className="text-[9px] text-destructive">
+              {marginError}
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -434,9 +451,15 @@ export function TradeModal({
             value={`$${marginRequired.toFixed(2)}`}
           />
           <SummaryRow
-            label="Available required"
+            label="Vault margin"
             value={`$${availableBefore.toFixed(2)}`}
           />
+          {walletBalance > 0 && (
+            <SummaryRow
+              label="Wallet (undeposited)"
+              value={`$${walletBalance.toFixed(2)}`}
+            />
+          )}
           <SummaryRow
             label="Free after order"
             value={`$${freeAfterOrder.toFixed(2)}`}
