@@ -14,10 +14,12 @@
   },
   "dependencies": {
     "@dynamic-labs/ethereum": "^5.9.0",
+    "@dynamic-labs/ethereum-aa": "5.9.0",
     "@dynamic-labs/sdk-react-core": "^5.9.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "lightweight-charts": "^5.2.1",
+    "viem": "^2.56.8",
     "zod": "^4.4.3"
   },
   "devDependencies": {

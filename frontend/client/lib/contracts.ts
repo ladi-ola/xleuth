@@ -54,8 +54,10 @@ const RPC_URLS: string[] = Array.from(
 );
 
 const ERC20_APPROVE_SELECTOR = "0x095ea7b3"; // approve(address,uint256)
+const ERC20_ALLOWANCE_SELECTOR = "0xdd62ed3e"; // allowance(address,address)
 const ERC20_BALANCE_OF_SELECTOR = "0x70a08231"; // balanceOf(address)
 const VAULT_DEPOSIT_SELECTOR = "0xb6b55f25"; // deposit(uint256)
+const VAULT_FREE_BALANCE_SELECTOR = "0x95b881de"; // freeBalance(address)
 
 export function toUsdcUnits(amount: number): bigint {
   if (!Number.isFinite(amount) || amount <= 0) return 0n;
@@ -83,13 +85,33 @@ export function buildDepositCalldata(amount: bigint): `0x${string}` {
   return `${VAULT_DEPOSIT_SELECTOR}${encodeUint256(amount)}` as `0x${string}`;
 }
 
+export function buildAllowanceCalldata(
+  owner: string,
+  spender: string,
+): `0x${string}` {
+  return `${ERC20_ALLOWANCE_SELECTOR}${encodeAddress(owner)}${encodeAddress(spender)}` as `0x${string}`;
+}
+
 export function buildBalanceOfCalldata(holder: string): `0x${string}` {
   return `${ERC20_BALANCE_OF_SELECTOR}${encodeAddress(holder)}` as `0x${string}`;
+}
+
+export function buildFreeBalanceCalldata(account: string): `0x${string}` {
+  return `${VAULT_FREE_BALANCE_SELECTOR}${encodeAddress(account)}` as `0x${string}`;
 }
 
 interface WalletClientLike {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
   account?: { address?: string } | null;
+  // Dynamic's ZeroDev smart-wallet client is a viem WalletClient. Calling
+  // sendTransaction routes the call through a user operation; the raw
+  // eth_sendTransaction path only works for plain EOA connectors.
+  sendTransaction?: (args: {
+    account?: string;
+    to: string;
+    data?: string;
+    value?: bigint;
+  }) => Promise<string>;
 }
 
 export interface DynamicWalletLike {
@@ -236,10 +258,16 @@ async function sendTransaction(
   to: string,
   data: `0x${string}`,
 ): Promise<string> {
-  const hash = await client.request({
-    method: "eth_sendTransaction",
-    params: [{ from, to, data }],
-  });
+  // Prefer the viem-style method: it works for both EOAs and ZeroDev smart
+  // wallets (where it is converted into a user operation). Keep the raw
+  // provider call as a fallback for connectors that only expose `request`.
+  const hash =
+    typeof client.sendTransaction === "function"
+      ? await client.sendTransaction({ account: from, to, data })
+      : await client.request({
+          method: "eth_sendTransaction",
+          params: [{ from, to, data }],
+        });
   if (typeof hash !== "string" || !hash.startsWith("0x")) {
     throw new Error("Wallet did not return a transaction hash.");
   }
@@ -274,6 +302,87 @@ async function rpcCall(
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Read a uint256 result directly from the public Amoy RPCs.
+ *
+ * Smart wallets return a user-operation hash from sendTransaction, not a
+ * regular transaction hash, so `eth_getTransactionReceipt` cannot be used to
+ * wait for approval/deposit. Polling the resulting contract state is reliable
+ * for both smart wallets and plain EOAs.
+ */
+async function readUint256(
+  to: string,
+  data: `0x${string}`,
+): Promise<bigint | undefined> {
+  for (const url of RPC_URLS) {
+    try {
+      const result = await rpcCall(url, "eth_call", [
+        { to, data },
+        "latest",
+      ]);
+      if (
+        typeof result === "string" &&
+        result.startsWith("0x") &&
+        result.length > 2
+      ) {
+        return BigInt(result);
+      }
+    } catch {
+      // Try the next RPC.
+    }
+  }
+  return undefined;
+}
+
+async function waitForAllowance(
+  owner: string,
+  spender: string,
+  minimum: bigint,
+  timeoutMs = 120_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastAllowance: bigint | undefined;
+  while (Date.now() < deadline) {
+    lastAllowance = await readUint256(
+      USDC_ADDRESS,
+      buildAllowanceCalldata(owner, spender),
+    );
+    if (lastAllowance !== undefined && lastAllowance >= minimum) return;
+    await sleep(2_000);
+  }
+  throw new Error(
+    `Timed out waiting for the token approval to confirm${
+      lastAllowance !== undefined
+        ? ` (current allowance: ${lastAllowance.toString()})`
+        : ""
+    }. Check your wallet and refresh.`,
+  );
+}
+
+async function waitForVaultBalance(
+  account: string,
+  minimum: bigint,
+  timeoutMs = 120_000,
+): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastBalance: bigint | undefined;
+  while (Date.now() < deadline) {
+    lastBalance = await readUint256(
+      COLLATERAL_VAULT_ADDRESS,
+      buildFreeBalanceCalldata(account),
+    );
+    if (lastBalance !== undefined && lastBalance >= minimum) return;
+    await sleep(2_000);
+  }
+  throw new Error(
+    `Timed out waiting for the deposit to confirm${
+      lastBalance !== undefined
+        ? ` (current vault margin: ${lastBalance.toString()})`
+        : ""
+    }. Check your wallet and refresh.`,
+  );
 }
 
 function sleep(ms: number): Promise<void> {
@@ -386,6 +495,14 @@ export async function approveAndDepositToVault(args: {
     throw new Error("No test USDC in your wallet to deposit.");
   }
 
+  // Record the vault balance before depositing so the confirmation check is
+  // correct for both first-time and repeat deposits.
+  const vaultBalanceBefore =
+    (await readUint256(
+      COLLATERAL_VAULT_ADDRESS,
+      buildFreeBalanceCalldata(from),
+    )) ?? 0n;
+
   args.onStep?.("approve");
   const approveTx = await sendTransaction(
     client,
@@ -393,7 +510,9 @@ export async function approveAndDepositToVault(args: {
     USDC_ADDRESS,
     buildApproveCalldata(COLLATERAL_VAULT_ADDRESS, amount),
   );
-  await waitForReceipt(approveTx, 120_000, client);
+  // A smart wallet's sendTransaction confirms the user operation before it
+  // returns, but polling the allowance covers connectors that return early.
+  await waitForAllowance(from, COLLATERAL_VAULT_ADDRESS, amount);
 
   args.onStep?.("deposit");
   const depositTx = await sendTransaction(
@@ -402,7 +521,7 @@ export async function approveAndDepositToVault(args: {
     COLLATERAL_VAULT_ADDRESS,
     buildDepositCalldata(amount),
   );
-  await waitForReceipt(depositTx, 120_000, client);
+  await waitForVaultBalance(from, vaultBalanceBefore + amount);
 
   return { approveTx, depositTx };
 }

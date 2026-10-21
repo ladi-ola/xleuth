@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildAllowanceCalldata,
   buildApproveCalldata,
   buildBalanceOfCalldata,
   buildDepositCalldata,
+  buildFreeBalanceCalldata,
   toUsdcUnits,
 } from "./contracts";
 
@@ -44,6 +46,23 @@ describe("CollateralVault calldata", () => {
   it("encodes balanceOf(address)", () => {
     expect(buildBalanceOfCalldata(VAULT)).toBe(
       "0x70a08231" + "0".repeat(24) + VAULT.toLowerCase().slice(2),
+    );
+  });
+
+  it("encodes allowance(address,address)", () => {
+    const owner = "0x6Aba39d2E2d108B964D099C4ae476bf474Be78B1";
+    expect(buildAllowanceCalldata(owner, VAULT)).toBe(
+      "0xdd62ed3e" +
+        "0".repeat(24) +
+        owner.toLowerCase().slice(2) +
+        "0".repeat(24) +
+        VAULT.toLowerCase().slice(2),
+    );
+  });
+
+  it("encodes freeBalance(address)", () => {
+    expect(buildFreeBalanceCalldata(VAULT)).toBe(
+      "0x95b881de" + "0".repeat(24) + VAULT.toLowerCase().slice(2),
     );
   });
 });

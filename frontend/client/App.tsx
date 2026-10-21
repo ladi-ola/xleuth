@@ -8,6 +8,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
 import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
+import { ZeroDevSmartWalletConnectors } from "@dynamic-labs/ethereum-aa";
 import { useEffect } from "react";
 import { ThemeProvider, useTheme } from "next-themes";
 import { DYNAMIC_ENVIRONMENT_ID } from "@/lib/dynamic";
@@ -50,7 +51,13 @@ function ThemedApp() {
     <DynamicContextProvider
       settings={{
         environmentId: DYNAMIC_ENVIRONMENT_ID,
-        walletConnectors: [EthereumWalletConnectors],
+        // The Dynamic project has ZeroDev account abstraction enabled. The
+        // ZeroDev connector must be registered too, otherwise email/social
+        // users get a fallback wallet with no signer and cannot deposit.
+        walletConnectors: [
+          EthereumWalletConnectors,
+          ZeroDevSmartWalletConnectors,
+        ],
       }}
       theme={resolvedTheme === "dark" ? "dark" : "light"}
     >
