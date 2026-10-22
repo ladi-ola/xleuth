@@ -6,7 +6,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { DynamicContextProvider } from "@dynamic-labs/sdk-react-core";
+import {
+  DynamicContextProvider,
+  overrideNetworkRpcUrl,
+} from "@dynamic-labs/sdk-react-core";
 import { EthereumWalletConnectors } from "@dynamic-labs/ethereum";
 import { ZeroDevSmartWalletConnectors } from "@dynamic-labs/ethereum-aa";
 import { useEffect } from "react";
@@ -27,6 +30,30 @@ import LegalRiskDisclosure from "./pages/LegalRiskDisclosure";
 import Support from "./pages/Support";
 
 const queryClient = new QueryClient();
+
+// Dynamic's project settings point Polygon Amoy at
+// `https://rpc-amoy.polygon.technology`, which no longer resolves. The SDK
+// retries `eth_chainId` against it forever, so ZeroDev can never prepare a
+// user operation and deposits hang. Override both the public and private RPC
+// lists at runtime with working Amoy endpoints.
+const AMOY_RPC_URLS = [
+  "https://polygon-amoy-bor-rpc.publicnode.com",
+  "https://polygon-amoy.drpc.org",
+];
+const AMOY_CHAIN_ID = 80002;
+
+const evmNetworkOverrides = (
+  networks: Parameters<typeof overrideNetworkRpcUrl>[0],
+) => {
+  const withPrivateRpc = overrideNetworkRpcUrl(networks, {
+    [String(AMOY_CHAIN_ID)]: AMOY_RPC_URLS,
+  });
+  return withPrivateRpc.map((network) =>
+    Number(network.chainId) === AMOY_CHAIN_ID
+      ? { ...network, rpcUrls: AMOY_RPC_URLS }
+      : network,
+  );
+};
 
 function RouteTracker() {
   const location = useLocation();
@@ -58,6 +85,9 @@ function ThemedApp() {
           EthereumWalletConnectors,
           ZeroDevSmartWalletConnectors,
         ],
+        overrides: {
+          evmNetworks: evmNetworkOverrides,
+        },
       }}
       theme={resolvedTheme === "dark" ? "dark" : "light"}
     >
