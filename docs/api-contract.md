@@ -1,5 +1,14 @@
 # API Contract — Xleuth (for frontend handoff)
 
+> **2026-11-06 staged implementation:** New DB-backed baskets select within
+> their explicit `[window_start, expiry_at)` resolution window, including the
+> year. A midnight first-of-month exclusive expiry labels the preceding month.
+> Live volume now comes from Polymarket Data API **v2 cumulative taker shares**;
+> unavailable volume is not replaced with Gamma volume. Scaled price output
+> supports 3 decimals. See [V2 execution status](relayed-execution-v2.md).
+> The new signed-execution components are **not yet wired into `POST /orders`**;
+> the legacy settlement/portfolio limitations in the security review remain.
+
 Machine-readable specs are generated from the running FastAPI apps and
 committed here:
 

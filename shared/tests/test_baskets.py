@@ -25,6 +25,15 @@ def test_make_slug_includes_year():
     assert make_slug("TOP", 20, datetime(2027, 10, 31, tzinfo=timezone.utc)) == "top20-2027-10"
 
 
+def test_exclusive_month_boundary_labels_the_month_that_just_closed():
+    expiry = datetime(2027, 2, 1, tzinfo=timezone.utc)
+    assert generate_name("TOP", 20, expiry) == "TOP20-JANUARY"
+    assert make_slug("TOP", 20, expiry) == "top20-2027-01"
+    rollover = datetime(2028, 1, 1, tzinfo=timezone.utc)
+    assert generate_name("TOP", 20, rollover) == "TOP20-DECEMBER"
+    assert make_slug("TOP", 20, rollover) == "top20-2027-12"
+
+
 def test_validation():
     with pytest.raises(ValueError):
         generate_name("TOP", 0, datetime(2026, 10, 31, tzinfo=timezone.utc))

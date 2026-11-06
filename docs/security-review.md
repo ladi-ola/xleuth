@@ -1,5 +1,11 @@
 # Security Self-Review — Smart Contracts (Week 6)
 
+> **Historical review — superseded for release decisions.** The
+> [2026-11-06 contracts and application review](security-review-2026-11-06.md)
+> reproduces critical collateral and settlement vulnerabilities missed below.
+> Its passing evidence tests demonstrate vulnerabilities, not fixes. Do not
+> interpret the older verdicts as current security assurance.
+
 Scope: the five contracts in `contracts/src/` deployed on Polygon Amoy
 testnet (CHAIN_ID 80002):
 

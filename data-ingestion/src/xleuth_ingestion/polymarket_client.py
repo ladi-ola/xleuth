@@ -1,4 +1,5 @@
 from typing import Any
+import math
 
 import httpx
 
@@ -6,9 +7,9 @@ import httpx
 class PolymarketClient:
     def __init__(
         self,
-        gamma_api_base: str,
-        clob_api_base: str,
-        data_api_base: str,
+        gamma_api_base: str = "https://gamma-api.polymarket.com",
+        clob_api_base: str = "https://clob.polymarket.com",
+        data_api_base: str = "https://data-api.polymarket.com",
         http_client: httpx.AsyncClient | None = None,
     ):
         self.gamma_base = gamma_api_base.rstrip("/")
@@ -81,17 +82,43 @@ class PolymarketClient:
     # ── Data API (live volume) ──────────────────────────────────────
 
     async def get_live_volume(self, event_id: int) -> dict[str, Any] | None:
+        # Data API v1 now returns 410. The documented v2 replacement wraps
+        # cumulative one-side volume (SHARES, not USDC) in data.conditions.
+        # Keep the event_map adapter shape, never mix these weights with Gamma
+        # volumeNum if a live value is absent.
+        base = self.data_base if self.data_base.endswith("/v2") else f"{self.data_base}/v2"
         resp = await self._client.get(
-            f"{self.data_base}/live-volume",
-            params={"id": event_id},
+            f"{base}/live-volume",
+            params={"event_id": event_id},
         )
         if resp.status_code == 404:
             return None
         resp.raise_for_status()
-        data = resp.json()
-        if isinstance(data, list) and len(data) > 0:
-            return data[0]
-        return None
+        envelope = resp.json()
+        if not isinstance(envelope, dict):
+            raise ValueError("invalid Data API v2 live-volume envelope")
+        payload = envelope.get("data")
+        if payload is None:
+            return None
+        if not isinstance(payload, dict) or not isinstance(payload.get("conditions"), list):
+            raise ValueError("invalid Data API v2 live-volume envelope")
+        markets = []
+        seen = set()
+        for entry in payload["conditions"]:
+            if not isinstance(entry, dict):
+                raise ValueError("invalid Data API v2 live-volume row")
+            condition = entry.get("condition_id")
+            volume = entry.get("taker_volume")
+            if not isinstance(condition, str) or not condition:
+                raise ValueError("missing live-volume condition identifier")
+            if isinstance(volume, bool) or not isinstance(volume, (int, float)) or not math.isfinite(volume) or volume < 0:
+                raise ValueError("missing or invalid live taker volume")
+            normalized = condition.lower().removeprefix("0x")
+            if normalized in seen:
+                raise ValueError("duplicate condition in Data API v2 live volume")
+            seen.add(normalized)
+            markets.append({"market": condition, "value": float(volume)})
+        return {"markets": markets, "volume_unit": "shares", "volume_source": "data_api_v2_taker"}
 
     # ── Gamma field helpers (for reference/fallback only) ────────────
 

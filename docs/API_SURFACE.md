@@ -1,5 +1,12 @@
 # Xleuth API Surface
 
+> **2026-11-06:** The HTTP endpoint shapes below are still legacy. The staged
+> [V2 signed-execution protocol](relayed-execution-v2.md) is not yet exposed by
+> `POST /orders`. New DB basket ingestion uses year-qualified half-open
+> resolution windows, Data API v2 taker-share volume (no Gamma-volume fallback),
+> and up to 3-decimal index-point prices. Do not send V2 signatures to the
+> legacy endpoint or treat the legacy settlement path as repaired.
+
 Generated from FastAPI OpenAPI specs. This document describes all public HTTP endpoints for the backend API (port 8000) and matching engine (port 8001).
 
 **Base URLs (local/dev):**

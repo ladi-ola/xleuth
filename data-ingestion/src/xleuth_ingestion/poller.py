@@ -104,7 +104,9 @@ async def discover_work_items(config: dict, pool) -> tuple[list[dict], list[Bask
             for row in await list_active(pool):
                 name = row["name"]
                 exp = row["expiry_at"]
-                month = exp.month if hasattr(exp, "month") else None
+                from xleuth_shared.baskets import resolution_period_end
+
+                month = resolution_period_end(exp).month
                 items.append({
                     "basket_name": name,
                     "market_count": row["market_count"],
@@ -112,6 +114,8 @@ async def discover_work_items(config: dict, pool) -> tuple[list[dict], list[Bask
                     "selection_rules": row.get("selection_rules") or {},
                     "source": "db",
                     "slug": row["slug"],
+                    "window_start": row["window_start"],
+                    "expiry_at": exp,
                 })
                 seen.add(name)
         except Exception:
@@ -160,6 +164,8 @@ async def run_once_items(
                 exclude_categories=config["exclude_categories"],
                 selection_rules=item.get("selection_rules") or {},
                 markets=all_markets,
+                window_start=item.get("window_start"),
+                expiry_at=item.get("expiry_at"),
             )
             await storage.save_basket(result)
             results.append(result)

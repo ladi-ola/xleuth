@@ -1,5 +1,6 @@
 """Integration: register idempotency + service pickup with no redeploy (fakes, no network)."""
 from datetime import datetime, timedelta, timezone
+from functools import partial
 
 import pytest
 
@@ -43,7 +44,12 @@ def _cfg(baskets):
 
 # ── 1. Matching engine picks up a newly activated basket ──────────────
 
-def test_margin_check_db_registry_rejects_non_active_and_accepts_new():
+def test_margin_check_db_registry_rejects_non_active_and_accepts_new(monkeypatch):
+    from xleuth_matching import margin_check
+    from xleuth_shared.basket_lifecycle import is_tradeable
+
+    monkeypatch.setattr(margin_check, "is_tradeable", partial(
+        is_tradeable, now=datetime(2026, 10, 18, tzinfo=timezone.utc)))
     cfg = _cfg(["TOP20-OCTOBER"])
     mc = MarginCheck(cfg, FakeChain())
     # env fallback still works pre-backfill
@@ -141,7 +147,8 @@ async def test_ingestion_discover_db_wins_over_env():
 
     async def fake_list_active(pool, now=None):
         return [{"name": "TOP20-OCTOBER", "slug": "top20-2026-10",
-                 "market_count": 20, "expiry_at": datetime(2026, 10, 31, tzinfo=timezone.utc),
+                 "market_count": 20, "window_start": datetime(2026, 10, 1, tzinfo=timezone.utc),
+                 "expiry_at": datetime(2026, 10, 31, tzinfo=timezone.utc),
                  "selection_rules": {"exclude_categories": "sports"}, "status": "active"}]
 
     import xleuth_shared.db_baskets as dbb

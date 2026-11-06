@@ -1,4 +1,6 @@
 import os
+from datetime import datetime, timezone
+from functools import partial
 
 import pytest
 
@@ -38,10 +40,15 @@ def test_config_requires_key(monkeypatch):
 
 
 def test_config_defaults(monkeypatch):
+    from xleuth_oracle import config
+    from xleuth_shared.basket_lifecycle import active_basket_names
+
+    monkeypatch.setattr(config, "active_basket_names", partial(
+        active_basket_names, now=datetime(2026, 10, 18, tzinfo=timezone.utc)))
     monkeypatch.setenv("RPC_URL", "http://localhost:8545")
     monkeypatch.setenv("INDEX_ORACLE_CONSUMER_ADDRESS", "0x" + "11" * 20)
     monkeypatch.setenv("ORACLE_SIGNER_PRIVATE_KEY", "0x" + "12" * 32)
-    # Use a future month to ensure basket is tradeable
+    # Pin the example month instead of relying on the test-run date.
     monkeypatch.setenv("ACTIVE_BASKETS", "TOP20-OCTOBER")
 
     cfg = OracleConfig.load()

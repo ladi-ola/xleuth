@@ -8,11 +8,23 @@ the seeded+trading rule drives Active vs Upcoming.
 """
 
 from datetime import datetime, timezone
+from functools import partial
 
+import pytest
 from fastapi.testclient import TestClient
 
 FUTURE = datetime(2026, 11, 30, tzinfo=timezone.utc)
 TS = datetime(2026, 10, 18, 3, 39, tzinfo=timezone.utc)
+
+
+@pytest.fixture(autouse=True)
+def _fixed_classification_time(monkeypatch):
+    from xleuth_api.routes import baskets
+    from xleuth_shared.basket_lifecycle import classify_index_status
+
+    # These fixtures describe October 2026. Keep real lifecycle rules, but do
+    # not let a later test-run date turn their active examples into history.
+    monkeypatch.setattr(baskets, "classify_index_status", partial(classify_index_status, now=TS))
 
 
 def _patch_price(app, monkeypatch, *, count, index_price, scaled_price):

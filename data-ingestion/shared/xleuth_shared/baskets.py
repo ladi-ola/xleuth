@@ -25,7 +25,7 @@ CRITICAL RULES (enforced here, not in each service):
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 FULL_MONTH_NAMES = [
@@ -91,6 +91,19 @@ def _as_utc(dt: datetime) -> datetime:
     return dt.astimezone(timezone.utc)
 
 
+def resolution_period_end(expiry_at: datetime) -> datetime:
+    """Label an exclusive midnight month boundary with the month it closes.
+
+    January's exact expiry is February 1 00:00 UTC, not February's resolution
+    window. Existing stored names/IDs are never regenerated or migrated here.
+    Legacy within-month expiries keep their existing labels.
+    """
+    exp = _as_utc(expiry_at)
+    if exp.day == 1 and exp.hour == exp.minute == exp.second == exp.microsecond == 0:
+        return exp - timedelta(microseconds=1)
+    return exp
+
+
 def generate_name(theme: str, market_count: int, expiry_at: datetime) -> str:
     """THE one function that builds a display name. Nothing may invert it.
 
@@ -98,7 +111,7 @@ def generate_name(theme: str, market_count: int, expiry_at: datetime) -> str:
     """
     t = normalize_theme(theme)
     n = validate_market_count(market_count)
-    exp = _as_utc(expiry_at)
+    exp = resolution_period_end(expiry_at)
     month_name = MONTH_NUM_TO_NAME[exp.month]
     return f"{t}{n}-{month_name}"
 
@@ -107,7 +120,7 @@ def make_slug(theme: str, market_count: int, expiry_at: datetime) -> str:
     """Immutable unique key including the year, e.g. top20-2026-10."""
     t = normalize_theme(theme)
     n = validate_market_count(market_count)
-    exp = _as_utc(expiry_at)
+    exp = resolution_period_end(expiry_at)
     return f"{t.lower()}{n}-{exp.year}-{exp.month:02d}"
 
 

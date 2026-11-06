@@ -12,6 +12,7 @@ parse_basket_name only in the deprecated wrapper).
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 from xleuth_ingestion.polymarket_client import PolymarketClient
@@ -23,6 +24,8 @@ def select_constituents(
     market_count: int,
     target_month: int | None,
     exclude_categories: str | None = None,
+    window_start: datetime | None = None,
+    expiry_at: datetime | None = None,
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     """Filter by resolve-month + category, sort by volume desc, take top-N.
 
@@ -31,6 +34,31 @@ def select_constituents(
     """
     if market_count <= 0:
         raise ValueError(f"market_count must be > 0, got {market_count!r}")
+
+    if (window_start is None) != (expiry_at is None):
+        raise ValueError("resolution window requires both window_start and expiry_at")
+    if window_start is not None and expiry_at is not None:
+        from xleuth_shared.baskets import validate_window
+
+        validate_window(window_start, expiry_at)
+        start = window_start.replace(tzinfo=timezone.utc) if window_start.tzinfo is None else window_start
+        end = expiry_at.replace(tzinfo=timezone.utc) if expiry_at.tzinfo is None else expiry_at
+
+        def in_window(market: dict[str, Any]) -> bool:
+            raw = market.get("endDate") or market.get("endDateIso")
+            if not isinstance(raw, str):
+                return False
+            try:
+                date = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                if date.tzinfo is None:
+                    date = date.replace(tzinfo=timezone.utc)
+                return start <= date < end
+            except ValueError:
+                return False
+
+        # Enforce the actual year-qualified DB window BEFORE ranking. A large
+        # January 2026 market must never enter the January 2027 index.
+        markets = [market for market in markets if in_window(market)]
 
     from xleuth_ingestion.basket_builder import market_resolves_in_month
 

@@ -92,7 +92,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Xleuth API",
         version="0.1.0",
-        description="Backend API for Xleuth index futures",
+        description="Backend API for Xleuth index futures. New DB basket ingestion uses explicit resolution windows and Data API v2 taker-share volume; scaled prices use up to 3 decimals. V2 signed execution components are staged, not exposed by these HTTP endpoints.",
         lifespan=lifespan,
     )
 

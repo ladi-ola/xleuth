@@ -336,7 +336,10 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         # Shutdown
         await app.state.engine.stop_trigger_evaluation()
 
-    app = FastAPI(title="Xleuth Matching Engine", version="0.1.0", lifespan=lifespan)
+    app = FastAPI(
+        title="Xleuth Matching Engine", version="0.1.0", lifespan=lifespan,
+        description="Legacy matching HTTP surface. V2 trader-signed atomic execution is staged separately and is not wired into POST /orders; the reviewed financial ledger and durable coordinator are required before activation.",
+    )
     
     # CORS middleware
     config_obj = config or MatchingConfig.load()

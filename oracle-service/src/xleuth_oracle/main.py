@@ -49,8 +49,8 @@ async def run_cycle(pusher: Pusher, source: CompositePriceSource, config: Oracle
 async def loop_forever(config: OracleConfig) -> None:
     pusher = Pusher(config)
     sources = CompositePriceSource([
-        PostgresPriceSource(config.database_url),
-        RedisPriceSource(config.redis_url),
+        PostgresPriceSource(config.database_url, config.max_staleness),
+        RedisPriceSource(config.redis_url, config.max_staleness),
     ])
     await sources.connect()
     pool = await _db_pool(config.database_url)

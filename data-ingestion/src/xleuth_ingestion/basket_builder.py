@@ -14,7 +14,9 @@ def market_resolves_in_month(market: dict[str, Any], target_month: int) -> bool:
         return False
     try:
         dt = datetime.fromisoformat(end_date.replace("Z", "+00:00"))
-        return dt.month == target_month
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc).month == target_month
     except (ValueError, TypeError):
         return False
 
@@ -109,6 +111,8 @@ async def build_basket_from_params(
     exclude_categories: str | None = None,
     selection_rules: dict[str, Any] | None = None,
     markets: list[dict[str, Any]] | None = None,
+    window_start: datetime | None = None,
+    expiry_at: datetime | None = None,
 ) -> dict[str, Any]:
     """Build a basket from explicit params (DB columns). Parses NO names."""
     if selection_rules:
@@ -123,9 +127,15 @@ async def build_basket_from_params(
         market_count=market_count,
         target_month=target_month,
         exclude_categories=exclude_categories,
+        window_start=window_start,
+        expiry_at=expiry_at,
     )
 
     volume_map = await build_volume_map(top_n, client)
+    missing_volume = [str(m.get("conditionId", "")) for m in top_n
+                      if str(m.get("conditionId", "")) not in volume_map]
+    if missing_volume:
+        raise ValueError(f"live_volume_unavailable: {len(missing_volume)} selected markets have no live taker volume")
 
     clob_token_map: dict[str, list[str]] = {}
     for m in top_n:
@@ -142,7 +152,7 @@ async def build_basket_from_params(
         cond_id = str(market.get("conditionId", ""))
         event_id = str(PolymarketClient.get_event_id(market) or "")
         price, source, yes_token = _resolve_price(market, midpoint_map, clob_token_map, cond_id)
-        volume = volume_map.get(cond_id, PolymarketClient.get_volume(market))
+        volume = volume_map[cond_id]
 
         constituents.append({
             "market_id": str(market.get("id") or market.get("conditionId", "")),
@@ -164,7 +174,7 @@ async def build_basket_from_params(
         "basket_name": basket_name,
         "computed_at": datetime.now(timezone.utc),
         "index_price": index_price,
-        "index_price_scaled": round(index_price * 100, 2) if index_price is not None else None,
+        "index_price_scaled": round(index_price * 100, 3) if index_price is not None else None,
         "total_constituents": len(constituents),
         "markets_filtered_out": len(excluded),
         "excluded_markets": excluded,

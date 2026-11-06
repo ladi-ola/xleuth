@@ -2,6 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Xleuth Matching Engine",
+    "description": "Legacy matching HTTP surface. V2 trader-signed atomic execution is staged separately and is not wired into POST /orders; the reviewed financial ledger and durable coordinator are required before activation.",
     "version": "0.1.0"
   },
   "paths": {

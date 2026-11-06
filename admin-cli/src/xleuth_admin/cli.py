@@ -71,6 +71,7 @@ async def cmd_create(args) -> int:
             market_count=args.count, expiry_at=expiry,
             exclude_categories=rules.get("exclude_categories", "sports"),
             selection_rules=rules,
+            window_start=window_start,
         )
         print(json.dumps({
             "dry_run": True, "slug": slug, "name": name,
@@ -152,12 +153,16 @@ async def cmd_register(args) -> int:
             market_count=row["market_count"], expiry_at=exp,
             exclude_categories=(row.get("selection_rules") or {}).get("exclude_categories", "sports"),
             selection_rules=row.get("selection_rules") or {},
+            window_start=row["window_start"],
         )
         if report.get("actual_count", 0) == 0:
             print("selection re-run found 0 constituents; refusing to register", file=sys.stderr)
             return 1
         for w in report.get("warnings", []):
             print(f"warning: {w}", file=sys.stderr)
+        if not report.get("ready_for_registration", False):
+            print("selection/price/live-volume preconditions failed; refusing to register", file=sys.stderr)
+            return 1
 
         # 2. Idempotency: derive index id, check on-chain expiry.
         slug = row["slug"]
