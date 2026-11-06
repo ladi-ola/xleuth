@@ -43,29 +43,29 @@ def test_extract_target_month():
 
 def test_basket_status():
     assert basket_status("TOP20-JULY", NOW) == STATUS_RESOLVED
-    assert basket_status("TOP20-AUGUST", NOW) == STATUS_ACTIVE
-    assert basket_status("TOP20-SEPTEMBER", NOW) == STATUS_UPCOMING
-    assert basket_status("TOP20-DECEMBER", NOW) == STATUS_UPCOMING
+    assert basket_status("TOP20-AUGUST-2026", NOW) == STATUS_ACTIVE
+    assert basket_status("TOP20-SEPTEMBER-2026", NOW) == STATUS_UPCOMING
+    assert basket_status("TOP20-DECEMBER", NOW) == STATUS_RESOLVED
     assert basket_status("MY-CUSTOM", NOW) == STATUS_ACTIVE
 
 
 def test_is_tradeable():
     assert is_tradeable("TOP20-JULY", NOW) is False
-    assert is_tradeable("TOP20-AUGUST", NOW) is True
-    assert is_tradeable("TOP20-SEPTEMBER", NOW) is True
-    assert is_tradeable("TOP20-DECEMBER", NOW) is True
+    assert is_tradeable("TOP20-AUGUST-2026", NOW) is True
+    assert is_tradeable("TOP20-SEPTEMBER-2026", NOW) is True
+    assert is_tradeable("TOP20-DECEMBER", NOW) is False
     assert is_tradeable("MY-CUSTOM", NOW) is True
 
 
 def test_basket_status_january_rollover():
     jan = datetime(2027, 1, 10, tzinfo=timezone.utc)
-    # Year-less names refer to the current calendar year.
-    assert basket_status("TOP20-DECEMBER", jan) == STATUS_UPCOMING
+    # Year-less names are ambiguous legacy aliases, never new dated contracts.
+    assert basket_status("TOP20-DECEMBER", jan) == STATUS_RESOLVED
     # Explicit years disambiguate past/next occurrences.
     assert basket_status("TOP20-DECEMBER-2026", jan) == STATUS_RESOLVED
-    assert basket_status("TOP20-JANUARY", jan) == STATUS_ACTIVE
+    assert basket_status("TOP20-JANUARY", jan) == STATUS_RESOLVED
     assert basket_status("TOP20-JANUARY-2027", jan) == STATUS_ACTIVE
-    assert basket_status("TOP20-FEBRUARY", jan) == STATUS_UPCOMING
+    assert basket_status("TOP20-FEBRUARY", jan) == STATUS_RESOLVED
     assert is_tradeable("TOP20-DECEMBER-2026", jan) is False
 
 

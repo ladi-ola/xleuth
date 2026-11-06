@@ -30,6 +30,7 @@ class FakeChain(ChainState):
         # position: tuple of (side, size, leverage) or None
         # side: 0=Long(BUY), 1=Short(SELL)
         self._position = position
+        self._settlement_expiry = int((datetime.now(timezone.utc) + timedelta(days=20)).timestamp())
 
     def oracle_price(self, basket_name, index_id_hex=None):
         return self.oracle
@@ -40,13 +41,16 @@ class FakeChain(ChainState):
     def max_leverage(self):
         return self.max_lev
 
-    def position_size(self, wallet, basket_name):
+    def position_size(self, wallet, basket_name, index_id_hex=None):
         if self._position:
             return self._position[1]
         return 0
 
-    def get_position(self, wallet, basket_name):
+    def get_position(self, wallet, basket_name, index_id_hex=None):
         return self._position
+
+    def settlement_state(self, index_id_hex):
+        return self._settlement_expiry, False
 
 
 class FakeSubmitter(TxSubmitter):
@@ -96,7 +100,15 @@ def make_config() -> MatchingConfig:
 
 def make_client(chain: ChainState | None = None, submitter: TxSubmitter | None = None):
     config = make_config()
-    app = create_app(config, chain=chain or FakeChain(), bridge=SettlementBridge(config, submitter=submitter or FakeSubmitter()))
+    chain = chain or FakeChain()
+    app = create_app(config, chain=chain, bridge=SettlementBridge(config, submitter=submitter or FakeSubmitter()))
+    expiry = datetime.fromtimestamp(chain._settlement_expiry, tz=timezone.utc)
+    registry = {
+        "TOP20-JANUARY-2027": {
+            "status": "active", "expiry_at": expiry, "onchain_index_id": "0x" + "01" * 32,
+        },
+    }
+    app.state.engine.attach_registry(registry, {name: row["onchain_index_id"] for name, row in registry.items()})
     # Replace the internal verifier with mock
     app.state.engine.internal_verifier = MockInternalVerifier()
     return TestClient(app)

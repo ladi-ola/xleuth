@@ -104,6 +104,21 @@ def resolution_period_end(expiry_at: datetime) -> datetime:
     return exp
 
 
+def monthly_expiry_at(year: int, month: int) -> datetime:
+    """Exclusive UTC boundary ending the specified futures month."""
+    if not 1 <= month <= 12 or year < 1:
+        raise ValueError("year/month is outside the calendar")
+    if month == 12:
+        return datetime(year + 1, 1, 1, tzinfo=timezone.utc)
+    return datetime(year, month + 1, 1, tzinfo=timezone.utc)
+
+
+def monthly_expiry_window(year: int, month: int) -> tuple[datetime, datetime]:
+    """Return [month start, next-month midnight) in UTC."""
+    end = monthly_expiry_at(year, month)
+    return datetime(year, month, 1, tzinfo=timezone.utc), end
+
+
 def generate_name(theme: str, market_count: int, expiry_at: datetime) -> str:
     """THE one function that builds a display name. Nothing may invert it.
 

@@ -28,7 +28,7 @@ const STATUS_STYLES: Record<
 
 export function MarketCard({ basket }: { basket: Basket }) {
   const status = STATUS_STYLES[basket.status];
-  const tradable = basket.status !== "upcoming";
+  const tradable = basket.status === "active" && basket.tradeable;
   const tradeClassName =
     basket.status === "active"
       ? "flex h-8 items-center justify-center rounded-lg bg-primary px-4 text-xs text-primary-foreground"

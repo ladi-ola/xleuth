@@ -13,6 +13,9 @@ def _future(days=30):
 
 
 class FakeChain(ChainState):
+    def __init__(self):
+        self.lifecycle = {}
+
     def oracle_price(self, basket_name, index_id_hex=None):
         return (50, int(datetime.now(timezone.utc).timestamp()))
 
@@ -27,6 +30,9 @@ class FakeChain(ChainState):
 
     def get_position(self, wallet, basket_name):
         return None
+
+    def settlement_state(self, index_id_hex):
+        return self.lifecycle.get(index_id_hex)
 
 
 def _cfg(baskets):
@@ -51,29 +57,35 @@ def test_margin_check_db_registry_rejects_non_active_and_accepts_new(monkeypatch
     monkeypatch.setattr(margin_check, "is_tradeable", partial(
         is_tradeable, now=datetime(2026, 10, 18, tzinfo=timezone.utc)))
     cfg = _cfg(["TOP20-OCTOBER"])
-    mc = MarginCheck(cfg, FakeChain())
-    # env fallback still works pre-backfill
-    assert mc.validate("TOP20-OCTOBER", "0xabc", "buy", 50.0, 10.0, 5).ok
+    chain = FakeChain()
+    mc = MarginCheck(cfg, chain)
+    # Configured names without a registry and explicit chain ID fail closed.
+    result = mc.validate("TOP20-OCTOBER", "0xabc", "buy", 50.0, 10.0, 5)
+    assert not result.ok and result.reason == "legacy_basket_read_only"
 
     # DB registry populated: unknown baskets rejected even if env knew others
     rows = {
         "TOP20-OCTOBER": {"name": "TOP20-OCTOBER", "status": "active",
                           "expiry_at": _future(), "onchain_index_id": "0x" + "11" * 32},
-        "CRYPTO5-NOVEMBER": {"name": "CRYPTO5-NOVEMBER", "status": "active",
-                             "expiry_at": _future(), "onchain_index_id": "0x" + "22" * 32},
+            "CRYPTO5-NOVEMBER-2026": {"name": "CRYPTO5-NOVEMBER-2026", "status": "active",
+                                 "expiry_at": _future(), "onchain_index_id": "0x" + "22" * 32},
     }
     mc.registry = rows
     mc.index_ids = {k: v["onchain_index_id"] for k, v in rows.items()}
+    chain.lifecycle = {
+        row["onchain_index_id"]: (int(row["expiry_at"].timestamp()), False)
+        for row in rows.values()
+    }
     # newly activated custom-theme basket accepted with no restart
-    assert mc.validate("CRYPTO5-NOVEMBER", "0xabc", "buy", 50.0, 10.0, 5).ok
+    assert mc.validate("CRYPTO5-NOVEMBER-2026", "0xabc", "buy", 50.0, 10.0, 5).ok
     # non-active rejected
-    rows["CRYPTO5-NOVEMBER"]["status"] = "closed"
-    r = mc.validate("CRYPTO5-NOVEMBER", "0xabc", "buy", 50.0, 10.0, 5)
+    rows["CRYPTO5-NOVEMBER-2026"]["status"] = "closed"
+    r = mc.validate("CRYPTO5-NOVEMBER-2026", "0xabc", "buy", 50.0, 10.0, 5)
     assert not r.ok and r.reason == "basket_not_tradeable"
     # expired rejected
-    rows["CRYPTO5-NOVEMBER"]["status"] = "active"
-    rows["CRYPTO5-NOVEMBER"]["expiry_at"] = datetime.now(timezone.utc) - timedelta(days=1)
-    r = mc.validate("CRYPTO5-NOVEMBER", "0xabc", "buy", 50.0, 10.0, 5)
+    rows["CRYPTO5-NOVEMBER-2026"]["status"] = "active"
+    rows["CRYPTO5-NOVEMBER-2026"]["expiry_at"] = datetime.now(timezone.utc) - timedelta(days=1)
+    r = mc.validate("CRYPTO5-NOVEMBER-2026", "0xabc", "buy", 50.0, 10.0, 5)
     assert not r.ok and r.reason == "basket_not_tradeable"
 
 
@@ -131,7 +143,7 @@ async def test_oracle_discover_prefers_db_and_skips_unregistered():
         names = [i["name"] for i in items]
         assert "TOP20-NOVEMBER" in names  # DB active picked up, no restart
         assert "DRAFT-ONE" not in names  # no onchain id -> skipped
-        assert "TOP20-OCTOBER" in names  # env fallback fills the gap
+        assert "TOP20-OCTOBER" not in names  # env names never synthesize chain IDs
         # TTL: second call without force returns cached object
         assert await basket_source.discover_baskets(Cfg(), pool=None) is items
     finally:

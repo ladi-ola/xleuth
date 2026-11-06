@@ -7,6 +7,7 @@ hosted API calls, real credentials, or real signing keys are used.
 
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from datetime import datetime, timezone
 from threading import Barrier
 
 import pytest
@@ -47,7 +48,17 @@ def test_evidence_missing_settlement_legs_are_confirmed_without_transactions():
     config = replace(make_config(), trader_keys={})
     submitter = FakeSubmitter()
     bridge = SettlementBridge(config, submitter=submitter)
-    app = create_app(config, chain=FakeChain(), bridge=bridge)
+    chain = FakeChain()
+    app = create_app(config, chain=chain, bridge=bridge)
+    chain_id = "0x" + "01" * 32
+    app.state.engine.attach_registry(
+        {BASKET: {
+            "status": "active",
+            "expiry_at": datetime.fromtimestamp(chain._settlement_expiry, timezone.utc),
+            "onchain_index_id": chain_id,
+        }},
+        {BASKET: chain_id},
+    )
     app.state.engine.internal_verifier = MockInternalVerifier()
     client = TestClient(app)
 

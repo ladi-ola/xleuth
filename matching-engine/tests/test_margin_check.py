@@ -1,4 +1,5 @@
 import time
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -40,6 +41,9 @@ class FakeChain(ChainState):
         # Return (side, size, leverage) - side: 0=Long, 1=Short
         return (0, self.pos, self.max_lev)
 
+    def settlement_state(self, index_id_hex):
+        return (NOW + 20 * 86400, False)
+
 
 NOW = _now()
 
@@ -68,7 +72,7 @@ def make_config(**overrides) -> MatchingConfig:
 def check(**kwargs):
     cfg = make_config()
     chain = FakeChain(oracle=(50, _now()))
-    mc = MarginCheck(cfg, chain)
+    mc = MarginCheck(cfg, chain, registry=_registry(), index_ids=_ids())
     return mc.validate(
         basket_name=kwargs.pop("basket_name", "TOP20-JANUARY-2027"),
         wallet=kwargs.pop("wallet", "0xalice"),
@@ -77,6 +81,24 @@ def check(**kwargs):
         size=kwargs.pop("size", 100.0),
         leverage=kwargs.pop("leverage", 5),
     ), chain
+
+
+def _registry():
+    expiry = datetime.fromtimestamp(NOW + 20 * 86400, tz=timezone.utc)
+    names = ("TOP20-JANUARY-2027", "TOP20-OCTOBER", "TOP20-NOVEMBER")
+    rows = {
+        name: {"status": "active", "expiry_at": expiry, "onchain_index_id": "0x" + f"{i:02x}" * 32}
+        for i, name in enumerate(names, 1)
+    }
+    rows["TOP20-JULY"] = {
+        "status": "active", "expiry_at": datetime.now(timezone.utc) - timedelta(days=1),
+        "onchain_index_id": "0x" + "04" * 32,
+    }
+    return rows
+
+
+def _ids():
+    return {name: row["onchain_index_id"] for name, row in _registry().items()}
 
 
 def test_valid_order_passes():
@@ -95,7 +117,7 @@ def test_unknown_basket_rejected():
 def test_resolved_basket_rejected():
     result, _ = check(basket_name="TOP20-JULY")
     assert not result.ok
-    assert result.reason == "basket_not_tradeable"
+    assert result.reason == "legacy_basket_read_only"
 
 
 def test_price_out_of_range_rejected():
@@ -133,7 +155,7 @@ def test_leverage_out_of_range_rejected():
 def test_leverage_above_live_cap_rejected():
     cfg = make_config(max_leverage=5)
     chain = FakeChain(oracle=(50, _now()), max_lev=4)
-    mc = MarginCheck(cfg, chain)
+    mc = MarginCheck(cfg, chain, registry=_registry(), index_ids=_ids())
     result = mc.validate("TOP20-JANUARY-2027", "0xalice", Side.BUY, 50.0, 100.0, 5)
     assert not result.ok
     assert result.reason == "leverage_above_cap"
@@ -144,7 +166,7 @@ def test_oracle_stale_rejected_with_age():
     result, _ = check()
     assert result.ok
     stale_chain = FakeChain(oracle=(50, NOW - 61))
-    mc = MarginCheck(make_config(), stale_chain)
+    mc = MarginCheck(make_config(), stale_chain, registry=_registry(), index_ids=_ids())
     result = mc.validate("TOP20-JANUARY-2027", "0xalice", Side.BUY, 50.0, 100.0, 5)
     assert not result.ok
     assert result.reason == "oracle_price_stale"
@@ -153,14 +175,14 @@ def test_oracle_stale_rejected_with_age():
 
 def test_oracle_unreadable_rejected():
     chain = FakeChain(oracle=None)
-    mc = MarginCheck(make_config(), chain)
+    mc = MarginCheck(make_config(), chain, registry=_registry(), index_ids=_ids())
     result = mc.validate("TOP20-JANUARY-2027", "0xalice", Side.BUY, 50.0, 100.0, 5)
     assert result.reason == "oracle_unreadable"
 
 
 def test_oracle_zero_price_rejected():
     chain = FakeChain(oracle=(0, NOW))
-    mc = MarginCheck(make_config(), chain)
+    mc = MarginCheck(make_config(), chain, registry=_registry(), index_ids=_ids())
     result = mc.validate("TOP20-JANUARY-2027", "0xalice", Side.BUY, 50.0, 100.0, 5)
     assert result.reason == "oracle_price_zero"
 

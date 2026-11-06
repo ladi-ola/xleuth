@@ -74,9 +74,14 @@ Basket names look like `TOP20-OCTOBER-2026` (generated display labels
 such as `top20-2026-10`). The frontend may abbreviate the month for the ticker,
 but routes and API requests use the slug/name supplied by the API. Names are
 never parsed — theme/count/expiry come from DB columns. Only `active`,
-unexpired baskets with an `onchain_index_id` are
-tradeable; `GET /baskets` also returns `slug`, `expiry_at` and
-`onchain_index_id` per basket.
+unexpired baskets whose SettlementEngine registration has the exact same
+expiry as the registry, whose on-chain ID equals `keccak256(slug)` for new
+year-qualified baskets, and which are not settled are tradeable. Monthly expiries are
+the exclusive UTC boundary at midnight on the first day of the following
+month. Legacy yearless names remain read-only aliases; their actual expiry is
+read from SettlementEngine when available. A price-only fallback catalog
+derives `slug`/expiry from explicit year-qualified names but never advertises
+those rows as tradeable without registry and chain verification.
 
 ### Accounts — JWT required
 

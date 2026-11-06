@@ -130,9 +130,10 @@ def has_year_marker(template: str) -> bool:
 def basket_status(name: str, now: datetime | None = None) -> str:
     """Lifecycle status of a basket: active | upcoming | resolved.
 
-    Resolution time is the end of the basket's target month. Year-less names
-    refer to the current calendar year. Undated baskets never resolve and
-    are always active.
+    Resolution time is the end of the basket's target month. Year-less dated
+    names are legacy/ambiguous and are treated as resolved; they must not be
+    assigned a new contract year from the current wall clock. Undated custom
+    baskets retain their historical active behavior.
     """
     now = now or datetime.now(timezone.utc)
     month = extract_target_month(name)
@@ -140,7 +141,7 @@ def basket_status(name: str, now: datetime | None = None) -> str:
         return STATUS_ACTIVE
     year = extract_target_year(name)
     if year is None:
-        year = now.year
+        return STATUS_RESOLVED
     if year < now.year:
         return STATUS_RESOLVED
     if year > now.year:

@@ -28,6 +28,7 @@ class ChainConfig:
     # vault only accepts `collateral_token_address`, so legacy balances are
     # not counted as depositable margin.
     legacy_token_address: str = ""
+    settlement_engine_address: str = ""
 
 
 class ChainStateReader(ABC):
@@ -118,6 +119,14 @@ class Web3ChainStateReader(ChainStateReader):
             "type": "function",
         },
     ]
+    SETTLEMENT_ABI = [
+        {"inputs": [{"internalType": "bytes32", "name": "basketId", "type": "bytes32"}],
+         "name": "expiryOf", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+         "stateMutability": "view", "type": "function"},
+        {"inputs": [{"internalType": "bytes32", "name": "basketId", "type": "bytes32"}],
+         "name": "isSettled", "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+         "stateMutability": "view", "type": "function"},
+    ]
 
     def __init__(self, config: ChainConfig):
         self.config = config
@@ -129,6 +138,12 @@ class Web3ChainStateReader(ChainStateReader):
         self._vault = self._w3.eth.contract(address=config.vault_address, abi=self.VAULT_ABI)
         self._pm = self._w3.eth.contract(
             address=config.position_manager_address, abi=self.PM_ABI
+        )
+        self._settlement = (
+            self._w3.eth.contract(
+                address=config.settlement_engine_address, abi=self.SETTLEMENT_ABI
+            )
+            if config.settlement_engine_address else None
         )
         # Only the vault's collateral token is depositable. A legacy faucet
         # token may still be configured, but adding it to this balance would
@@ -197,3 +212,16 @@ class Web3ChainStateReader(ChainStateReader):
         except Exception:
             logger.warning("maxLeverage read failed", exc_info=True)
             return 0
+
+    def settlement_state(self, basket_id: bytes) -> tuple[int, bool] | None:
+        """Read explicit settlement expiry/state for a historical ID."""
+        if self._settlement is None:
+            return None
+        try:
+            return (
+                int(self._settlement.functions.expiryOf(basket_id).call()),
+                bool(self._settlement.functions.isSettled(basket_id).call()),
+            )
+        except Exception:
+            logger.warning("Settlement lifecycle read failed", exc_info=True)
+            return None

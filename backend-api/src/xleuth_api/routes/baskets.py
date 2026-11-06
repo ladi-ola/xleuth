@@ -1,11 +1,15 @@
-from datetime import datetime
+import re
+import time
+from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from xleuth_api.db import CANDLE_INTERVAL_SECONDS, Database
 from xleuth_api.dependencies import get_db
 from xleuth_shared.basket_lifecycle import classify_index_status
+from xleuth_shared.basket_lifecycle import MONTH_NAMES, extract_target_month, extract_target_year
+from xleuth_shared.baskets import basket_id_from_slug, monthly_expiry_at
 from xleuth_shared.schemas.baskets import (
     BasketDetail,
     BasketHistoryResponse,
@@ -20,6 +24,80 @@ from xleuth_shared.schemas.baskets import (
 )
 
 router = APIRouter(prefix="/baskets", tags=["baskets"])
+
+_DATED_NAME = re.compile(r"^([A-Z0-9]+?)([0-9]+)-([A-Z]+)-([0-9]{4})$")
+_lifecycle_cache: dict[str, tuple[float, bool]] = {}
+
+
+def _fallback_identity(name: str) -> tuple[str | None, datetime | None]:
+    """Derive slug and exact monthly boundary only from explicit year labels."""
+    match = _DATED_NAME.fullmatch(name.upper())
+    if not match:
+        return None, None
+    family, count, month_name, year = match.groups()
+    month = MONTH_NAMES.get(month_name)
+    if month is None:
+        return None, None
+    return f"{family.lower()}{int(count)}-{year}-{month:02d}", monthly_expiry_at(int(year), month)
+
+
+def _legacy_expiry(name: str, chain_reader) -> datetime | None:
+    """Resolve an unqualified historical ticker from its legacy chain ID."""
+    if chain_reader is None or re.search(r"-[0-9]{4}$", name):
+        return None
+    state_reader = getattr(chain_reader, "settlement_state", None)
+    if state_reader is None:
+        return None
+    try:
+        state = state_reader(chain_reader.basket_id(name))
+        if not state or not state[0]:
+            return None
+        return datetime.fromtimestamp(state[0], tz=timezone.utc)
+    except Exception:
+        return None
+
+
+def _registration_is_tradeable(record: dict | None, chain_reader) -> bool:
+    """Require an exact live on-chain registration before advertising trading."""
+    if not record or not record.get("onchain_index_id") or chain_reader is None:
+        return False
+    index_id = str(record["onchain_index_id"])
+    name = str(record.get("name") or "")
+    slug = record.get("slug")
+    if extract_target_month(name) is not None and extract_target_year(name) is None:
+        return False
+    if slug and re.search(r"-[0-9]{4}$", name):
+        try:
+            supplied = bytes.fromhex(index_id.removeprefix("0x"))
+            if supplied != basket_id_from_slug(slug):
+                return False
+        except Exception:
+            return False
+    cached = _lifecycle_cache.get(index_id)
+    if cached and time.monotonic() - cached[0] < 10:
+        return cached[1]
+    state_reader = getattr(chain_reader, "settlement_state", None)
+    if state_reader is None:
+        return False
+    try:
+        hex_id = index_id[2:] if index_id.startswith("0x") else index_id
+        basket_id = bytes.fromhex(hex_id)
+        expiry = record.get("expiry_at")
+        if expiry is None:
+            return False
+        if expiry.tzinfo is None:
+            expiry = expiry.replace(tzinfo=timezone.utc)
+        state = state_reader(basket_id)
+        valid = bool(
+            state
+            and state[0] == int(expiry.timestamp())
+            and not state[1]
+            and state[0] > int(datetime.now(timezone.utc).timestamp())
+        )
+        _lifecycle_cache[index_id] = (time.monotonic(), valid)
+        return valid
+    except Exception:
+        return False
 
 
 def _classify(
@@ -64,11 +142,15 @@ async def _add_24h_change(db: Database, basket_name: str, response: BasketPriceR
         is_tradeable=response.is_tradeable,
         change_24h_abs=change_24h_abs,
         change_24h_pct=change_24h_pct,
+        slug=response.slug,
+        expiry_at=response.expiry_at,
+        onchain_index_id=response.onchain_index_id,
     )
 
 
 @router.get("", response_model=BasketListResponse)
 async def list_baskets(
+    request: Request,
     db: Database = Depends(get_db),
 ):
     # DB-first: registry rows joined with latest prices. Falls back to the
@@ -80,6 +162,9 @@ async def list_baskets(
             name = rec["name"]
             latest = await db.get_latest_basket_price(name)
             status, tradeable = _classify(name, rec, latest)
+            tradeable = tradeable and _registration_is_tradeable(
+                rec, getattr(request.app.state, "chain_reader", None)
+            )
             base = BasketInfo(
                 basket_name=name,
                 total_constituents=(latest.get("constituent_count") if latest else 0) or 0,
@@ -117,7 +202,15 @@ async def list_baskets(
     rows = await db.list_baskets()
     baskets = []
     for r in rows:
-        status, tradeable = _classify(r["basket_name"], None, r)
+        status, _ = _classify(r["basket_name"], None, r)
+        name = r["basket_name"]
+        slug, expiry_at = _fallback_identity(name)
+        if expiry_at is None:
+            expiry_at = _legacy_expiry(name, getattr(request.app.state, "chain_reader", None))
+        # Price snapshots alone do not prove an explicit ID has been
+        # registered on-chain. Keep the row visible as history, but fail
+        # closed for new orders until the DB registry supplies a verified ID.
+        tradeable = False
         # Create base response
         base = BasketInfo(
             basket_name=r["basket_name"],
@@ -127,6 +220,8 @@ async def list_baskets(
             computed_at=r.get("ts"),
             status=status,
             is_tradeable=tradeable,
+            slug=slug,
+            expiry_at=expiry_at,
         )
         # Add 24h change
         price_24h_ago = await db.get_price_24h_ago(r["basket_name"])
@@ -149,6 +244,9 @@ async def list_baskets(
             "is_tradeable": base.is_tradeable,
             "change_24h_abs": change_24h_abs,
             "change_24h_pct": change_24h_pct,
+            "slug": slug,
+            "expiry_at": expiry_at,
+            "onchain_index_id": None,
         })
     return BasketListResponse(baskets=baskets)
 
@@ -156,15 +254,26 @@ async def list_baskets(
 @router.get("/{basket_name}/price", response_model=BasketPriceResponseWithChange)
 async def get_basket_price(
     basket_name: str,
+    request: Request,
     db: Database = Depends(get_db),
 ):
     row = await db.get_latest_basket_price(basket_name)
     rec = await db.get_basket_record(basket_name)
     status, tradeable = _classify(basket_name, rec, row)
+    if rec:
+        tradeable = tradeable and _registration_is_tradeable(
+            rec, getattr(request.app.state, "chain_reader", None)
+        )
+    inferred_slug, inferred_expiry = _fallback_identity(basket_name)
+    if inferred_expiry is None:
+        inferred_expiry = _legacy_expiry(basket_name, getattr(request.app.state, "chain_reader", None))
+    if not rec:
+        tradeable = False
     if row is None:
         base = BasketPriceResponse(
             basket_name=basket_name, status=status, is_tradeable=tradeable,
-            slug=(rec or {}).get("slug"), expiry_at=(rec or {}).get("expiry_at"),
+            slug=(rec or {}).get("slug") or inferred_slug,
+            expiry_at=(rec or {}).get("expiry_at") or inferred_expiry,
             onchain_index_id=(rec or {}).get("onchain_index_id"),
         )
         return await _add_24h_change(db, basket_name, base)
@@ -176,8 +285,8 @@ async def get_basket_price(
         constituent_count=row.get("constituent_count"),
         status=status,
         is_tradeable=tradeable,
-        slug=(rec or {}).get("slug"),
-        expiry_at=(rec or {}).get("expiry_at"),
+        slug=(rec or {}).get("slug") or inferred_slug,
+        expiry_at=(rec or {}).get("expiry_at") or inferred_expiry,
         onchain_index_id=(rec or {}).get("onchain_index_id"),
     )
     return await _add_24h_change(db, basket_name, base)
@@ -208,6 +317,7 @@ async def get_basket_history(
 @router.get("/{basket_name}/constituents", response_model=BasketDetail)
 async def get_basket_constituents(
     basket_name: str,
+    request: Request,
     db: Database = Depends(get_db),
 ):
     constituents_raw = await db.get_basket_constituents(basket_name)
@@ -228,6 +338,15 @@ async def get_basket_constituents(
     latest = await db.get_latest_basket_price(basket_name)
     rec = await db.get_basket_record(basket_name)
     status, tradeable = _classify(basket_name, rec, latest)
+    if rec:
+        tradeable = tradeable and _registration_is_tradeable(
+            rec, getattr(request.app.state, "chain_reader", None)
+        )
+    inferred_slug, inferred_expiry = _fallback_identity(basket_name)
+    if inferred_expiry is None:
+        inferred_expiry = _legacy_expiry(basket_name, getattr(request.app.state, "chain_reader", None))
+    if not rec:
+        tradeable = False
     return BasketDetail(
         basket_name=basket_name,
         total_constituents=len(constituents),
@@ -236,6 +355,8 @@ async def get_basket_constituents(
         computed_at=latest.get("ts") if latest else None,
         status=status,
         is_tradeable=tradeable,
+        slug=(rec or {}).get("slug") or inferred_slug,
+        expiry_at=(rec or {}).get("expiry_at") or inferred_expiry,
         constituents=constituents,
     )
 

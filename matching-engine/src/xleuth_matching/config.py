@@ -68,6 +68,7 @@ class MatchingConfig:
     cors_allowed_origins: list[str] = field(default_factory=list)
     host: str = "0.0.0.0"
     port: int = 8001
+    settlement_engine_address: str | None = None
 
     @staticmethod
     def _addr(key: str) -> str:
@@ -135,4 +136,5 @@ class MatchingConfig:
             cors_allowed_origins=cors_origins,
             host=os.getenv("ENGINE_HOST", "0.0.0.0"),
             port=int(os.getenv("ENGINE_PORT", "8001")),
+            settlement_engine_address=(os.getenv("SETTLEMENT_ENGINE_ADDRESS", "").strip() or None),
         )

@@ -80,7 +80,8 @@ def registration(monkeypatch):
     from xleuth_shared import db_baskets
 
     row = {
-        "slug": "top20-2027-01", "market_count": 20, "status": "draft",
+        "slug": "top20-2027-01", "name": "TOP20-JANUARY-2027",
+        "theme": "TOP", "market_count": 20, "status": "draft",
         "expiry_at": datetime(2027, 2, 1, tzinfo=timezone.utc),
         "window_start": datetime(2027, 1, 1, tzinfo=timezone.utc),
     }

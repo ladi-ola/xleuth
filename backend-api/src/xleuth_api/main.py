@@ -152,6 +152,7 @@ def create_app() -> FastAPI:
         chain_id=int(os.getenv("CHAIN_ID", "80002")),
         collateral_token_address=test_usdc_address or legacy_usdc_address,
         legacy_token_address=legacy_usdc_address if test_usdc_address else "",
+        settlement_engine_address=os.getenv("SETTLEMENT_ENGINE_ADDRESS", ""),
     )
 
     db = Database(dsn=database_url)

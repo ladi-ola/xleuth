@@ -129,7 +129,10 @@ async def cmd_show(args) -> int:
 async def cmd_register(args) -> int:
     """draft -> registering -> active (or registration_failed). Re-runnable."""
     from xleuth_admin.chain import RegistrationChain
-    from xleuth_shared.baskets import STATUS_ACTIVE, STATUS_REGISTERING, basket_id_from_slug
+    from xleuth_shared.baskets import (
+        STATUS_ACTIVE, STATUS_REGISTERING, basket_id_from_slug,
+        generate_name, make_slug,
+    )
 
     pool = await _pool()
     try:
@@ -149,6 +152,16 @@ async def cmd_register(args) -> int:
         exp = row["expiry_at"]
         if hasattr(exp, "month") is False:
             exp = _parse_dt(str(exp))
+        canonical_name = generate_name(row["theme"], row["market_count"], exp)
+        canonical_slug = make_slug(row["theme"], row["market_count"], exp)
+        if row["name"] != canonical_name or row["slug"] != canonical_slug:
+            print(
+                f"stored identity/expiry mismatch for {args.slug}: expected "
+                f"{canonical_name} ({canonical_slug}) from expiry {exp.isoformat()}; "
+                "create a corrected draft with a new ID instead of mutating this row",
+                file=sys.stderr,
+            )
+            return 1
         report = await dry_run_report(
             market_count=row["market_count"], expiry_at=exp,
             exclude_categories=(row.get("selection_rules") or {}).get("exclude_categories", "sports"),

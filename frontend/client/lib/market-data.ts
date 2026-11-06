@@ -11,6 +11,7 @@ export interface Basket {
   symbol: string;
   listName: string;
   status: BasketStatus;
+  tradeable: boolean;
   description: string;
   price: number;
   priceLabel: string;
@@ -29,6 +30,7 @@ const PLACEHOLDER_BASKET: Basket = {
   symbol: "--",
   listName: "Loading...",
   status: "upcoming",
+  tradeable: false,
   description: "Basket data loads from the API.",
   price: 0,
   priceLabel: "0.000",

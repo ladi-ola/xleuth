@@ -74,6 +74,10 @@ class ChainState(ABC):
         """Get full position details: (side, size, leverage). Side: 0=Long(BUY), 1=Short(SELL).
         Returns None if no position exists."""
 
+    def settlement_state(self, index_id_hex: str) -> tuple[int, bool] | None:
+        """SettlementEngine expiry and settled flag, or None when unreadable."""
+        return None
+
 
 class Web3ChainState(ChainState):
     """web3.py reads against the deployed vault / PositionManager / oracle."""
@@ -139,6 +143,19 @@ class Web3ChainState(ChainState):
         self._pm = self._w3.eth.contract(
             address=config.position_manager_address, abi=self.PM_ABI
         )
+        self._settlement = None
+        if config.settlement_engine_address:
+            self._settlement = self._w3.eth.contract(
+                address=config.settlement_engine_address,
+                abi=[
+                    {"inputs": [{"internalType": "bytes32", "name": "basketId", "type": "bytes32"}],
+                     "name": "expiryOf", "outputs": [{"internalType": "uint256", "name": "", "type": "uint256"}],
+                     "stateMutability": "view", "type": "function"},
+                    {"inputs": [{"internalType": "bytes32", "name": "basketId", "type": "bytes32"}],
+                     "name": "isSettled", "outputs": [{"internalType": "bool", "name": "", "type": "bool"}],
+                     "stateMutability": "view", "type": "function"},
+                ],
+            )
 
     @staticmethod
     def basket_id(basket_name: str, index_id_hex: str | None = None) -> bytes:
@@ -161,6 +178,19 @@ class Web3ChainState(ChainState):
             return int(price), int(ts)
         except Exception:
             logger.warning("oracle latestPrice read failed for %s", basket_name, exc_info=True)
+            return None
+
+    def settlement_state(self, index_id_hex: str) -> tuple[int, bool] | None:
+        if self._settlement is None:
+            return None
+        try:
+            index_id = self.basket_id("", index_id_hex)
+            return (
+                int(self._settlement.functions.expiryOf(index_id).call()),
+                bool(self._settlement.functions.isSettled(index_id).call()),
+            )
+        except Exception:
+            logger.warning("Settlement lifecycle read failed", exc_info=True)
             return None
 
     def free_balance(self, wallet: str) -> int:
@@ -285,6 +315,10 @@ class MarginCheck:
     # ── static checks ─────────────────────────────────────────────────────
 
     def _check_basket(self, basket_name: str) -> CheckResult:
+        from xleuth_shared.basket_lifecycle import extract_target_month, extract_target_year
+
+        if extract_target_month(basket_name) is not None and extract_target_year(basket_name) is None:
+            return CheckResult(False, "legacy_basket_read_only", {"basket_name": basket_name})
         if self.registry is not None:
             row = self.registry.get(basket_name)
             if row is None:
@@ -300,6 +334,34 @@ class MarginCheck:
             if row.get("status") not in ("active", None):
                 return CheckResult(False, "basket_not_tradeable",
                                    {"basket_name": basket_name, "status": row.get("status")})
+            index_id = row.get("onchain_index_id")
+            if not index_id:
+                return CheckResult(False, "basket_id_unregistered", {"basket_name": basket_name})
+            if row.get("slug"):
+                from xleuth_shared.baskets import basket_id_from_slug
+
+                try:
+                    supplied = bytes.fromhex(str(index_id).removeprefix("0x"))
+                    if supplied != basket_id_from_slug(row["slug"]):
+                        return CheckResult(False, "basket_id_mismatch", {"basket_name": basket_name})
+                except Exception:
+                    return CheckResult(False, "basket_id_mismatch", {"basket_name": basket_name})
+            lifecycle = self.chain.settlement_state(index_id)
+            if lifecycle is None:
+                return CheckResult(False, "basket_lifecycle_unreadable", {"basket_name": basket_name})
+            chain_expiry, settled = lifecycle
+            if not chain_expiry:
+                return CheckResult(False, "basket_not_registered_onchain", {"basket_name": basket_name})
+            if settled:
+                return CheckResult(False, "basket_not_tradeable", {"basket_name": basket_name, "status": "settled"})
+            if exp is not None and int(exp_utc.timestamp()) != chain_expiry:
+                return CheckResult(False, "basket_expiry_mismatch", {
+                    "basket_name": basket_name,
+                    "registry_expiry": int(exp_utc.timestamp()),
+                    "chain_expiry": chain_expiry,
+                })
+            if chain_expiry <= int(datetime.now(timezone.utc).timestamp()):
+                return CheckResult(False, "basket_not_tradeable", {"basket_name": basket_name})
             return CheckResult(True)
         return CheckResult(False, "basket_registry_unavailable", {"basket_name": basket_name})
 

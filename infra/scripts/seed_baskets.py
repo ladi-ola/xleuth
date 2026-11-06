@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import calendar
 import json
 import os
 import sys
@@ -33,10 +32,9 @@ from dotenv import load_dotenv  # noqa: E402
 
 
 def month_bounds(year: int, month: int):
-    ws = datetime(year, month, 1, tzinfo=timezone.utc)
-    last = calendar.monthrange(year, month)[1]
-    exp = datetime(year, month, last, 23, 59, 59, tzinfo=timezone.utc)
-    return ws, exp
+    from xleuth_shared.baskets import monthly_expiry_window
+
+    return monthly_expiry_window(year, month)
 
 
 async def main() -> int:

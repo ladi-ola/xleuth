@@ -26,6 +26,7 @@ export interface FrontendBasket {
   symbol: string;
   listName: string;
   status: 'active' | 'upcoming' | 'resolved';
+  tradeable: boolean;
   description: string;
   price: number;
   priceLabel: string;
@@ -201,6 +202,22 @@ export function abbreviateBasketName(name: string): string {
   return [head, ...tail].join('-');
 }
 
+function formatMonthlyResolution(expiryIso: string | null): string {
+  if (!expiryIso) return 'TBD';
+  const expiry = new Date(expiryIso);
+  if (Number.isNaN(expiry.getTime())) return 'Invalid date';
+  // Monthly expiry is the exclusive UTC boundary (00:00 on the next month).
+  // Display the final calendar date of the month identified in the ticker.
+  if (
+    expiry.getUTCHours() === 0 && expiry.getUTCMinutes() === 0 &&
+    expiry.getUTCSeconds() === 0 && expiry.getUTCMilliseconds() === 0 &&
+    expiry.getUTCDate() === 1
+  ) expiry.setUTCDate(expiry.getUTCDate() - 1);
+  return expiry.toLocaleDateString('en-US', {
+    month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC',
+  });
+}
+
 export function adaptBasket(basket: BasketInfo, priceData?: BasketPriceResponseWithChange): FrontendBasket {
   const price = priceData?.scaled_price ?? basket.index_price_scaled ?? basket.index_price ?? 0;
   const changeAbs = priceData?.change_24h_abs ?? null;
@@ -208,14 +225,21 @@ export function adaptBasket(basket: BasketInfo, priceData?: BasketPriceResponseW
 
   const slug = basket.slug ?? basket.basket_name.toLowerCase().replace(/_/g, '-');
   const expiryIso = basket.expiry_at ?? priceData?.expiry_at ?? null;
+  const verifiedIdentity = Boolean(
+    basket.slug && basket.expiry_at && basket.onchain_index_id,
+  );
   const count = basket.total_constituents ?? priceData?.constituent_count ?? 0;
-  const resolvesOn = expiryIso ? formatDate(expiryIso) : 'TBD';
+  const resolvesOn = formatMonthlyResolution(expiryIso);
 
   return {
     slug,
     symbol: abbreviateBasketName(basket.basket_name),
     listName: basket.basket_name,
     status: mapStatus(basket.status),
+    tradeable:
+      verifiedIdentity &&
+      basket.is_tradeable &&
+      (priceData?.is_tradeable ?? true),
     description: `Tracks the ${count} highest-volume prediction markets resolving by ${resolvesOn}.`,
     price,
     priceLabel: formatPriceLabel(price),

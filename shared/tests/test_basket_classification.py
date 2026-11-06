@@ -25,9 +25,9 @@ NOW = datetime(2026, 10, 18, 12, 0, tzinfo=timezone.utc)
 
 
 def test_active_when_seeded_and_trading_even_if_name_is_next_month():
-    # TOP20-NOVEMBER: name targets next month but its markets are live/priced.
+    # Year-qualified future month is an explicit distinct contract identity.
     status, tradeable = classify_index_status(
-        "TOP20-NOVEMBER", constituent_count=20, index_price=0.0022, now=NOW
+        "TOP20-NOVEMBER-2026", constituent_count=20, index_price=0.0022, now=NOW
     )
     assert status == STATUS_ACTIVE
     assert tradeable is True
@@ -52,7 +52,7 @@ def test_active_with_registry_row_unexpired():
 def test_upcoming_when_seeded_but_not_trading():
     # Constituent markets mapped, but no live price (Polymarket not trading).
     status, tradeable = classify_index_status(
-        "TOP20-NOVEMBER", constituent_count=20, index_price=None, now=NOW
+        "TOP20-NOVEMBER-2026", constituent_count=20, index_price=None, now=NOW
     )
     assert status == STATUS_UPCOMING
     assert tradeable is False
@@ -66,7 +66,7 @@ def test_upcoming_when_no_markets_mapped():
     }
     for count in (None, 0):
         status, tradeable = classify_index_status(
-            "TOP20-NOVEMBER",
+            "TOP20-NOVEMBER-2026",
             registry_row=row,
             constituent_count=count,
             index_price=None,
@@ -127,20 +127,20 @@ def test_precedence_resolved_then_active_then_upcoming_is_exhaustive():
         {"constituent_count": 0, "index_price": None},
     ]
     for kwargs in cases:
-        status, _ = classify_index_status("TOP20-NOVEMBER", now=NOW, **kwargs)
+        status, _ = classify_index_status("TOP20-NOVEMBER-2026", now=NOW, **kwargs)
         assert status in {STATUS_ACTIVE, STATUS_UPCOMING, STATUS_RESOLVED}
 
 
 def test_transient_failure_defaults_to_upcoming():
     # A missing/unknown snapshot must not be advertised as trading.
-    status, tradeable = classify_index_status("TOP20-NOVEMBER", now=NOW)
+    status, tradeable = classify_index_status("TOP20-NOVEMBER-2026", now=NOW)
     assert status == STATUS_UPCOMING
     assert tradeable is False
 
 
 def test_is_resolved_helper_matches_registry_and_name_rules():
-    assert is_resolved("TOP20-NOVEMBER", None, NOW) is False
-    assert is_resolved("TOP20-OCTOBER", None, NOW) is False
+    assert is_resolved("TOP20-NOVEMBER-2026", None, NOW) is False
+    assert is_resolved("TOP20-OCTOBER-2026", None, NOW) is False
     assert (
         is_resolved(
             "TOP20-NOVEMBER",

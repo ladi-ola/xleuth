@@ -9,6 +9,8 @@ from xleuth_shared.baskets import (
     generate_name,
     legacy_basket_id_from_name,
     make_slug,
+    monthly_expiry_at,
+    monthly_expiry_window,
     validate_transition,
 )
 
@@ -23,6 +25,15 @@ def test_make_slug_includes_year():
     assert make_slug("TOP", 20, datetime(2026, 10, 31, tzinfo=timezone.utc)) == "top20-2026-10"
     # October repeats yearly -> slugs differ, names don't
     assert make_slug("TOP", 20, datetime(2027, 10, 31, tzinfo=timezone.utc)) == "top20-2027-10"
+
+
+def test_monthly_expiry_is_next_month_utc_boundary():
+    assert monthly_expiry_at(2026, 11) == datetime(2026, 12, 1, tzinfo=timezone.utc)
+    assert monthly_expiry_at(2026, 12) == datetime(2027, 1, 1, tzinfo=timezone.utc)
+    assert monthly_expiry_window(2027, 4) == (
+        datetime(2027, 4, 1, tzinfo=timezone.utc),
+        datetime(2027, 5, 1, tzinfo=timezone.utc),
+    )
 
 
 def test_exclusive_month_boundary_labels_the_month_that_just_closed():

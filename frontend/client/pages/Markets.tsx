@@ -123,6 +123,13 @@ export default function Markets() {
     .filter((q): q is string => !!q);
 
   const openTrade = (side: "buy" | "sell") => {
+    if (!apiBasket.is_tradeable) {
+      toast({
+        title: "Trading unavailable",
+        description: "This index has no verified active on-chain registration.",
+      });
+      return;
+    }
     if (!user) {
       setShowSignIn(true);
       return;
@@ -196,6 +203,13 @@ export default function Markets() {
       toast({
         title: "Market unavailable",
         description: "Basket data has not loaded yet.",
+      });
+      return;
+    }
+    if (!apiBasket.is_tradeable) {
+      toast({
+        title: "Trading unavailable",
+        description: "This index has no verified active on-chain registration.",
       });
       return;
     }
