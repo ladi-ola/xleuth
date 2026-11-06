@@ -68,10 +68,40 @@ The same session's portfolio response:
 → `MarginCheck.validate` → **stale oracle rejection**.
 
 The order did **not** reach the book, settlement bridge or on-chain writes.
-The stale guard is correct and was not weakened. Later security failures
-found in source/local proofs must not be misrepresented as live executions.
+The stale guard is correct and was not weakened. Local oracle input validation
+now rejects missing, stale, future, non-finite and out-of-range observations
+before signing. Deploying that code alone does not refresh chain state: the
+hosted oracle worker must be running, read fresh source data and push the
+correct basket ID. Later security failures found in source/local proofs must
+not be misrepresented as live executions.
 
 ### Read-only chain observations
+
+At a fresh read around `2026-11-06T11:23:33Z` (Amoy block `52141596`), the
+configured oracle contract returned:
+
+| Basket | `latestPrice` price | On-chain timestamp | Age at block | Oracle limit |
+|---|---:|---:|---:|---:|
+| TOP20-DECEMBER | 4 | `1786237186` | 7,727,027 s | 300 s |
+| TOP20-NOVEMBER | 1 | `1792734581` | 1,229,632 s | 300 s |
+
+The provider reported chain ID `80002`; the configured oracle address has code.
+The local matching configuration is set to a stricter 60-second limit. Chain
+time and local UTC differed by only about 25 seconds. This proves the current
+on-chain values are genuinely stale, rather than a local/chain clock-skew
+artifact. The November/December public basket snapshots observed around
+`11:17Z` were already about 3 minutes old by this check, so the new local
+60-second source-age guard correctly declines to re-sign them. This does not
+establish why the hosted oracle stopped updating: Render worker logs/config and
+its exact source timestamps are unavailable. Likely operational causes include
+the oracle worker sleeping/stopped, wrong contract/index configuration, or
+source data not updating; distinguish these with worker logs and env checks.
+
+Both legacy basket IDs were freshly confirmed `isSettled=true` at block
+`52141596` (SettlementEngine `expiryOf`: December `1786237222`, November
+`1786238371`). A fresh oracle update alone does not make either basket
+tradeable; use a new, active, unsettled registered basket after reviewing the
+settlement stack. Do not push a fresh price or trade against an expired basket.
 
 The root `.env` specifies localhost service settings but these Amoy contracts:
 
@@ -198,8 +228,10 @@ unrelated file was not changed. Task-code paths passed the whitespace check.
    targets the reviewed stack (it currently uses legacy SettlementEngine).
    Do not overwrite settled legacy IDs; verify expiry, `isSettled`, fresh oracle
    and DB `onchain_index_id` together.
-3. Decide the loss-gap policy. Automatic liquidation cannot guarantee a fill;
-   no reserve, depositor loss or haircut is authorized by the paused decision.
+3. The owner selected maximum-loss collateralization (leverage as a size cap).
+   Implement and prove this in the V2 ledger—including collateralized realized
+   PnL across closes and gaps—before activation. Automatic liquidation cannot
+   guarantee a fill, so it is not the solvency mechanism.
 4. The local oracle source now rejects old/future/invalid observations. After
    separate deployment approval, verify the hosted worker runs that code and
    reads valid timestamped data. Confirm chain price age is within both

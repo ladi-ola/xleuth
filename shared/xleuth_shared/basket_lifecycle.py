@@ -8,16 +8,12 @@ The ACTIVE_BASKETS env var supports two kinds of entries:
 
   * Month templates, e.g. "TOP20-{MONTH}", "<MONTH>", "%MONTH%", or the
     phrase "MONTH_OF_THE_YEAR" / "MONTH OF THE YEAR" / "MONTH-OF-THE-YEAR".
-    Each template expands to the current month (active) and the next month
-    (upcoming), so the index roster rotates automatically every month with
-    no config edits. The next month is seeded in advance ("prepping").
+    Each template expands to the current month and future months in the
+    configured calendar horizon. Current is active; future months are upcoming.
 
 Naming: a dated basket is "<FAMILY><SIZE>-<MONTH>", e.g. TOP20-AUGUST. An
-optional year suffix "-YYYY" (e.g. TOP20-JANUARY-2027) disambiguates across
-year boundaries; year-less names refer to the current calendar year. When a
-template is expanded across the December/January boundary, the rollover
-month is rendered with the year suffix automatically. Templates may also
-carry a {YEAR} (or <YEAR>/%YEAR%) placeholder.
+year suffix "-YYYY" (e.g. TOP20-JANUARY-2027) disambiguates contract identity.
+Year-less literal names remain supported for historical compatibility.
 
 Tradeability: any basket that has NOT reached its resolution time (end of
 its target month) is tradeable — this includes current, upcoming and future
@@ -242,16 +238,16 @@ class BasketDescriptor:
     is_tradeable: bool
     month: int | None = None
     source_template: str | None = None
+    year: int | None = None
 
 
 def expand_basket_templates(
-    templates: list[str], now: datetime | None = None
+    templates: list[str], now: datetime | None = None, months_ahead: int = 12
 ) -> list[BasketDescriptor]:
     """Expand the ACTIVE_BASKETS list into concrete baskets with lifecycle status.
 
-    Templates yield the current month (active) plus the next month (upcoming,
-    prepped in advance). Literal entries are passed through with their status
-    computed from the name.
+    Templates yield the current month and future months in a calendar horizon.
+    ``months_ahead`` includes the current month.
     """
     now = now or datetime.now(timezone.utc)
     out: list[BasketDescriptor] = []
@@ -261,18 +257,18 @@ def expand_basket_templates(
         if not entry:
             continue
         if is_template(entry):
-            current = render_month_template(entry, now.month, now.year)
-            next_month = 1 if now.month == 12 else now.month + 1
-            next_year = now.year + 1 if now.month == 12 else now.year
-            nxt = render_month_template(entry, next_month, next_year)
-            if now.month == 12 and not has_year_marker(entry):
-                # Year-less names refer to the current year; disambiguate the
-                # January rollover with an explicit year suffix.
-                nxt = f"{nxt}-{next_year}"
-            candidates = [
-                BasketDescriptor(current, STATUS_ACTIVE, True, now.month, entry),
-                BasketDescriptor(nxt, STATUS_UPCOMING, True, next_month, entry),
-            ]
+            candidates = []
+            for offset in range(max(1, months_ahead)):
+                absolute_month = now.month - 1 + offset
+                year = now.year + absolute_month // 12
+                month = absolute_month % 12 + 1
+                name = render_month_template(entry, month, year)
+                if not has_year_marker(entry):
+                    name = f"{name}-{year}"
+                candidates.append(BasketDescriptor(
+                    name, STATUS_ACTIVE if offset == 0 else STATUS_UPCOMING,
+                    True, month, entry, year,
+                ))
         else:
             candidates = [
                 BasketDescriptor(
@@ -281,6 +277,7 @@ def expand_basket_templates(
                     is_tradeable(entry, now),
                     extract_target_month(entry),
                     None,
+                    extract_target_year(entry),
                 )
             ]
         for desc in candidates:

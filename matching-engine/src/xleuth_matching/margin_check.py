@@ -66,11 +66,11 @@ class ChainState(ABC):
         """Current PositionManager.maxLeverage."""
 
     @abstractmethod
-    def position_size(self, wallet: str, basket_name: str) -> int:
+    def position_size(self, wallet: str, basket_name: str, index_id_hex: str | None = None) -> int:
         """Current on-chain position size of the user on the basket (0 if none)."""
 
     @abstractmethod
-    def get_position(self, wallet: str, basket_name: str) -> tuple[int, int, int] | None:
+    def get_position(self, wallet: str, basket_name: str, index_id_hex: str | None = None) -> tuple[int, int, int] | None:
         """Get full position details: (side, size, leverage). Side: 0=Long(BUY), 1=Short(SELL).
         Returns None if no position exists."""
 
@@ -142,12 +142,13 @@ class Web3ChainState(ChainState):
 
     @staticmethod
     def basket_id(basket_name: str, index_id_hex: str | None = None) -> bytes:
-        from eth_utils import keccak
-
-        if index_id_hex:
-            h = index_id_hex[2:] if index_id_hex.startswith("0x") else index_id_hex
-            return bytes.fromhex(h)
-        return keccak(text=basket_name)
+        if not index_id_hex:
+            raise ValueError(f"registered on-chain ID required for basket {basket_name!r}")
+        h = index_id_hex[2:] if index_id_hex.startswith("0x") else index_id_hex
+        result = bytes.fromhex(h)
+        if len(result) != 32:
+            raise ValueError("on-chain basket ID must be bytes32")
+        return result
 
     def _b32(self, basket_name: str, index_id_hex: str | None = None) -> bytes:
         return Web3ChainState.basket_id(
@@ -176,22 +177,22 @@ class Web3ChainState(ChainState):
             logger.warning("maxLeverage read failed", exc_info=True)
             return 0
 
-    def position_size(self, wallet: str, basket_name: str) -> int:
+    def position_size(self, wallet: str, basket_name: str, index_id_hex: str | None = None) -> int:
         try:
             result = self._pm.functions.getPosition(
-                self._checksum(wallet), self._b32(basket_name)
+                self._checksum(wallet), self._b32(basket_name, index_id_hex)
             ).call()
             return int(result[1])
         except Exception:
             logger.warning("getPosition read failed for %s/%s", wallet, basket_name, exc_info=True)
             return 0
 
-    def get_position(self, wallet: str, basket_name: str) -> tuple[int, int, int] | None:
+    def get_position(self, wallet: str, basket_name: str, index_id_hex: str | None = None) -> tuple[int, int, int] | None:
         """Get full position details: (side, size, leverage).
         Side: 0=Long(BUY), 1=Short(SELL). Returns None if no position or error."""
         try:
             result = self._pm.functions.getPosition(
-                self._checksum(wallet), self._b32(basket_name)
+                self._checksum(wallet), self._b32(basket_name, index_id_hex)
             ).call()
             side = int(result[0])
             size = int(result[1])
@@ -284,7 +285,7 @@ class MarginCheck:
     # ── static checks ─────────────────────────────────────────────────────
 
     def _check_basket(self, basket_name: str) -> CheckResult:
-        if self.registry is not None and len(self.registry) > 0:
+        if self.registry is not None:
             row = self.registry.get(basket_name)
             if row is None:
                 return CheckResult(
@@ -300,13 +301,7 @@ class MarginCheck:
                 return CheckResult(False, "basket_not_tradeable",
                                    {"basket_name": basket_name, "status": row.get("status")})
             return CheckResult(True)
-        if basket_name not in self.config.baskets:
-            return CheckResult(
-                False, "unknown_basket", {"basket_name": basket_name, "known": self.config.baskets}
-            )
-        if not is_tradeable(basket_name):
-            return CheckResult(False, "basket_not_tradeable", {"basket_name": basket_name})
-        return CheckResult(True)
+        return CheckResult(False, "basket_registry_unavailable", {"basket_name": basket_name})
 
     def _check_price(self, price: float) -> CheckResult:
         if price <= 0 or price > self.config.price_scale:

@@ -48,6 +48,10 @@ contract PositionManager is Ownable {
     ///         (the SettlementEngine). Owner-settable.
     address public settlementEngine;
 
+    /// @notice Immutable settlement lifecycle copied from SettlementEngine.
+    mapping(bytes32 basketId => uint256 expiry) public basketExpiry;
+    mapping(bytes32 basketId => bool settled) public basketSettled;
+
     enum Side {
         Long,
         Short
@@ -137,6 +141,7 @@ contract PositionManager is Ownable {
     error NoOpenPosition();
     error InvalidPrice();
     error NotSettlementEngine();
+    error BasketNotTradeable();
     error NotLiquidatable();
     error ZeroMaintenanceMargin();
     error FeeExceedsNotional();
@@ -205,6 +210,7 @@ contract PositionManager is Ownable {
     ///         already holds a position on this basket — use `updatePosition`
     ///         to increase or flatten an existing position.
     function openPosition(bytes32 basketId, Side side, uint256 size, uint256 leverage) external {
+        _requireTradeableBasket(basketId);
         if (size == 0) revert ZeroSize();
         if (leverage == 0 || leverage > maxLeverage) revert InvalidLeverage();
 
@@ -233,6 +239,7 @@ contract PositionManager is Ownable {
     ///                                       opens on the opposite side at `leverage`.
     ///         All margin math references the current fresh oracle price.
     function updatePosition(bytes32 basketId, Side side, uint256 size, uint256 leverage) external {
+        _requireTradeableBasket(basketId);
         if (size == 0) revert ZeroSize();
         if (leverage == 0 || leverage > maxLeverage) revert InvalidLeverage();
 
@@ -434,6 +441,7 @@ contract PositionManager is Ownable {
     ///         / debiting free balance accordingly (losses floored at zero).
     function settleBasket(bytes32 basketId, uint256 settleValue) external {
         if (msg.sender != settlementEngine) revert NotSettlementEngine();
+        basketSettled[basketId] = true;
 
         if (settleValue == 0) revert ZeroPrice();
 
@@ -460,6 +468,21 @@ contract PositionManager is Ownable {
 
             emit PositionSettled(user, basketId, settleValue, pnl, creditedBack);
             emit PositionClosed(user, basketId, side, size, entryPrice, locked);
+        }
+    }
+
+    /// @notice SettlementEngine mirrors each immutable registration here so
+    ///         the position contract itself can enforce expiry/settlement.
+    function registerBasketExpiry(bytes32 basketId, uint256 expiry) external {
+        if (msg.sender != settlementEngine) revert NotSettlementEngine();
+        if (basketExpiry[basketId] != 0 || expiry == 0) revert BasketNotTradeable();
+        basketExpiry[basketId] = expiry;
+    }
+
+    function _requireTradeableBasket(bytes32 basketId) internal view {
+        uint256 expiry = basketExpiry[basketId];
+        if (expiry == 0 || basketSettled[basketId] || block.timestamp >= expiry) {
+            revert BasketNotTradeable();
         }
     }
 

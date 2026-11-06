@@ -14,9 +14,9 @@ from xleuth_shared.baskets import (
 
 
 def test_generate_name_single_function():
-    assert generate_name("TOP", 20, datetime(2026, 10, 31, tzinfo=timezone.utc)) == "TOP20-OCTOBER"
-    assert generate_name("top", 20, datetime(2026, 10, 31, tzinfo=timezone.utc)) == "TOP20-OCTOBER"
-    assert generate_name("CRYPTO", 5, datetime(2027, 1, 15, tzinfo=timezone.utc)) == "CRYPTO5-JANUARY"
+    assert generate_name("TOP", 20, datetime(2026, 10, 31, tzinfo=timezone.utc)) == "TOP20-OCTOBER-2026"
+    assert generate_name("top", 20, datetime(2026, 10, 31, tzinfo=timezone.utc)) == "TOP20-OCTOBER-2026"
+    assert generate_name("CRYPTO", 5, datetime(2027, 1, 15, tzinfo=timezone.utc)) == "CRYPTO5-JANUARY-2027"
 
 
 def test_make_slug_includes_year():
@@ -27,10 +27,10 @@ def test_make_slug_includes_year():
 
 def test_exclusive_month_boundary_labels_the_month_that_just_closed():
     expiry = datetime(2027, 2, 1, tzinfo=timezone.utc)
-    assert generate_name("TOP", 20, expiry) == "TOP20-JANUARY"
+    assert generate_name("TOP", 20, expiry) == "TOP20-JANUARY-2027"
     assert make_slug("TOP", 20, expiry) == "top20-2027-01"
     rollover = datetime(2028, 1, 1, tzinfo=timezone.utc)
-    assert generate_name("TOP", 20, rollover) == "TOP20-DECEMBER"
+    assert generate_name("TOP", 20, rollover) == "TOP20-DECEMBER-2027"
     assert make_slug("TOP", 20, rollover) == "top20-2027-12"
 
 

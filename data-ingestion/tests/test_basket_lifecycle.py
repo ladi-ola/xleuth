@@ -97,18 +97,16 @@ def test_expand_basket_templates():
         ["TOP20-{MONTH}", "TOP20-MONTH_OF_THE_YEAR", "TOP20-JULY"], NOW
     )
     by_name = {d.basket_name: d for d in descs}
-    assert set(by_name) == {
-        "TOP20-AUGUST",
-        "TOP20-SEPTEMBER",
-        "TOP20-JULY",
-    }
+    assert "TOP20-AUGUST-2026" in by_name
+    assert "TOP20-SEPTEMBER-2026" in by_name
+    assert "TOP20-JULY" in by_name
 
-    august = by_name["TOP20-AUGUST"]
+    august = by_name["TOP20-AUGUST-2026"]
     assert august.status == STATUS_ACTIVE
     assert august.is_tradeable is True
     assert august.month == 8
 
-    september = by_name["TOP20-SEPTEMBER"]
+    september = by_name["TOP20-SEPTEMBER-2026"]
     assert september.status == STATUS_UPCOMING
     assert september.is_tradeable is True
     assert september.month == 9
@@ -120,14 +118,15 @@ def test_expand_basket_templates():
 
 def test_active_basket_names_excludes_resolved():
     names = active_basket_names(["TOP20-{MONTH}", "TOP20-JULY"], NOW)
-    assert names == ["TOP20-AUGUST", "TOP20-SEPTEMBER"]
+    assert names[:2] == ["TOP20-AUGUST-2026", "TOP20-SEPTEMBER-2026"]
 
 
 def test_expand_december_rollover():
     dec = datetime(2026, 12, 10, tzinfo=timezone.utc)
     descs = expand_basket_templates(["TOP20-{MONTH}"], dec)
     by_name = {d.basket_name: d for d in descs}
-    assert set(by_name) == {"TOP20-DECEMBER", "TOP20-JANUARY-2027"}
+    assert "TOP20-DECEMBER-2026" in by_name
+    assert "TOP20-JANUARY-2027" in by_name
     jan = by_name["TOP20-JANUARY-2027"]
     assert jan.status == STATUS_UPCOMING
     assert jan.is_tradeable is True
@@ -137,14 +136,25 @@ def test_expand_december_rollover():
 def test_expand_december_rollover_with_year_marker():
     dec = datetime(2026, 12, 10, tzinfo=timezone.utc)
     names = active_basket_names(["TOP20-{MONTH}-{YEAR}"], dec)
-    assert names == ["TOP20-DECEMBER-2026", "TOP20-JANUARY-2027"]
+    assert names[:2] == ["TOP20-DECEMBER-2026", "TOP20-JANUARY-2027"]
     assert basket_status("TOP20-JANUARY-2027", dec) == STATUS_UPCOMING
 
 
 def test_expand_skips_empty_entries_and_dedupes():
     descs = expand_basket_templates(["", "  ", "TOP20-{MONTH}", "TOP20-AUGUST"], NOW)
     names = [d.basket_name for d in descs]
-    assert names == ["TOP20-AUGUST", "TOP20-SEPTEMBER"]
+    assert names[:2] == ["TOP20-AUGUST-2026", "TOP20-SEPTEMBER-2026"]
+
+
+def test_calendar_generates_unique_year_qualified_months():
+    dec = datetime(2026, 12, 10, tzinfo=timezone.utc)
+    names = active_basket_names(["TOP20-{MONTH}"], dec)
+    assert names == [
+        "TOP20-DECEMBER-2026", "TOP20-JANUARY-2027", "TOP20-FEBRUARY-2027",
+        "TOP20-MARCH-2027", "TOP20-APRIL-2027", "TOP20-MAY-2027",
+        "TOP20-JUNE-2027", "TOP20-JULY-2027", "TOP20-AUGUST-2027",
+        "TOP20-SEPTEMBER-2027", "TOP20-OCTOBER-2027", "TOP20-NOVEMBER-2027",
+    ]
 
 
 def test_expand_literal_undated_passthrough():

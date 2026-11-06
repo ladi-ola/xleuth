@@ -57,9 +57,10 @@ Do not reset history or re-register those IDs to disguise that state.
 - [x] Price freshness stays required; do not sign old source data as fresh.
 - [x] January 2027 monthly TOP20 window/metadata selected; read-only preview
   passed. No DB draft or on-chain registration has been created.
-- [ ] Decide losses when closeout cannot execute. Owner paused funded-reserve
-  decision and asked for automatic closeout; liquidation cannot guarantee fills
-  during gaps, outages or empty books. No unbacked financial ledger is enabled.
+- [x] Owner selected full maximum-loss collateralization; leverage is only a
+  position-size ceiling and execution must reject unless worst-case loss is
+  escrowed. This is not implemented. Automatic closeout cannot guarantee fills;
+  ledger tests must prove gap/expiry/PnL conservation without platform backing.
 - [ ] Obtain an owner plan for registration/deployment and any existing balances.
 
 ### S04 — Fix demonstrated root causes with tests

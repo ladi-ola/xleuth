@@ -5,12 +5,8 @@ same code path as the CLI (no fake price data), and write a reversible
 migration that backfills every currently live basket with its correct status
 and existing on-chain ID."
 
-- No fake price data: inserts registry rows only (draft -> active with the
-  existing on-chain id). Prices arrive via the normal ingestion -> oracle
-  flow afterwards.
-- Same code path: uses xleuth_shared.db_baskets.create_draft/transition.
-- Legacy IDs: onchain_index_id = keccak256(canonical NAME), preserved
-  verbatim so Amoy positions keep working with no redeploy.
+- No fake price data or legacy IDs: creates draft registry rows only.
+- Same code path: uses xleuth_shared.db_baskets.create_draft.
 - Idempotent: re-running adopts existing rows (no second tx, no dupes).
 - Reversible: every insert is logged in basket_events; to roll back, run
   migrations/down/001_baskets.down.sql or DELETE FROM baskets WHERE slug IN (...).
@@ -18,7 +14,7 @@ and existing on-chain ID."
 Usage:
   PYTHONPATH=infra/scripts:shared python3 seed_baskets.py [--apply]
   Default is --dry-run (prints what would be inserted). --apply writes.
-  ACTIVE_BASKETS env (default TOP20-{MONTH}) decides which names to backfill.
+  ACTIVE_BASKETS env (default TOP20-{MONTH}) decides the calendar to prepare.
 """
 
 from __future__ import annotations
@@ -67,8 +63,6 @@ async def main() -> int:
     await ensure_baskets_schema(pool)
 
     try:
-        from eth_utils import keccak
-
         now = datetime.now(timezone.utc)
         plan = []
         for name in names:
@@ -85,22 +79,20 @@ async def main() -> int:
             theme = normalize_theme(m.group(1) if m else "TOP")
             ws, exp = month_bounds(year, month)
             slug = make_slug(theme, n, exp)
-            legacy_id = "0x" + keccak(text=name).hex()
             plan.append({"name": name, "slug": slug, "theme": theme, "count": n,
-                         "window_start": ws.isoformat(), "expiry_at": exp.isoformat(),
-                         "onchain_index_id": legacy_id})
+                         "window_start": ws.isoformat(), "expiry_at": exp.isoformat()})
 
         print(json.dumps(plan, indent=2))
         if not args.apply:
             print("dry-run: no writes. Re-run with --apply.")
             return 0
 
-        from xleuth_shared.db_baskets import create_draft, get_by_slug, transition
+        from xleuth_shared.db_baskets import create_draft, get_by_slug
 
         for p in plan:
             existing = await get_by_slug(pool, p["slug"])
             if existing is not None:
-                print(f"exists {p['slug']} ({existing['status']}); adopting")
+                print(f"exists {p['slug']} ({existing['status']}); leaving unchanged")
                 continue
             row = await create_draft(
                 pool, theme=p["theme"], market_count=p["count"],
@@ -111,14 +103,7 @@ async def main() -> int:
                                  "backfilled_from": p["name"]},
                 created_by="seed_baskets",
             )
-            # Backfilled baskets are already live on-chain: registering ->
-            # active with the preserved legacy index id (no new tx).
-            await transition(pool, p["slug"], "registering", actor="seed_baskets",
-                             payload={"backfill": True, "index_id": p["onchain_index_id"]})
-            await transition(pool, p["slug"], "active", actor="seed_baskets",
-                             payload={"backfill": True},
-                             onchain_index_id=p["onchain_index_id"])
-            print(f"backfilled {p['slug']} -> active ({p['onchain_index_id']})")
+            print(f"prepared {p['slug']} -> draft; register explicitly with basket-register")
         return 0
     finally:
         await pool.close()

@@ -1,7 +1,7 @@
 """Single source of truth for basket naming, slugs, IDs and lifecycle.
 
 PLAN.md naming convention (settled):
-  Name format: {THEME}{COUNT}-{EXPIRY}, e.g. TOP20-OCTOBER
+  Name format: {THEME}{COUNT}-{EXPIRY}-{YEAR}, e.g. TOP20-OCTOBER-2026
   - THEME: what the basket is about (currently "TOP"; future themes allowed).
   - COUNT: number of markets in the basket.
   - EXPIRY: expiry/resolution period, uppercase month name for monthly baskets.
@@ -113,7 +113,7 @@ def generate_name(theme: str, market_count: int, expiry_at: datetime) -> str:
     n = validate_market_count(market_count)
     exp = resolution_period_end(expiry_at)
     month_name = MONTH_NUM_TO_NAME[exp.month]
-    return f"{t}{n}-{month_name}"
+    return f"{t}{n}-{month_name}-{exp.year}"
 
 
 def make_slug(theme: str, market_count: int, expiry_at: datetime) -> str:

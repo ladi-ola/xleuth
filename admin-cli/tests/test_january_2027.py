@@ -42,7 +42,7 @@ async def test_admin_preview_matches_ingestion_window(monkeypatch):
     assert result["missing_live_volume_count"] == 1
     assert result["vwap_preview"] is None
     assert result["constituents"][0]["volume"] is None
-    assert generate_name("TOP", 20, expiry) == "TOP20-JANUARY"
+    assert generate_name("TOP", 20, expiry) == "TOP20-JANUARY-2027"
     assert make_slug("TOP", 20, expiry) == "top20-2027-01"
 
 
@@ -121,6 +121,7 @@ async def test_ready_registration_checks_window_and_requires_confirmation(
     monkeypatch.setattr(selection_runner, "dry_run_report", preview)
     fake_chain = SimpleNamespace(
         get_expiry=Mock(return_value=int(row["expiry_at"].timestamp()) if already_registered else 0),
+        is_settled=Mock(return_value=False),
         send_set_expiry=Mock(return_value="0xsynthetic-registration"),
         wait_confirmations=Mock(return_value=True),
     )

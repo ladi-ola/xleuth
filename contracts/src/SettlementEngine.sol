@@ -63,6 +63,7 @@ contract SettlementEngine is Ownable, EIP712 {
     error InvalidFraction();
     error UnauthorizedSigner();
     error StaleSignature();
+    error ExpiryAlreadyRegistered();
 
     constructor(
         address initialOwner_,
@@ -82,7 +83,10 @@ contract SettlementEngine is Ownable, EIP712 {
 
     /// @notice Admin-only: set a basket's settlement expiry (Unix seconds).
     function setBasketExpiry(bytes32 basketId, uint256 expiry) external onlyOwner {
+        if (basketId == bytes32(0) || expiry == 0) revert UnknownBasket();
+        if (expiryOf[basketId] != 0 || isSettled[basketId]) revert ExpiryAlreadyRegistered();
         expiryOf[basketId] = expiry;
+        positionManager.registerBasketExpiry(basketId, expiry);
         emit BasketExpiryRegistered(basketId, expiry, msg.sender);
     }
 

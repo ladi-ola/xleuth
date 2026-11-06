@@ -69,10 +69,12 @@ Endpoints: `GET /auth/me` returns the current user's profile.
 | `GET /baskets/{name}/history` | Time series of computed prices (`[{ts, basket_name, index_price, scaled_price, constituent_count}]`), newest last. |
 | `GET /baskets/{name}/constituents` | Constituent Polymarket markets that make up the basket: `{ condition_id, clob_token_id, event_id, question, end_date, price, volume, price_source, sub_markets, sub_market_count }` plus `markets_filtered_out` / `excluded_markets`. |
 
-Basket names look like `TOP20-OCTOBER` (generated display labels
-`{THEME}{COUNT}-{EXPIRY}`; the immutable key is a year-qualified slug such as
-`top20-2026-10`). Names are never parsed — theme/count/expiry come from DB
-columns. Only `active`, unexpired baskets with an `onchain_index_id` are
+Basket names look like `TOP20-OCTOBER-2026` (generated display labels
+`{THEME}{COUNT}-{EXPIRY}-{YEAR}`; the immutable key is a year-qualified slug
+such as `top20-2026-10`). The frontend may abbreviate the month for the ticker,
+but routes and API requests use the slug/name supplied by the API. Names are
+never parsed — theme/count/expiry come from DB columns. Only `active`,
+unexpired baskets with an `onchain_index_id` are
 tradeable; `GET /baskets` also returns `slug`, `expiry_at` and
 `onchain_index_id` per basket.
 

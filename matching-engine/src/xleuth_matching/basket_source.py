@@ -19,15 +19,9 @@ _TTL_S = int(os.getenv("ENGINE_BASKET_CACHE_TTL_S", "60"))
 _cache: dict = {"at": 0.0, "rows": []}
 
 
-def _legacy_id(name: str) -> str:
-    from eth_utils import keccak
-
-    return "0x" + keccak(text=name).hex()
-
-
 async def get_active_rows(pool=None, now: datetime | None = None,
                           force: bool = False) -> list[dict]:
-    """DB active rows (with onchain_index_id) or [] — never raises."""
+    """Registered, unexpired DB rows with explicit chain IDs, or []."""
     now = now or datetime.now(timezone.utc)
     if not force and _cache["rows"] and (time.time() - _cache["at"]) < _TTL_S:
         return _cache["rows"]
@@ -38,7 +32,8 @@ async def get_active_rows(pool=None, now: datetime | None = None,
 
             rows = await list_active(pool, now=now)
         except Exception:
-            logger.warning("DB basket fetch failed; env fallback", exc_info=True)
+            logger.error("DB basket fetch failed; trading registry unavailable", exc_info=True)
+    rows = [r for r in rows if r.get("onchain_index_id")]
     _cache.update(at=time.time(), rows=rows)
     return rows
 

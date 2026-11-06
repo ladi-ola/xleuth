@@ -308,7 +308,7 @@ def get_wallet(
 def _get_position_from_chain(engine: Engine, wallet: str, basket_name: str, position_id: str) -> tuple[Side, float, int] | None:
     """Get position details from chain. Returns (side, size, leverage) or None if not found."""
     try:
-        position = engine.chain.get_position(wallet, basket_name)
+        position = engine.chain.get_position(wallet, basket_name, (engine.index_ids or {}).get(basket_name))
         if position is None:
             return None
         side_enum, size, leverage = position
@@ -696,7 +696,7 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         
         # Get positions from on-chain for each basket
         for basket_name in engine.known_baskets:
-            position = engine.chain.get_position(wallet, basket_name)
+            position = engine.chain.get_position(wallet, basket_name, (engine.index_ids or {}).get(basket_name))
             if position is None:
                 continue
             side_enum, size, leverage = position
@@ -707,7 +707,7 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
             side_str = "long" if side_enum == 0 else "short"
             
             # Get mark price from oracle
-            oracle_result = engine.chain.oracle_price(basket_name)
+            oracle_result = engine.chain.oracle_price(basket_name, (engine.index_ids or {}).get(basket_name))
             if oracle_result is None:
                 continue
             price_int, _ = oracle_result

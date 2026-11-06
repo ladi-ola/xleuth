@@ -17,10 +17,14 @@ settlement. The legacy financial vulnerabilities in the
 - Per-order notional: **$10–$1,000**, leverage **1x–5x**.
 - Price freshness remains required. Relaying does not justify stale prices.
 - January 2027 is a **monthly** TOP20 basket, not an annual 2027 index.
-- Shortfall policy is **paused**. The owner wants automatic closeout rather
-  than platform-absorbed losses. Neither a funded reserve, depositor loss,
-  socialized haircut nor automatic deleveraging has been approved. Liquidation
-  alone cannot guarantee solvency during gaps, outages or unavailable liquidity.
+- The owner selected **full maximum-loss collateralization**: reserve each
+  position's worst possible loss to the bounded index outcome; keep leverage as
+  a position-size ceiling only, and reject execution without the additional
+  collateral. This does not promise capital-efficient 1–5x leverage. This
+  policy is not implemented in the legacy contracts or V2 gateway. Ledger work
+  must prove collateral conservation through matched opens, partial/full closes,
+  realized PnL, expiry and oracle gaps before activation. Automatic closeout
+  alone still cannot guarantee a fill during outages or absent liquidity.
 
 ## Components implemented
 
@@ -147,24 +151,26 @@ Sources: [v2 schema](https://data-api.polymarket.com/v2/openapi.json),
 
 Do not run write/deployment commands simply because the preview is ready.
 
-1. Decide the liquidation-gap/insolvency policy. Automatic closeout needs an
-   explicit outcome when no counterparty/backing is available. Do not assume
-   that liquidation at a displayed mark transfers cash or guarantees a fill.
-2. Implement/review the atomic financial ledger: conserved collateral and PnL,
+1. Implement/review the selected maximum-loss collateral policy in the atomic
+   financial ledger. Prove conserved collateral and PnL,
    paired exposure, exact cost basis/fees, margin reservations, liquidation,
    all order semantics, lifecycle/expiry, zero final outcomes and bounded
    settlement. Restrict all financial writes to authorized paths. Plan legacy
    balance/position migration; the gateway does not patch old contracts.
-3. Implement the canonical intent schema, durable journal/book coordinator,
+2. Implement the canonical intent schema, durable journal/book coordinator,
    API verification/receipt reconciliation, UI signing/cancellation and accurate
    Portfolio reads. Keep Dynamic auth intact. Do not send V2 data to legacy
    `/orders` or add trader keys as a fallback.
-4. Local oracle source validation now rejects missing/old/future DB/Redis
-   observations before signing. Confirm the deployed Render worker runs this
-   code and that DB/Redis timestamps represent actual source observations. A
-   new signature timestamp by itself is not proof of fresh input. Confirm
-   configured addresses and worker logs without sharing secret values.
-5. After a separately reviewed deployment/migration plan and explicit approval,
+3. Local oracle source validation now rejects missing/old/future DB/Redis
+   observations before signing. A live Amoy read confirmed `TOP20-DECEMBER`
+   and `TOP20-NOVEMBER` oracle timestamps were respectively 7,726,835s and
+   1,229,440s old against the 300s contract limit; local matcher limit is 60s.
+   Confirm the deployed Render worker runs the validated code, is awake, uses
+   the same contract/chain/basket IDs and has fresh timestamped DB/Redis data.
+   A new signature timestamp alone does not prove fresh input. The two legacy
+   baskets were previously observed settled, so do not refresh them to enable
+   trading. Confirm addresses/logs without sharing secrets.
+4. After a separately reviewed deployment/migration plan and explicit approval,
    have the owner deploy and verify the reviewed stack. Only then create the
    draft (same preview command without `DRY=1`), register using
    `make basket-register SLUG=top20-2027-01`, and read-only reconcile using
@@ -172,10 +178,12 @@ Do not run write/deployment commands simply because the preview is ready.
    not actions performed here. The existing registrar targets the legacy
    SettlementEngine and must be checked/adapted for the reviewed stack first;
    its adoption checks do not yet establish unsettled/fresh oracle state.
-6. Verify immutable ID, intended expiry, unsettled state, source and on-chain
+5. Verify immutable ID, intended expiry, unsettled state, source and on-chain
    freshness, collateral and deployed units all agree. Then run real browser
    orders, opposite-account fills and the full
    [acceptance matrix](order-placement-verification.md#edge-case-matrix).
 
-All source changes remain uncommitted/unpushed. No private-key operations,
-hosted migrations, worker restarts or deployment actions were performed.
+The staged source components are present in repository HEAD `812d752a5`; this
+does not mean they are deployed to hosted services. This investigation changed
+documentation only. No private-key operations, hosted migrations, worker
+restarts or deployment actions were performed.

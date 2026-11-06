@@ -170,7 +170,13 @@ async def cmd_register(args) -> int:
         chain = RegistrationChain.from_env()
         existing_expiry = chain.get_expiry(index_id_hex)
         intended_expiry = int(exp.timestamp())
-        if existing_expiry and existing_expiry == intended_expiry and not args.force:
+        if chain.is_settled(index_id_hex):
+            print(f"refusing settled on-chain basket ID {index_id_hex}; settled IDs are immutable", file=sys.stderr)
+            return 1
+        if existing_expiry and existing_expiry != intended_expiry:
+            print(f"refusing expiry mismatch for {index_id_hex}: on-chain={existing_expiry}, requested={intended_expiry}; use a new basket slug", file=sys.stderr)
+            return 1
+        if existing_expiry and existing_expiry == intended_expiry:
             print(f"on-chain index {index_id_hex} already registered (expiry {existing_expiry}); adopting")
             await transition(pool, slug, STATUS_REGISTERING, actor="cli",
                              payload={"adopted": True, "index_id": index_id_hex})

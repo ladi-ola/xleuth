@@ -4,8 +4,8 @@ PLAN.md: price_reader/pusher only handle ACTIVE baskets that have an
 onchain_index_id; stop pushing after expiry. A newly activated basket is
 picked up without a restart (TTL expiry, not process restart).
 
-Transition: env-template names (legacy keccak(NAME) ids) fill the gap until
-the backfill migration lands, so live pushes never stop.
+Only explicitly registered DB rows may be pushed. Environment basket names
+are not identities and must never be hashed into live contract IDs.
 """
 
 from __future__ import annotations
@@ -20,12 +20,6 @@ logger = logging.getLogger("xleuth_oracle.basket_source")
 _TTL_S = int(os.getenv("ORACLE_BASKET_CACHE_TTL_S", "60"))
 
 _cache: dict = {"at": 0.0, "items": []}
-
-
-def _legacy_id(name: str) -> str:
-    from eth_utils import keccak
-
-    return "0x" + keccak(text=name).hex()
 
 
 async def discover_baskets(config, pool=None, now: datetime | None = None,
@@ -49,14 +43,7 @@ async def discover_baskets(config, pool=None, now: datetime | None = None,
                               "expiry": row["expiry_at"], "source": "db"})
                 seen.add(row["name"])
         except Exception:
-            logger.warning("DB basket discovery failed; env fallback", exc_info=True)
-
-    for name in (config.baskets or []):
-        if name in seen:
-            continue
-        items.append({"name": name, "index_id": _legacy_id(name),
-                      "expiry": None, "source": "env"})
-        seen.add(name)
+            logger.error("DB basket discovery failed; refusing environment ID fallback", exc_info=True)
 
     _cache.update(at=time.time(), items=items)
     return items

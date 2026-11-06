@@ -109,6 +109,9 @@ async def list_baskets(
                 "is_tradeable": base.is_tradeable,
                 "change_24h_abs": change_24h_abs,
                 "change_24h_pct": change_24h_pct,
+                "slug": rec.get("slug"),
+                "expiry_at": rec.get("expiry_at"),
+                "onchain_index_id": rec.get("onchain_index_id"),
             })
         return BasketListResponse(baskets=baskets)
     rows = await db.list_baskets()

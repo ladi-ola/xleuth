@@ -62,6 +62,9 @@ class RegistrationChain:
     def get_expiry(self, index_id_hex: str) -> int:
         return int(self._settlement.functions.expiryOf(self._b32(index_id_hex)).call())
 
+    def is_settled(self, index_id_hex: str) -> bool:
+        return bool(self._settlement.functions.isSettled(self._b32(index_id_hex)).call())
+
     def get_price(self, index_id_hex: str):
         if not self._oracle:
             return None
