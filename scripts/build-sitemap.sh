@@ -3,11 +3,11 @@
 # build-sitemap.sh — task 9: generate frontend/public/sitemap.xml.
 # Sitemap URLs must be absolute https, so this needs the production URL:
 #
-#   ./scripts/build-sitemap.sh https://app.example.com
+#   ./scripts/build-sitemap.sh https://<confirmed-production-domain>
 #
 # or set VITE_PUBLIC_SITE_URL in frontend/.env (same value feeds the
-# canonical/OG tags). With no URL it exits 0 without writing (safe default:
-# never ship a sitemap with a wrong domain). Wired into netlify.toml build.
+# canonical/OG tags). With no URL it exits 0 without writing. Only / is
+# indexable; the other SPA paths have Vercel noindex headers.
 set -u
 
 repo_root="$(git rev-parse --show-toplevel 2>/dev/null)"
@@ -38,9 +38,7 @@ out="$repo_root/frontend/public/sitemap.xml"
 {
     echo '<?xml version="1.0" encoding="UTF-8"?>'
     echo '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
-    for page in /how-it-works /support /legal-risk-disclosure /privacy /terms; do
-        echo "  <url><loc>${site}${page}</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq></url>"
-    done
+    echo "  <url><loc>${site}/</loc><lastmod>${today}</lastmod><changefreq>monthly</changefreq></url>"
     echo '</urlset>'
 } > "$out"
 

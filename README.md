@@ -29,7 +29,7 @@ xleuth/
 ├── .gitignore
 ├── .gitmodules                          # contracts/lib submodules (forge-std, openzeppelin-contracts)
 ├── README.md
-├── PLAN.md                              # pre-deployment QA plan (19 tasks)
+├── PLAN.md                              # Task 1 trading QA / Task 2 landing and waitlist
 ├── ADMIN_BASKET_GUIDE.md                # admin-only basket CLI guide (git-ignored upstream)
 ├── TECHNICAL_DOCUMENTATION.md           # full technical reference (generated 2026-10-12)
 ├── docker-compose.yml                   # postgres + redis + data-ingestion/backend-api/oracle/matching-engine
@@ -178,7 +178,7 @@ xleuth/
 │   └── requirements.txt
 │
 ├── frontend/                           # React 18 SPA (Fusion Starter: Router 6, Vite, Tailwind, Radix)
-│   ├── client/                         # App.tsx routes: /, /market/:slug, /explore, /portfolio, /account, legal
+│   ├── client/                         # / landing; /app and /market/:slug trading; /explore, /portfolio, /account, legal
 │   ├── server/                         # Express stub (GET /api/ping, /api/demo only)
 │   ├── shared/api.ts                   # DemoResponse leftover
 │   ├── public/  index.html  vite.config.ts  tailwind.config.ts  netlify.toml
@@ -186,6 +186,7 @@ xleuth/
 │
 ├── migrations/
 │   ├── 001_baskets.sql                 # baskets + basket_events (reversible)
+│   ├── 003_waitlist.sql                # public landing waitlist, idempotently ensured by backend-api
 │   └── down/001_baskets.down.sql
 │
 ├── infra/

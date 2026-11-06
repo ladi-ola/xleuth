@@ -6,7 +6,7 @@ import { usePageMeta } from "@/hooks/use-page-meta";
 // Task 13: branded 404 inside the app shell (dark theme, primary CTA home).
 // Note: with the static SPA 200-rewrite, unknown URLs return HTTP 200 serving
 // this page client-side — a true 404 status needs edge config, documented in
-// the final QA report. Site-wide noindex covers this route regardless.
+// the final QA report. Vercel's non-root noindex header covers this route.
 const NotFound = () => {
   const location = useLocation();
 
@@ -38,7 +38,7 @@ const NotFound = () => {
         </p>
         <div className="flex gap-3">
           <Link
-            to="/"
+            to="/app"
             className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground"
           >
             Launch app

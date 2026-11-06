@@ -7,7 +7,8 @@ import { useEffect } from "react";
 // tags. These JS tags improve tabs, history, link unfurls in JS-capable
 // clients and real browsers. If crawler-visible per-page tags are needed,
 // add prerendering/SSR for public routes (see docs/programmatic-seo.md).
-// Authenticated app screens stay noindex via the static index.html default.
+// Vercel sends noindex for non-root routes; App.tsx keeps the DOM robots tag
+// in sync during client-side navigation.
 
 const SITE_URL: string = import.meta.env.VITE_PUBLIC_SITE_URL || "";
 

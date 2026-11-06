@@ -24,6 +24,13 @@ Generated from FastAPI OpenAPI specs. This document describes all public HTTP en
 
 ## Backend API (Port 8000)
 
+### Waitlist (Public)
+
+`POST /waitlist` — body `{ "name": "Ada Lovelace", "email": "ada@example.com", "consent": true, "website": "" }`.
+Name and email are trimmed; email is lowercased. `website` is a honeypot and must be left empty. New, duplicate and honeypot submissions return the same `200` response: `{ "message": "Thanks for your interest in Xleuth." }`. Missing consent or invalid input returns `422`; per-IP throttling returns `429` with `Retry-After`; unavailable storage returns `503`. No public listing endpoint exists. Entries are stored only in Postgres, without Dynamic sync, per owner decision.
+
+---
+
 ### Auth
 
 | Method | Path | Auth | Description |

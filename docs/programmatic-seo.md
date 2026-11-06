@@ -13,13 +13,36 @@ real, unique, useful data"; "do not fabricate statistics").
    Postgres (`baskets` table + `index_prices`), unreachable from the static
    build (browser calls the APIs directly; no prod backend URL is even
    recorded in the repo).
-3. **Testnet noindex default.** Per the plan defaults the whole site ships
-   `noindex` until opened — indexed basket pages would contradict that.
+3. **Landing-only indexing.** `/` is indexable; non-root SPA routes are
+    `noindex` via Vercel headers. Indexed basket pages would need their own
+    unique, crawler-visible content.
 4. **Thin-content risk.** Auto-generating `/baskets/<slug>` shells without
    constituents, methodology and real prices would be doorway pages.
 
 Nothing half-baked was shipped: no placeholder basket pages, no fabricated
 stats, no sitemap entries without a domain.
+
+## Landing-page indexing (Task 2)
+
+The landing page at `/` has no robots meta restriction. Vercel's
+`frontend/vercel.json` adds `X-Robots-Tag: noindex, nofollow` to every
+non-root path, including `/app`, trading, legal and unknown SPA routes.
+`robots.txt` allows crawlers to fetch those paths so they can see that header.
+It does not advertise a sitemap until a production URL is confirmed.
+`scripts/build-sitemap.sh` can generate a root-only sitemap after that URL is
+confirmed, but the Vercel build does not currently run it. Crawlers still
+need to execute JavaScript to see landing-page body content: this is a SPA,
+not a prerendered page. Indexability is not a guarantee of search indexing.
+
+After deployment, check actual Vercel responses (Vite preview does not apply
+`vercel.json`):
+
+```bash
+curl -sSI "$DOMAIN/" | grep -i x-robots-tag  # expect no header
+curl -sSI "$DOMAIN/app" | grep -i x-robots-tag  # expect noindex, nofollow
+curl -sSI "$DOMAIN/unknown" | grep -i x-robots-tag  # expect noindex, nofollow
+curl -s "$DOMAIN/robots.txt"  # no missing sitemap reference
+```
 
 ## What would make it viable
 
@@ -29,4 +52,4 @@ stats, no sitemap entries without a domain.
 - [ ] Unique titles/descriptions from real fields, canonical slug URLs,
   accurate structured data, archived-vs-redirect handling for expired baskets,
   DB-driven sitemap entries (extend `scripts/build-sitemap.sh`).
-- [ ] Flip `VITE_ROBOTS_CONTENT` to `index, follow` and re-verify with `curl`.
+- [ ] Confirm a production site URL before generating a sitemap or canonical URL.

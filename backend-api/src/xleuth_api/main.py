@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 import redis.asyncio as aioredis
 from dotenv import load_dotenv
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.responses import JSONResponse
 
@@ -16,6 +17,7 @@ from xleuth_api.routes.auth import router as auth_router
 from xleuth_api.routes.baskets import router as baskets_router
 from xleuth_api.routes.faucet import router as faucet_router
 from xleuth_api.routes.websocket import router as websocket_router
+from xleuth_api.routes.waitlist import router as waitlist_router
 
 load_dotenv()
 
@@ -96,12 +98,21 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    @app.exception_handler(RequestValidationError)
+    async def validation_error(request, exc):
+        if request.url.path == "/waitlist":
+            # FastAPI's default 422 echoes `input`, including the submitted
+            # name/email. Never reflect personal data in an error response.
+            return JSONResponse({"detail": "Check your details and consent"}, status_code=422)
+        from fastapi.exception_handlers import request_validation_exception_handler
+        return await request_validation_exception_handler(request, exc)
+
     # Keep the configured origins, but always allow the production frontends
     # regardless of the deployed CORS_ALLOWED_ORIGINS value. No wildcards:
     # allow_credentials=True requires an explicit origin list.
     origins = [
         o.strip()
-        for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000").split(",")
+        for o in os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8080,http://127.0.0.1:8080").split(",")
         if o.strip()
     ]
     for required_origin in ("https://xleuth.xyz", "https://www.xleuth.xyz"):
@@ -111,12 +122,18 @@ def create_app() -> FastAPI:
     # Task 16: per-IP rate limits on public endpoints + request size guard.
     # Rules are env-tunable (RL_*_PER_MIN); the faucet keeps its own 24h
     # per-wallet cooldown in addition to this IP limit.
-    from xleuth_shared.rate_limit import RateLimitMiddleware
+    from xleuth_shared.rate_limit import RateLimitMiddleware, Rule, rules_from_env
 
     # Middleware is added innermost-first: the last one added is the outermost.
     # CORSMiddleware must be outermost among these so that both the rate-limit
     # and catch-all responses (including 500s) carry CORS headers.
-    app.add_middleware(RateLimitMiddleware, service="backend-api")
+    app.add_middleware(
+        RateLimitMiddleware,
+        service="backend-api",
+        rules=rules_from_env("backend-api") + [
+            Rule("/waitlist", ("POST",), int(os.getenv("RL_WAITLIST_PER_MIN", "5")), 60),
+        ],
+    )
     app.add_middleware(CatchAllErrorMiddleware)
     app.add_middleware(
         CORSMiddleware,
@@ -197,6 +214,7 @@ def create_app() -> FastAPI:
     app.include_router(accounts_router)
     app.include_router(faucet_router)
     app.include_router(websocket_router)
+    app.include_router(waitlist_router)
 
     return app
 

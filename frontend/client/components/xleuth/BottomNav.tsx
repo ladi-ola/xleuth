@@ -3,7 +3,7 @@ import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 
 const items = [
-  { to: "/", label: "Markets", icon: House, end: true },
+  { to: "/app", label: "Markets", icon: House, end: true },
   { to: "/explore", label: "Explore", icon: Search },
   { to: "/portfolio", label: "Portfolio", icon: ChartColumnIncreasing },
   { to: "/account", label: "Account", icon: User },

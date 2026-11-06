@@ -1,22 +1,7 @@
-# robots.txt — Xleuth testnet (tasks 6+9)
-#
-# Testnet default: crawlers are ALLOWED here (sitemap/discovery) but every
-# page carries `<meta name="robots" content="noindex, nofollow">` (see
-# index.html + VITE_ROBOTS_CONTENT), so nothing is indexed. One-line switch
-# to open up later: VITE_ROBOTS_CONTENT="index, follow".
-#
-# Authenticated/app screens and APIs are disallowed outright.
+# The landing page at / is indexable. All other pages carry an X-Robots-Tag
+# noindex response header on Vercel; let crawlers fetch them to see it.
+# No sitemap is advertised until a production site URL is confirmed.
 
 User-agent: *
-Allow: /how-it-works
-Allow: /support
-Allow: /legal-risk-disclosure
-Allow: /privacy
-Allow: /terms
-Allow: /explore
-Disallow: /portfolio
-Disallow: /account
-Disallow: /market/
+Allow: /
 Disallow: /api/
-
-Sitemap: /sitemap.xml

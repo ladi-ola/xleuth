@@ -55,13 +55,13 @@ function basketNameFromSlug(
 }
 
 export default function Markets() {
+  const { slug } = useParams<{ slug?: string }>();
   usePageMeta({
     title: "Xleuth — prediction-market index futures (testnet)",
     description:
       "Trade leveraged index futures on prediction-market baskets. Live prices, order book and 5x leverage on Polygon Amoy testnet.",
-    path: "/",
+    path: slug ? `/market/${slug}` : "/app",
   });
-  const { slug } = useParams<{ slug?: string }>();
   const [tab, setTab] = useState<Tab>("chart");
   const [showOrderBook, setShowOrderBook] = useState(true);
   const [tradeSide, setTradeSide] = useState<"buy" | "sell" | null>(null);

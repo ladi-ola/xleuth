@@ -60,6 +60,13 @@ Endpoints: `GET /auth/me` returns the current user's profile.
 
 ## 2. Backend API (port 8000)
 
+### Waitlist — public, no auth
+
+`POST /waitlist` takes `{name: string, email: string, consent: true, website?: string}`. The last field is a honeypot. Names are whitespace-normalized (1–120 characters, no markup); emails are trimmed, lowercased and limited to 255 characters. New and duplicate emails return the same `200` `{ "message": "Thanks for your interest in Xleuth." }`; filled honeypots return that response without a write. Invalid fields or missing consent return `422`, rate limiting returns `429` with `Retry-After`, and unavailable storage returns `503`. No user data is returned and there is no public export/list endpoint. The database is the sole source of truth; Dynamic sync was explicitly removed from this task.
+
+Schema: `migrations/003_waitlist.sql`, idempotently ensured at API startup. Private export: `DATABASE_URL=... python backend-api/scripts/export_waitlist.py /secure/path.csv` (file must not exist, mode 0600; keep it out of the repo). Do not apply the down migration against hosted data without approval.
+
+
 ### Baskets — public, no auth
 
 | Endpoint | Description |

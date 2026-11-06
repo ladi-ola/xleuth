@@ -62,6 +62,17 @@ CREATE INDEX IF NOT EXISTS idx_index_prices_basket_ts
     ON index_prices (basket_name, ts DESC);
 """
 
+WAITLIST_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS waitlist_entries (
+    id BIGSERIAL PRIMARY KEY,
+    email TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    consent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    source TEXT NOT NULL DEFAULT 'landing'
+);
+"""
+
 # Candle interval -> bucket size in seconds. Whitelisted so the interval can
 # never reach the SQL as an unsupported value.
 CANDLE_INTERVAL_SECONDS: dict[str, int] = {
@@ -110,6 +121,7 @@ class Database:
                 stmt = statement.strip()
                 if stmt:
                     await conn.execute(stmt)
+            await conn.execute(WAITLIST_TABLE_SQL)
         # Baskets registry DDL (shared, idempotent). Reads below prefer the
         # baskets table and fall back to index_prices during migration.
         try:
@@ -445,4 +457,14 @@ class Database:
                 ON CONFLICT (wallet_address) DO UPDATE SET last_claim_at = NOW()
                 """,
                 wallet_address,
+            )
+
+    async def add_waitlist_entry(self, email: str, name: str) -> None:
+        if not self.pool:
+            raise RuntimeError("Database unavailable")
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO waitlist_entries (email, name)
+                   VALUES ($1, $2) ON CONFLICT (email) DO NOTHING""",
+                email, name,
             )

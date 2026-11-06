@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Xleuth Matching Engine",
-    "description": "Legacy matching HTTP surface. POST /orders is safety-paused while the legacy per-trader settlement bridge is configured: HTTP 503 with detail legacy_settlement_disabled. V2 trader-signed atomic execution requires an integrated funded ledger and durable coordinator before activation.",
+    "description": "Legacy matching HTTP surface. Production POST /orders is safety-paused (503 legacy_settlement_disabled) until V2 signed atomic execution, funding, portfolio and durable receipt reconciliation are fully integrated.",
     "version": "0.1.0"
   },
   "paths": {
@@ -45,9 +45,6 @@
                 }
               }
             }
-          },
-          "503": {
-            "description": "Legacy per-trader settlement is disabled; detail: legacy_settlement_disabled"
           }
         }
       },

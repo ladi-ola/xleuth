@@ -3,12 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- Task 6: crawler-visible static defaults (SPA: JS tags can't be seen
-      by no-JS scrapers — see use-page-meta.ts). Testnet default is noindex;
-      flip with VITE_ROBOTS_CONTENT="index, follow" at build time. -->
-    <meta name="robots" content="%VITE_ROBOTS_CONTENT%" />
-    <meta name="description" content="Xleuth" />
-    <meta name="theme-color" content="#f8f8fa" />
+    <!-- / is indexable by default. Vercel sends X-Robots-Tag: noindex for
+      every non-root route sharing this SPA shell. -->
+    <meta name="description" content="Explore dated index futures over prediction-market baskets on Polygon Amoy testnet. Trade with test USDC; no real funds." />
+    <meta name="theme-color" content="#000000" />
     <script>
       // Apply the saved theme before first paint to avoid a light flash.
       try {
@@ -19,25 +17,25 @@
       } catch (e) {}
     </script>
     <link rel="icon" type="image/x-icon" href="/favicon.ico" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/site.webmanifest" />
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="Xleuth" />
-    <meta property="og:title" content="Xleuth" />
+    <meta property="og:title" content="Xleuth — prediction-market index futures on testnet" />
     <meta
       property="og:description"
-      content="Trade leveraged index futures on prediction-market baskets. Polygon Amoy testnet, no real funds."
+      content="Explore dated index futures over prediction-market baskets on Polygon Amoy testnet. Trade with test USDC; no real funds."
     />
-    <meta property="og:image" content="/og-image.png" />
+    <meta property="og:image" content="/favicon.png" />
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="Xleuth" />
+    <meta name="twitter:title" content="Xleuth — prediction-market index futures on testnet" />
     <meta
       name="twitter:description"
-      content="Trade leveraged index futures on prediction-market baskets. Polygon Amoy testnet, no real funds."
+      content="Explore dated index futures over prediction-market baskets on Polygon Amoy testnet. Trade with test USDC; no real funds."
     />
-    <meta name="twitter:image" content="/og-image.png" />
-    <title>Xleuth</title>
+    <meta name="twitter:image" content="/favicon.png" />
+    <title>Xleuth — prediction-market index futures on testnet</title>
   </head>
 
   <body>

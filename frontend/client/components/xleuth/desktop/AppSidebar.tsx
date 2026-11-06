@@ -36,7 +36,7 @@ type NavItem = {
 
 // Same destinations, order, icons and labels as the mobile bottom nav.
 const primaryItems: NavItem[] = [
-  { to: "/", label: "Markets", icon: House, end: true },
+  { to: "/app", label: "Markets", icon: House, end: true },
   { to: "/explore", label: "Explore", icon: Search },
   { to: "/portfolio", label: "Portfolio", icon: ChartColumnIncreasing },
   { to: "/account", label: "Account", icon: User },

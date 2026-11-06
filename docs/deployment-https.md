@@ -1,5 +1,9 @@
 # HTTPS / hosting checklist — Xleuth frontend (task 4)
 
+**Current frontend target: Vercel.** The Netlify-specific settings below are
+legacy. For landing-page indexing and Vercel header checks, see
+`docs/programmatic-seo.md`.
+
 Netlify serves the static SPA over HTTPS by default (managed certificate +
 auto-renewal). Verify each item in the Netlify dashboard + with `curl`
 against the real domain (no production URL is recorded in the repo — fill it
@@ -49,7 +53,7 @@ curl -sSI "http://app.example.com/" | grep -i "^location"        # expect https 
 curl -sSI "$DOMAIN/" | grep -iE "strict-transport|content-security|x-content-type|x-frame|referrer"
 curl -s "$DOMAIN/" | grep -oE "<title>[^<]*</title>|noindex|og:image[^>]*"
 curl -s "$DOMAIN/robots.txt"
-curl -s "$DOMAIN/sitemap.xml" | head -5
+# No sitemap is shipped until a production URL is confirmed.
 curl -sSI "$DOMAIN/does-not-exist" | head -1   # SPA rewrite: expect 200 (documented)
 ```
 
