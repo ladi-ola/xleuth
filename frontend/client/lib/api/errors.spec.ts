@@ -8,6 +8,8 @@ function apiError(status: number, data?: unknown, extra?: Record<string, unknown
 describe("getRejectionMessage", () => {
   it("maps known rejection codes to user-facing messages", () => {
     expect(getRejectionMessage("insufficient_margin")).toContain("margin");
+    expect(parseApiError(apiError(503, { detail: 'legacy_settlement_disabled' })).message)
+      .toContain('Trading is paused');
     expect(getRejectionMessage("size_below_min")).toContain("minimum");
     expect(getRejectionMessage("size_below_min")).toContain("10 USDC");
   });

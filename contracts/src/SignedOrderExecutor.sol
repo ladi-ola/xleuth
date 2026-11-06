@@ -17,6 +17,7 @@ interface IAtomicTradeLedger {
         bytes32 orderId;
         bytes32 positionId;
         bool reduceOnly;
+        bool fillOrKill;
         bytes intent;
     }
 
@@ -276,7 +277,7 @@ contract SignedOrderExecutor is EIP712, ReentrancyGuard {
         returns (IAtomicTradeLedger.Leg memory)
     {
         return IAtomicTradeLedger.Leg(
-            a.trader, a.leverage, a.orderId, a.positionId, a.reduceOnly, intent
+            a.trader, a.leverage, a.orderId, a.positionId, a.reduceOnly, a.fillOrKill, intent
         );
     }
 }

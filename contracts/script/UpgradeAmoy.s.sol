@@ -28,6 +28,7 @@ import {SettlementEngine} from "../src/SettlementEngine.sol";
 ///             --rpc-url $RPC_URL --private-key $DEPLOYER_PRIVATE_KEY --broadcast
 contract UpgradeAmoy is Script {
     function run() external {
+        revert("Legacy upgrade disabled: unsafe unilateral position accounting");
         uint256 deployerKey = _envPrivateKey("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
 

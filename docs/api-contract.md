@@ -129,6 +129,15 @@ Trading lives here; auth uses Dynamic JWT verification (same env ID as backend).
 
 ### Order Placement Contract
 
+**Safety pause:** The deployed `/orders` service uses the legacy per-trader
+`PositionManager` transaction bridge, which cannot guarantee funded matched
+execution. Authenticated `POST /orders` requests return HTTP **503** with
+`{"detail":"legacy_settlement_disabled"}` before an order reaches the book.
+The historical contract below describes the intended order semantics, not an
+available trading API. Re-enable only after the atomic executor, fully funded
+ledger, normalized intent handling, durable relay journal, UI and portfolio
+are integrated and verified; registry registration alone is not sufficient.
+
 - Price is in 0–100 index points, must be on `tick_size` (0.01); the order
   notional `price * size` must be ≥ `min_order_size` (10 USDC); leverage
   1–`max_leverage`.
@@ -137,7 +146,7 @@ Trading lives here; auth uses Dynamic JWT verification (same env ID as backend).
   one key per trade dialog.
 - Rate limits: `POST /orders` 120/min/IP (429 + `Retry-After`); bodies over
   1MB are rejected (413). Auth/faucet endpoints: 30/10 per min/IP.
-- Before accepting, the engine pre-checks against **live on-chain state**:
+- Once safely re-enabled, before accepting the engine pre-checks against **live on-chain state**:
   basket tradeable, oracle price fresh, leverage cap, and free vault balance
   ≥ required margin (`oracle_price * size / leverage` USDC).
 - Rejections return HTTP 422 with a machine-readable `detail`, e.g.:

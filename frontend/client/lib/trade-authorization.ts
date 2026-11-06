@@ -1,7 +1,7 @@
 // V2 protocol helpers. Not yet wired to the legacy /orders settlement path:
 // that path cannot safely execute these signatures without the reviewed ledger.
 // No Dynamic auth changes, AA connector, paymaster, or trader-key handling.
-import { hashTypedData, type Address, type Hex } from "viem";
+import { encodeAbiParameters, hashTypedData, keccak256, type Address, type Hex } from "viem";
 
 export const PRICE_DECIMALS = 3;
 export const SIZE_DECIMALS = 6;
@@ -47,6 +47,60 @@ export interface TradeAuthorization {
   fillOrKill: boolean;
   reduceOnly: boolean;
   positionId: Hex;
+}
+
+/** ABI intent that the V2 ledger can enforce; closing/OCO is not supported. */
+export function openingIntent(args: {
+  kind: 'limit' | 'market' | 'stop';
+  salt: Hex;
+  triggerPrice?: bigint;
+}): { intent: Hex; orderId: Hex } {
+  const kind = { limit: 0, market: 1, stop: 2 }[args.kind];
+  const trigger = args.triggerPrice ?? 0n;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(args.salt) || BigInt(args.salt) === 0n) {
+    throw new Error('An order needs a unique nonzero bytes32 salt.');
+  }
+  if (args.kind === 'stop' ? trigger <= 0n || trigger > 100_000n : trigger !== 0n) {
+    throw new Error('Invalid opening-order trigger price.');
+  }
+  const intent = encodeAbiParameters(
+    [
+      { type: 'uint8' }, { type: 'uint256' }, { type: 'bytes32' },
+      { type: 'bytes32' }, { type: 'bytes32' },
+    ],
+    [kind, trigger, ZERO_ID, ZERO_ID, args.salt],
+  );
+  return { intent, orderId: keccak256(intent) };
+}
+
+/** Signed reduce-only lot replacement. Bracket orders must close a full lot. */
+export function closingIntent(args: {
+  kind: 'limit' | 'market' | 'stop_loss' | 'take_profit';
+  salt: Hex;
+  positionId: Hex;
+  triggerPrice?: bigint;
+  ocoGroup?: Hex;
+}): { intent: Hex; orderId: Hex } {
+  const kind = { limit: 0, market: 1, stop_loss: 3, take_profit: 4 }[args.kind];
+  const trigger = args.triggerPrice ?? 0n;
+  const group = args.ocoGroup ?? ZERO_ID;
+  if (!/^0x[0-9a-fA-F]{64}$/.test(args.salt) || BigInt(args.salt) === 0n ||
+      !/^0x[0-9a-fA-F]{64}$/.test(args.positionId) || BigInt(args.positionId) === 0n ||
+      !/^0x[0-9a-fA-F]{64}$/.test(group)) {
+    throw new Error('Close requires a nonzero lot ID and unique bytes32 salt.');
+  }
+  if (kind >= 3 ? trigger <= 0n || trigger > 100_000n || BigInt(group) === 0n
+                : trigger !== 0n || BigInt(group) !== 0n) {
+    throw new Error('Invalid close trigger or OCO group.');
+  }
+  const intent = encodeAbiParameters(
+    [
+      { type: 'uint8' }, { type: 'uint256' }, { type: 'bytes32' },
+      { type: 'bytes32' }, { type: 'bytes32' },
+    ],
+    [kind, trigger, group, args.positionId, args.salt],
+  );
+  return { intent, orderId: keccak256(intent) };
 }
 
 /** Decimal strings only; never turn a binary float into a signed amount. */

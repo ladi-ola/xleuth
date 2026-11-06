@@ -50,6 +50,48 @@ New env vars for Week 4 (contracts/.env): `SETTLEMENT_ENGINE_ADDRESS`,
 `LIQUIDATION_FEE_BPS=50`, `SETTLEMENT_MAX_STALENESS_SECONDS=3600`,
 `BASKET_EXPIRY_SECONDS=0`.
 
+## Safety status and isolated V2 ledger
+
+**Do not redeploy the legacy stack or use it for new trades.** The existing
+`PositionManager`/`CollateralVault` permit unilateral position updates,
+unfunded PnL credits and loss-free `closePosition` exits. The old
+legacy deployment and basket-registration scripts are disabled. Existing Amoy addresses and balances remain
+untouched; no migration is performed by this repository change.
+
+`AtomicTradeLedger.sol` is a separate, fully reserved matched-lot ledger for
+`SignedOrderExecutor`: both parties' worst-case losses are locked in its own
+custody before a lot opens, and settlement redistributes exactly those
+reserves at a signed final price (including zero). Settlement runs in bounded
+permissionless batches. The ledger is deployed first, then the executor, then
+`bindExecutor` locks the executor address once. The selected 1–5x leverage is
+recorded in the authorization, but collateral requirements use the **full
+worst-case loss**, not `notional / leverage`.
+
+**Not ready for live cutover:** the new ledger checks canonical, versioned
+opening intents (limit/market/breakout stop) and matched lot-bound reductions.
+SL/TP closes require the full lot and a signed trigger and OCO group; the first
+matched close transfers ownership, invalidating the other leg. Partial ordinary
+closes split a lot. A match where *both* traders try to close existing lots is
+rejected; the off-chain book must surface that case clearly. The backend
+still has a legacy per-trader settlement bridge; do not enable it for this
+ledger. Before deployment, the owner must arrange independent review, run the
+Foundry suite, integrate a durable atomic relay/receipt journal and compatible
+frontend deposit and order signing, and plan migration for legacy balances.
+Do not point the new ledger at the old vault or flip environment addresses as
+a shortcut. No contracts have been deployed by these changes.
+
+Opening intent preimage (160 bytes):
+`abi.encode(uint8 kind, uint256 triggerPrice, bytes32 ocoGroup, bytes32 positionId, bytes32 salt)`;
+`orderId = keccak256(preimage)`. Kind 0=limit, 1=market, 2=breakout stop;
+3=stop-loss, 4=take-profit. Market/stop and SL/TP require a signed fill-or-kill
+flag. For opening trades the group and position ID are zero and salt is unique
+and nonzero. For a reduce-only close, `positionId = bytes32(lotIndex + 1)`
+within the signed basket; SL/TP require a nonzero OCO group. The shared Python
+and frontend TypeScript helpers use this exact encoding. The new deployment
+script requires an explicit `ATOMIC_CUTOVER_APPROVED=1` gate and must not be
+broadcast before settlement, close, funding and portfolio integration and
+separate owner confirmation.
+
 ## Amoy deployments (2026-08-03 — RedeployCore)
 
 | Contract            | Address                                                                                                            |

@@ -34,6 +34,7 @@ contract SecurityReviewTest is Test {
         vm.startPrank(owner);
         vault.setPositionManager(address(pm));
         pm.setSettlementEngine(address(settlement));
+        settlement.setBasketExpiry(BASKET, 1_000_000);
         vm.stopPrank();
         _deposit(trader, 10 * USD);
         _deposit(depositor, 90 * USD);
@@ -130,20 +131,18 @@ contract SecurityReviewTest is Test {
         assertEq(vault.freeBalance(trader), 10 * USD, "all ten USDC returned despite loss");
     }
 
-    function test_Evidence_NewPositionCanOpenAfterBasketSettled() public {
-        vm.prank(owner);
-        settlement.setBasketExpiry(BASKET, block.timestamp);
+    function test_SettledBasketCannotReopenInCurrentSource() public {
+        vm.warp(1_000_000);
         _settle(50);
         assertTrue(settlement.isSettled(BASKET));
 
         vm.prank(trader);
+        vm.expectRevert(PositionManager.BasketNotTradeable.selector);
         pm.openPosition(BASKET, PositionManager.Side.Long, USD, 5);
-        assertEq(pm.getPosition(trader, BASKET).size, USD);
     }
 
     function test_Evidence_ZeroRealizedFractionCannotSettle() public {
-        vm.prank(owner);
-        settlement.setBasketExpiry(BASKET, block.timestamp);
+        vm.warp(1_000_000);
         bytes32 structHash = keccak256(
             abi.encode(
                 keccak256("SettleBasket(bytes32 basketId,uint256 realizedPrice,uint256 timestamp)"),

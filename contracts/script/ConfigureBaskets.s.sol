@@ -21,6 +21,7 @@ import {IndexOracleConsumer} from "../src/IndexOracleConsumer.sol";
 ///             --rpc-url $RPC_URL --private-key $ORACLE_SIGNER_PRIVATE_KEY --broadcast
 contract ConfigureBaskets is Script {
     function run() external {
+        revert("Legacy basket registration disabled: use reviewed atomic ledger");
         address consumer = vm.envAddress("INDEX_ORACLE_CONSUMER_ADDRESS");
         string[] memory basketNames = _expandBaskets(vm.envString("ACTIVE_BASKETS"));
 

@@ -27,6 +27,10 @@ import {MockUSDC} from "../src/MockUSDC.sol";
 ///             --private-key $DEPLOYER_PRIVATE_KEY --broadcast --verify
 contract DeployAmoy is Script {
     function run() external {
+        // Historical deployment path is unsafe: its PositionManager can
+        // create unpaired profit and close losing positions at full margin.
+        // Do not deploy another copy or reuse its vault for the new ledger.
+        revert("Legacy deployment disabled: use reviewed atomic ledger deployment");
         uint256 deployerKey = _envPrivateKey("DEPLOYER_PRIVATE_KEY");
 
         vm.startBroadcast(deployerKey);

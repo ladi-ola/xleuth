@@ -2,10 +2,12 @@ import { describe, expect, it, vi } from "vitest";
 import {
   authorizationDigest,
   authorizationTypedData,
+  closingIntent,
   exactUnits,
   MAX_NOTIONAL_UNITS,
   MIN_NOTIONAL_UNITS,
   notionalUnits,
+  openingIntent,
   priceUnits,
   signAuthorization,
   sizeUnits,
@@ -16,6 +18,30 @@ import {
 const executor = `0x${"22".repeat(20)}` as const;
 const expectedDigest =
   "0xdd4cdf2bedcadb6766b94138db28b3435cc8602f7cfe3efa8c97c4e1a4e877e7";
+
+it('matches the Python and Solidity opening-intent ABI preimage', () => {
+  const { intent, orderId } = openingIntent({
+    kind: 'market', salt: `0x${'11'.repeat(32)}`,
+  });
+  expect(intent.length).toBe(322);
+  expect(orderId).toBe('0x5fe93c1d89d9c4441652283279590608382468d4df587182c5203d38bd234219');
+  expect(() => openingIntent({ kind: 'stop', salt: `0x${'11'.repeat(32)}` }))
+    .toThrow('trigger');
+});
+
+it('binds a bracket close to a lot, trigger and OCO group', () => {
+  const signed = closingIntent({
+    kind: 'stop_loss', positionId: `0x${'0'.repeat(63)}1`,
+    salt: `0x${'11'.repeat(32)}`, triggerPrice: 50_000n,
+    ocoGroup: `0x${'22'.repeat(32)}`,
+  });
+  expect(signed.intent.length).toBe(322);
+  expect(signed.intent.slice(2 + 128, 2 + 192)).toBe('22'.repeat(32));
+  expect(() => closingIntent({
+    kind: 'take_profit', positionId: `0x${'0'.repeat(63)}1`,
+    salt: `0x${'11'.repeat(32)}`, triggerPrice: 50_000n,
+  })).toThrow('OCO');
+});
 
 function authorization(
   changes: Partial<TradeAuthorization> = {},

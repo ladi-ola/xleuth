@@ -24,6 +24,7 @@ import {PositionManager} from "../src/PositionManager.sol";
 ///             --rpc-url $RPC_URL --private-key $DEPLOYER_PRIVATE_KEY --broadcast
 contract RedeployWeek5 is Script {
     function run() external {
+        revert("Legacy Week5 deployment disabled: unsafe unilateral position accounting");
         uint256 deployerKey = _envPrivateKey("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
 

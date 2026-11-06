@@ -340,6 +340,7 @@ export type RejectionCode =
   | 'oracle_price_stale'
   | 'insufficient_margin'
   | 'basket_not_tradeable'
+  | 'legacy_settlement_disabled'
   | 'price_not_on_tick'
   | 'size_below_min'
   | 'leverage_out_of_range'
@@ -376,6 +377,7 @@ export const isAuthErrorCode = (code: string): code is AuthErrorCode => {
 export const isRejectionCode = (code: string): code is RejectionCode => {
   const codes: RejectionCode[] = [
     'oracle_price_stale', 'insufficient_margin', 'basket_not_tradeable',
+    'legacy_settlement_disabled',
     'price_not_on_tick', 'size_below_min', 'leverage_out_of_range',
     'leverage_above_cap', 'oracle_price_zero', 'unknown_basket',
     'max_slippage_bps_required', 'trigger_price_required', 'position_id_required',

@@ -23,6 +23,7 @@ import {PositionManager} from "../src/PositionManager.sol";
 ///             --rpc-url $RPC_URL --private-key $DEPLOYER_PRIVATE_KEY --broadcast
 contract DeploySettlementEngine is Script {
     function run() external {
+        revert("Legacy settlement deployment disabled: use reviewed atomic ledger");
         uint256 deployerKey = _envPrivateKey("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerKey);
 

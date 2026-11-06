@@ -55,7 +55,7 @@ from xleuth_matching.orderbook import (
     OrderType,
     Side,
 )
-from xleuth_matching.settlement import SettlementBridge, SettlementOutcome
+from xleuth_matching.settlement import SettlementBridge, SettlementOutcome, Web3TxSubmitter
 from xleuth_shared.auth.internal_jwt import InternalJWTConfig, InternalJWTVerifier, InternalJWTError
 from xleuth_shared.schemas.orders import (
     OrderResponse,
@@ -226,6 +226,10 @@ class Engine:
 
     async def _evaluate_all_triggers(self) -> None:
         """Evaluate stop order and SL/TP triggers for all baskets."""
+        # Existing resting orders must not be triggered against the unsafe
+        # two-transaction legacy settlement path during the safety pause.
+        if isinstance(self.bridge._submitter, Web3TxSubmitter):
+            return
         for basket_name in self.known_baskets:
             try:
                 # Get current mark/index price from oracle
@@ -338,7 +342,7 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
 
     app = FastAPI(
         title="Xleuth Matching Engine", version="0.1.0", lifespan=lifespan,
-        description="Legacy matching HTTP surface. V2 trader-signed atomic execution is staged separately and is not wired into POST /orders; the reviewed financial ledger and durable coordinator are required before activation.",
+        description="Legacy matching HTTP surface. Production POST /orders is safety-paused (503 legacy_settlement_disabled) until V2 signed atomic execution, funding, portfolio and durable receipt reconciliation are fully integrated.",
     )
     
     # CORS middleware
@@ -367,6 +371,12 @@ def create_app(config: MatchingConfig | None = None, chain=None, bridge: Settlem
         wallet: str = Depends(get_wallet),
         engine: Engine = Depends(get_engine),
     ) -> dict[str, Any]:
+        # The production legacy submitter calls PositionManager once per
+        # trader. That cannot guarantee a funded matched pair; never let a
+        # newly registered basket accidentally re-enable unsafe execution.
+        # Injected test bridges remain usable for hermetic unit coverage.
+        if isinstance(engine.bridge._submitter, Web3TxSubmitter):
+            raise HTTPException(status_code=503, detail="legacy_settlement_disabled")
         # Task 15: Idempotency-Key replay returns the original order.
         idem_key = (request.headers.get("idempotency-key") or "").strip()[:128]
         if idem_key:

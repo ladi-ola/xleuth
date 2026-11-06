@@ -11,7 +11,7 @@ from xleuth_matching.api import create_app
 from xleuth_matching.config import MatchingConfig
 from xleuth_matching.margin_check import ChainState
 from xleuth_matching.orderbook import OrderType
-from xleuth_matching.settlement import SettlementBridge, TxSubmitter
+from xleuth_matching.settlement import SettlementBridge, TxSubmitter, Web3TxSubmitter
 from xleuth_shared.auth.internal_jwt import InternalJWTError
 
 ALICE = "0x" + "a" * 40
@@ -116,6 +116,18 @@ def make_client(chain: ChainState | None = None, submitter: TxSubmitter | None =
 
 AUTH_ALICE = {"Authorization": f"Bearer test-token-{ALICE}"}
 AUTH_BOB = {"Authorization": f"Bearer test-token-{BOB}"}
+
+
+def test_production_legacy_submitter_refuses_order_before_book_mutation():
+    # No RPC or private key: type alone selects the unsafe production path.
+    client = make_client(submitter=object.__new__(Web3TxSubmitter))
+    response = client.post("/orders", json={
+        "basket_name": "TOP20-JANUARY-2027", "side": "buy", "price": 50.0,
+        "size": 100.0, "leverage": 5,
+    }, headers=AUTH_ALICE)
+    assert response.status_code == 503
+    assert response.json()["detail"] == "legacy_settlement_disabled"
+    assert client.get("/baskets/TOP20-JANUARY-2027/book").json()["bids"] == []
 
 
 def test_requires_bearer_token():

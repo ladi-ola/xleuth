@@ -19,6 +19,7 @@ export const REJECTION_MESSAGES: Record<Exclude<RejectionCode, AuthErrorCode>, s
   insufficient_margin:
     'Insufficient vault margin. Deposit test USDC from your wallet into the vault on the Portfolio page first.',
   basket_not_tradeable: 'This market is not currently tradeable.',
+  legacy_settlement_disabled: 'Trading is paused while secure matched settlement is being prepared. No order was placed.',
   price_not_on_tick: 'Price must be on a valid tick (0.01 increments).',
   size_below_min: `Order size is below the minimum of ${MIN_ORDER_USDC} USDC.`,
   leverage_out_of_range: 'Leverage must be between 1x and 5x.',

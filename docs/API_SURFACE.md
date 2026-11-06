@@ -132,7 +132,7 @@ Ping/pong: `{"action":"ping"}` → `{"type":"pong"}`
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/orders` | Place limit, market, stop, stop_loss, take_profit order |
+| POST | `/orders` | Safety-paused while legacy settlement is in use: 503 `legacy_settlement_disabled`; intended types: limit, market, stop, stop_loss, take_profit |
 | GET | `/orders` | List orders (with status filter, pagination) |
 | GET | `/orders/{order_id}` | Order status + fills |
 | DELETE | `/orders/{order_id}` | Cancel resting order |

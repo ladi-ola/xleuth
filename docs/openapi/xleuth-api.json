@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Xleuth API",
-    "description": "Backend API for Xleuth index futures. New DB basket ingestion uses explicit resolution windows and Data API v2 taker-share volume; scaled prices use up to 3 decimals. V2 signed execution components are staged, not exposed by these HTTP endpoints.",
+    "description": "Backend API for Xleuth index futures. New DB basket ingestion uses explicit resolution windows and Data API v2 taker-share volume; scaled prices use up to 3 decimals. V2 signed execution components are staged; matching-engine POST /orders rejects legacy settlement with 503 legacy_settlement_disabled until safe atomic execution is integrated.",
     "version": "0.1.0"
   },
   "paths": {

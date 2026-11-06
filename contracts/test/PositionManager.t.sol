@@ -38,6 +38,12 @@ contract PositionManagerTest is Test {
 
         vm.prank(owner);
         vault.setPositionManager(address(pm));
+        // PositionManager now requires an explicit immutable basket expiry.
+        // This contract acts as the synthetic settlement engine in legacy
+        // behavior tests; production registration goes via SettlementEngine.
+        vm.prank(owner);
+        pm.setSettlementEngine(address(this));
+        pm.registerBasketExpiry(basketA, 1_000_000_000);
 
         usdc.mint(alice, 100_000 * USD);
         vm.startPrank(alice);
