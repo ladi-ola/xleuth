@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "servers": {
+      "dynamic-docs": {
+        "type": "remote",
+        "url": "https://www.dynamic.xyz/docs/mcp"
+      }
+    }
+  }
+}

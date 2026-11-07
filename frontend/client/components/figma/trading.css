@@ -1,0 +1,132 @@
+/* Market-only coexistence shell: port the Figma terminal layout without
+   leaking selectors into the still-unmigrated Explore/Portfolio/Account UI. */
+.figma-surface.trading-app {
+  --bg: var(--figma-bg);
+  --surface: var(--figma-surface);
+  --surface-soft: var(--figma-surface-soft);
+  --text: var(--figma-text);
+  --text-muted: var(--figma-text-muted);
+  --line: var(--figma-line);
+  --accent: var(--figma-accent);
+  --accent-strong: var(--figma-accent-strong);
+  --signal: var(--figma-signal);
+  --gain: #168a66;
+  --loss: #cf3f5f;
+  min-height: 100vh;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.figma-surface.trading-app[data-figma-theme="dark"] {
+  --gain: #50d2a0;
+  --loss: #ff718b;
+}
+.figma-surface.trading-app, .figma-surface.trading-app *,
+.figma-surface.trading-app *::before, .figma-surface.trading-app *::after { box-sizing: border-box; }
+.figma-surface.trading-app button, .figma-surface.trading-app input { font-family: inherit; }
+.figma-app-skip { position: absolute; top: -60px; left: 12px; z-index: 200; padding: 12px; background: var(--surface); color: var(--text); }
+.figma-app-skip:focus { top: 12px; }
+
+.figma-surface .app-topbar {
+  position: sticky; z-index: 40; top: 0; height: 58px; padding: 0 16px;
+  display: grid; grid-template-columns: 190px 1fr 190px; align-items: center;
+  border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 91%, transparent);
+  backdrop-filter: blur(18px);
+}
+.figma-surface .app-brand { display: flex; align-items: center; gap: 9px; width: max-content; color: var(--text); text-decoration: none; font-weight: 700; font-size: 15px; }
+.figma-surface .app-brand span { width: 27px; height: 27px; display: grid; place-items: center; color: #111217; border-radius: 7px; background: var(--signal); font: 500 11px "DM Mono", monospace; }
+.figma-surface .desktop-app-nav { justify-self: center; display: flex; gap: 4px; }
+.figma-surface .desktop-app-nav a { padding: 10px 15px; color: var(--text-muted); text-decoration: none; font-size: 11px; font-weight: 600; border-radius: 7px; }
+.figma-surface .desktop-app-nav a.active { color: var(--text); background: var(--surface-soft); }
+.figma-surface .app-top-actions { justify-self: end; display: flex; align-items: center; gap: 7px; }
+.figma-surface .network-pill { padding: 6px 8px; display: flex; align-items: center; gap: 6px; color: var(--accent-strong); border: 1px solid var(--line); border-radius: 99px; font: 9px "DM Mono", monospace; text-transform: uppercase; }
+.figma-surface .network-pill i { width: 6px; height: 6px; background: var(--signal); border-radius: 50%; }
+.figma-surface .app-icon-button { width: 35px; height: 35px; display: grid; place-items: center; color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.figma-surface .app-primary { min-height: 38px; padding: 0 16px; color: #fff; background: var(--accent-strong); border: 0; border-radius: 8px; font-size: 11px; font-weight: 700; cursor: pointer; }
+.figma-surface[data-figma-theme="dark"] .app-primary { color: #111217; }
+.figma-surface .account-chip { display: flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 9px 0 5px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); text-decoration: none; font-family: "DM Mono", monospace; font-size: 10px; }
+.figma-surface .account-chip > span { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; background: var(--figma-accent-soft); }
+.figma-surface .app-main { min-height: calc(100vh - 58px); }
+.figma-surface .mobile-tabbar { display: none; }
+
+.figma-surface .market-screen { max-width: 1680px; margin: 0 auto; padding: 12px; }
+.figma-surface .terminal-card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; }
+.figma-surface .market-strip { display: flex; align-items: center; gap: clamp(14px, 2vw, 38px); min-height: 78px; padding: 10px 18px; }
+.figma-surface .basket-select { min-width: 200px; display: flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; }
+.figma-surface .basket-badge { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 7px; background: var(--figma-accent-soft); color: var(--accent-strong); font-family: "DM Mono", monospace; }
+.figma-surface .basket-select b, .figma-surface .basket-select small { display: block; }
+.figma-surface .basket-select b { font-size: 13px; }
+.figma-surface .basket-select small { margin-top: 3px; color: var(--text-muted); font: 9px "DM Mono", monospace; }
+.figma-surface .market-stat { display: flex; flex-direction: column; gap: 6px; }
+.figma-surface .market-stat > span { color: var(--text-muted); font-size: 10px; }
+.figma-surface .market-stat > strong { color: var(--text); font: 500 14px "DM Mono", monospace; }
+.figma-surface .market-stat > strong.gain { color: var(--gain); }
+.figma-surface .market-stat > strong.loss { color: var(--loss); }
+.figma-surface .live-market { margin-left: auto; display: flex; align-items: center; gap: 6px; white-space: nowrap; color: var(--gain); font: 9px "DM Mono", monospace; }
+.figma-surface .live-market i { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.figma-surface .terminal-grid { margin-top: 10px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(250px, 300px) minmax(270px, 320px); gap: 10px; align-items: start; }
+.figma-surface .chart-card { min-width: 0; padding: 12px; }
+.figma-surface .market-chart-label { display: flex; justify-content: space-between; gap: 12px; margin: 8px 0 12px; color: var(--text-muted); font: 10px "DM Mono", monospace; }
+.figma-surface .market-chart-label b { color: var(--text); }
+.figma-surface .figma-chart > div { border: 0; border-radius: 0; background: transparent; padding: 4px; }
+.figma-surface .figma-chart button { border-radius: 5px; }
+.figma-surface .figma-chart button.bg-primary { background: var(--accent-strong); color: var(--bg); }
+.figma-surface .figma-chart > div > div:first-child > div { border-color: var(--line); background: var(--surface-soft); }
+.figma-surface .figma-chart > div > div:nth-child(2) { height: min(52vh, 560px); }
+.figma-surface .panel-title { display: flex; justify-content: space-between; gap: 10px; padding: 12px; border-bottom: 1px solid var(--line); color: var(--text); font-size: 13px; }
+.figma-surface .panel-title span { color: var(--text-muted); font: 10px "DM Mono", monospace; }
+.figma-surface .figma-orderbook { min-width: 0; padding-bottom: 12px; }
+.figma-surface .figma-book-toggle { display: flex; align-items: center; gap: 5px; border: 0; background: transparent; color: var(--text-muted); cursor: pointer; font: 10px "DM Mono", monospace; }
+.figma-surface .figma-orderbook > div:not(.panel-title) > div { border: 0; border-radius: 0; background: transparent; }
+.figma-surface .figma-trade-card { padding: 12px; }
+.figma-surface .figma-trade-card .panel-title { padding: 0 0 12px; }
+.figma-surface .figma-trade-card .trade-options { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 16px; }
+.figma-surface .figma-trade-card .trade-options button { min-height: 42px; border: 0; border-radius: 7px; color: #111217; background: var(--signal); cursor: pointer; font-weight: 700; }
+.figma-surface .figma-trade-card .trade-options button.sell { color: #fff; background: var(--loss); }
+.figma-surface[data-figma-theme="dark"] .figma-trade-card .trade-options button.sell { color: #111217; }
+.figma-surface .figma-trade-card .trade-options button:disabled { opacity: .5; cursor: not-allowed; }
+.figma-surface .figma-trade-card p { color: var(--text-muted); font-size: 11px; line-height: 1.6; }
+.figma-surface .market-details { margin-top: 10px; }
+.figma-surface .market-details > div { border-color: var(--line); background: var(--surface); }
+.figma-surface .market-list { margin-top: 10px; padding: 14px; }
+.figma-surface .market-list h2 { margin: 0 0 10px; font-size: 13px; }
+.figma-surface .market-list-items { display: flex; flex-wrap: wrap; gap: 6px; }
+.figma-surface .market-list-items a { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; color: var(--text-muted); text-decoration: none; font-size: 11px; }
+.figma-surface .market-list-items a[aria-current="page"] { color: var(--accent-strong); border-color: var(--accent); background: var(--figma-accent-soft); }
+.figma-surface .mobile-market-tabs { display: none; }
+.figma-surface .mobile-trade-actions { display: none; }
+.figma-surface .market-status { max-width: 900px; min-height: 50vh; margin: 24px auto; padding: 24px; }
+
+/* Preserve the real trade ticket and all of its fields, replacing its chrome
+   only. The modal's state, validation and submission logic remain untouched. */
+.figma-surface [role="dialog"][aria-label="Trade"] > div:nth-child(2) { background: var(--surface); color: var(--text); border-color: var(--line); border-radius: 12px; font-family: "Manrope", sans-serif; }
+.figma-surface [role="dialog"][aria-label="Trade"] input { font-size: max(16px, 1rem); }
+.figma-surface [role="dialog"][aria-label="Trade"] button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (max-width: 1100px) {
+  .figma-surface .terminal-grid { grid-template-columns: minmax(0, 1fr) minmax(270px, 320px); }
+  .figma-surface .figma-orderbook { grid-column: 1; grid-row: 2; }
+  .figma-surface .figma-trade-card { grid-column: 2; grid-row: 1 / span 2; }
+  .figma-surface .market-strip { flex-wrap: wrap; }
+}
+@media (max-width: 767px) {
+  .figma-surface .app-topbar { grid-template-columns: 1fr auto; padding: 0 12px; }
+  .figma-surface .desktop-app-nav, .figma-surface .network-pill { display: none; }
+  .figma-surface .market-screen { padding: 8px 8px 150px; }
+  .figma-surface .market-strip { gap: 12px 18px; }
+  .figma-surface .basket-select { min-width: 100%; }
+  .figma-surface .live-market { margin-left: 0; }
+  .figma-surface .mobile-market-tabs { display: flex; gap: 4px; margin-top: 8px; padding: 4px; background: var(--surface-soft); border-radius: 8px; }
+  .figma-surface .mobile-market-tabs button { flex: 1; min-height: 40px; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); cursor: pointer; }
+  .figma-surface .mobile-market-tabs button.active { color: var(--text); background: var(--surface); }
+  .figma-surface .terminal-grid { display: block; }
+  .figma-surface .terminal-grid > * { margin-bottom: 8px; }
+  .figma-surface .terminal-grid > .mobile-hide { display: none; }
+  .figma-surface .figma-chart > div > div:nth-child(2) { height: 330px; }
+  .figma-surface .mobile-tabbar { position: fixed; z-index: 35; right: 0; bottom: 0; left: 0; display: flex; justify-content: space-around; padding: 10px max(10px, env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line); }
+  .figma-surface .mobile-trade-actions { position: fixed; z-index: 34; bottom: calc(59px + env(safe-area-inset-bottom)); right: 0; left: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 8px; background: var(--bg); border-top: 1px solid var(--line); }
+  .figma-surface .mobile-trade-actions button { min-height: 42px; border: 0; border-radius: 7px; background: var(--signal); color: #111217; font-weight: 700; cursor: pointer; }
+  .figma-surface .mobile-trade-actions button.sell { background: var(--loss); color: #fff; }
+  .figma-surface[data-figma-theme="dark"] .mobile-trade-actions button.sell { color: #111217; }
+  .figma-surface .mobile-tabbar a { padding: 8px; color: var(--text-muted); text-decoration: none; font-size: 11px; }
+  .figma-surface .mobile-tabbar a.active { color: var(--accent-strong); font-weight: 700; }
+}

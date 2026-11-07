@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { useParams } from "react-router-dom";
-import { Eye, EyeOff } from "lucide-react";
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import {
   useBaskets,
@@ -17,24 +16,16 @@ import {
   buildOrder,
 } from "@/lib/api/adapters";
 import { useToast } from "@/hooks/use-toast";
-import { Layout } from "@/components/xleuth/Layout";
-import { IndexHeader } from "@/components/xleuth/IndexHeader";
-import { PriceChart } from "@/components/xleuth/PriceChart";
-import { OrderBook } from "@/components/xleuth/OrderBook";
-import { IndexDetailsCard } from "@/components/xleuth/IndexDetailsCard";
-import { TradeButtons } from "@/components/xleuth/TradeButtons";
+import { FigmaAppShell } from "@/components/figma/FigmaAppShell";
+import { FigmaMarketsView } from "@/components/figma/FigmaMarketsView";
 import {
   TradeModal,
   type TradeSubmission,
 } from "@/components/xleuth/TradeModal";
 import { OrderResultModal } from "@/components/xleuth/OrderResultModal";
 import { SignInSheet } from "@/components/xleuth/SignInSheet";
-import { SegmentedControl } from "@/components/xleuth/SegmentedControl";
 import { EmptyState } from "@/components/xleuth/EmptyState";
 import { usePageMeta } from "@/hooks/use-page-meta";
-import { useIsTablet } from "@/hooks/use-media-query";
-
-type Tab = "chart" | "order-book";
 type Order = { side: "buy" | "sell"; amount: number; leverage: number };
 
 function basketNameFromSlug(
@@ -62,15 +53,12 @@ export default function Markets() {
       "Trade leveraged index futures on prediction-market baskets. Live prices, order book and 5x leverage on Polygon Amoy testnet.",
     path: slug ? `/market/${slug}` : "/app",
   });
-  const [tab, setTab] = useState<Tab>("chart");
-  const [showOrderBook, setShowOrderBook] = useState(true);
   const [tradeSide, setTradeSide] = useState<"buy" | "sell" | null>(null);
   const [showSignIn, setShowSignIn] = useState(false);
   const [filledOrder, setFilledOrder] = useState<Order | null>(null);
   const { user } = useDynamicContext();
   const { toast } = useToast();
   const placeOrder = usePlaceOrder();
-  const isTablet = useIsTablet();
 
   // Phase 3: public reads. Basket -> price -> candles/book/constituents.
   const { data: basketList, isLoading: basketsLoading } = useBaskets();
@@ -88,19 +76,19 @@ export default function Markets() {
 
   if (basketsLoading) {
     return (
-      <Layout>
+      <FigmaAppShell>
         <EmptyState
           title="Loading markets"
           caption="Fetching live market data"
         />
-      </Layout>
+      </FigmaAppShell>
     );
   }
 
   if (!apiBasket || !basketName) {
     const unknownSlug = slug && basketOptions.length > 0;
     return (
-      <Layout>
+      <FigmaAppShell>
         <EmptyState
           title={
             unknownSlug ? `Unknown basket "${slug}"` : "Markets unavailable"
@@ -111,7 +99,7 @@ export default function Markets() {
               : "Could not load markets"
           }
         />
-      </Layout>
+      </FigmaAppShell>
     );
   }
 
@@ -275,117 +263,17 @@ export default function Markets() {
   };
 
   return (
-    <Layout width="full">
-      {isTablet ? (
-        <div className="@container flex w-full flex-col gap-5">
-          <IndexHeader basket={basket} className="px-0 pt-0" />
-
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Chart
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowOrderBook((visible) => !visible)}
-              aria-pressed={showOrderBook}
-              aria-controls="desktop-order-book"
-              className="flex items-center gap-1.5 rounded-lg border-[0.4px] border-border bg-muted px-2.5 py-1.5 text-[10px] font-medium text-foreground/80 transition-colors hover:bg-muted hover:text-foreground"
-            >
-              {showOrderBook ? (
-                <EyeOff className="h-3.5 w-3.5" strokeWidth={1.6} />
-              ) : (
-                <Eye className="h-3.5 w-3.5" strokeWidth={1.6} />
-              )}
-              {showOrderBook ? "Hide order book" : "Show order book"}
-            </button>
-          </div>
-
-          <div className="flex flex-col gap-4 @min-[1000px]:flex-row @min-[1000px]:items-start">
-            {/* Chart hero, with the trade ticket at its foot and the index
-                details beneath. It grows into any space freed by hiding the
-                order book. */}
-            <div className="flex min-w-0 flex-1 flex-col gap-4">
-              <PriceChart
-                candles={candles}
-                footer={
-                  <div className="flex flex-col gap-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-foreground">
-                        {basket.symbol}
-                      </span>
-                      <span className="text-[9px] font-light text-muted-foreground">
-                        Amoy Testnet
-                      </span>
-                    </div>
-
-                    <TradeButtons
-                      variant="inline"
-                      onSell={() => openTrade("sell")}
-                      onBuy={() => openTrade("buy")}
-                    />
-
-                    <p className="text-center text-[9px] leading-[10px] text-muted-foreground">
-                      Choose a side to open the order ticket.
-                    </p>
-                  </div>
-                }
-              />
-              <IndexDetailsCard basket={basket} constituents={constituents} />
-            </div>
-
-            {/* Optional order book column. Hidden via the toggle above, which
-                lets the chart reclaim the full width. It stacks below the
-                chart until there is room for the two-column desktop layout. */}
-            {showOrderBook ? (
-              <aside
-                id="desktop-order-book"
-                aria-label="Order book"
-                className="min-w-0 @min-[1000px]:sticky @min-[1000px]:top-5 @min-[1000px]:w-[320px] @min-[1000px]:flex-shrink-0 @min-[1240px]:w-[360px]"
-              >
-                <OrderBook
-                  priceLabel={basket.priceLabel}
-                  buys={orderBook?.buys}
-                  sells={orderBook?.sells}
-                />
-              </aside>
-            ) : null}
-          </div>
-        </div>
-      ) : (
-        <>
-          <IndexHeader basket={basket} />
-
-          <div className="mx-4 mt-5">
-            <SegmentedControl
-              value={tab}
-              onChange={(v) => setTab(v as Tab)}
-              options={[
-                { value: "chart", label: "Chart" },
-                { value: "order-book", label: "Order book" },
-              ]}
-              className="h-8 uppercase"
-            />
-          </div>
-
-          <div className="mt-3 flex flex-col gap-3 px-4">
-            {tab === "chart" ? (
-              <PriceChart candles={candles} />
-            ) : (
-              <OrderBook
-                priceLabel={basket.priceLabel}
-                buys={orderBook?.buys}
-                sells={orderBook?.sells}
-              />
-            )}
-            <IndexDetailsCard basket={basket} constituents={constituents} />
-          </div>
-
-          <TradeButtons
-            onSell={() => openTrade("sell")}
-            onBuy={() => openTrade("buy")}
-          />
-        </>
-      )}
+    <FigmaAppShell>
+      <FigmaMarketsView
+        basket={basket}
+        basketName={basketName}
+        basketOptions={basketOptions}
+        candles={candles}
+        orderBook={orderBook}
+        constituents={constituents}
+        signedIn={!!user}
+        onTrade={openTrade}
+      />
 
       {tradeSide && (
         <TradeModal
@@ -407,6 +295,6 @@ export default function Markets() {
       {showSignIn && (
         <SignInSheet basket={basket} onClose={() => setShowSignIn(false)} />
       )}
-    </Layout>
+    </FigmaAppShell>
   );
 }

@@ -1,9 +1,6 @@
 import { useState } from "react";
-import { Search } from "lucide-react";
-import { Layout } from "@/components/xleuth/Layout";
-import { SegmentedControl } from "@/components/xleuth/SegmentedControl";
-import { MarketCard } from "@/components/xleuth/MarketCard";
-import { EmptyState } from "@/components/xleuth/EmptyState";
+import { FigmaAppShell } from "@/components/figma/FigmaAppShell";
+import { FigmaExploreView } from "@/components/figma/FigmaExploreView";
 import type { BasketStatus } from "@/lib/market-data";
 import { useBaskets, useBasketPrices } from "@/lib/api/hooks";
 import { adaptBasket } from "@/lib/api/adapters";
@@ -19,59 +16,32 @@ export default function Explore() {
   const [tab, setTab] = useState<BasketStatus>("active");
   const [query, setQuery] = useState("");
 
-  const { data: basketList } = useBaskets();
+  const { data: basketList, isPending, isError, refetch } = useBaskets();
   const basketOptions = basketList?.baskets ?? [];
-  const prices = useBasketPrices(basketOptions.map((b) => b.basket_name));
-
+  const prices = useBasketPrices(basketOptions.map((basket) => basket.basket_name));
   const baskets = basketOptions.map((basket, index) =>
     adaptBasket(basket, prices[index]?.data),
   );
-
+  const search = query.trim().toLowerCase();
   const filtered = baskets.filter(
     (basket) =>
       basket.status === tab &&
-      basket.listName.toLowerCase().includes(query.trim().toLowerCase()),
+      (basket.listName.toLowerCase().includes(search) ||
+        basket.symbol.toLowerCase().includes(search)),
   );
 
   return (
-    <Layout width="lg">
-      <div className="flex flex-col gap-4 px-4 pt-4 md:px-0 md:pt-0">
-        <label className="flex h-10 items-center gap-2 rounded-lg border-[0.2px] border-border bg-muted px-2">
-          <Search
-            className="h-4 w-4 p-0.5 text-muted-foreground"
-            strokeWidth={1.4}
-          />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search"
-            className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-muted-foreground"
-          />
-        </label>
-
-        <SegmentedControl
-          value={tab}
-          onChange={(v) => setTab(v as BasketStatus)}
-          options={[
-            { value: "active", label: "Active" },
-            { value: "upcoming", label: "Upcoming" },
-            { value: "resolved", label: "Resolved" },
-          ]}
-        />
-
-        <div className="flex flex-col gap-2">
-          {filtered.length > 0 ? (
-            filtered.map((basket) => (
-              <MarketCard key={basket.slug} basket={basket} />
-            ))
-          ) : (
-            <EmptyState
-              title="No markets found"
-              caption="Try a different search or tab"
-            />
-          )}
-        </div>
-      </div>
-    </Layout>
+    <FigmaAppShell>
+      <FigmaExploreView
+        tab={tab}
+        onTabChange={setTab}
+        query={query}
+        onQueryChange={setQuery}
+        baskets={filtered}
+        isLoading={isPending}
+        isError={isError}
+        onRetry={() => { void refetch(); }}
+      />
+    </FigmaAppShell>
   );
 }
