@@ -19,8 +19,8 @@ import {
   adaptHistoryOrder,
   adaptTransaction,
 } from "@/lib/api/adapters";
-import { FigmaAppShell } from "@/components/figma/FigmaAppShell";
-import { FigmaPortfolioView, type PortfolioTab } from "@/components/figma/FigmaPortfolioView";
+import { AppShell } from "@/components/xleuth/AppShell";
+import { PortfolioView, type PortfolioTab } from "@/components/xleuth/PortfolioView";
 import { SignInSheet } from "@/components/xleuth/SignInSheet";
 import { useToast } from "@/hooks/use-toast";
 import { getBasket } from "@/lib/market-data";
@@ -97,8 +97,8 @@ export default function Portfolio() {
   };
 
   return (
-    <FigmaAppShell>
-      <FigmaPortfolioView
+    <AppShell>
+      <PortfolioView
         tab={tab}
         onTabChange={setTab}
         summary={summary}
@@ -120,6 +120,6 @@ export default function Portfolio() {
           onClose={() => setShowSignIn(false)}
         />
       )}
-    </FigmaAppShell>
+    </AppShell>
   );
 }

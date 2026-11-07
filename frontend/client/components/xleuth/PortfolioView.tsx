@@ -26,7 +26,7 @@ function nullablePrice(amount: number | null | undefined) {
   return amount == null || !Number.isFinite(amount) ? "—" : amount.toFixed(3);
 }
 
-export function FigmaPortfolioView({ tab, onTabChange, summary, positions, rawPositions, openOrders, historyOrders, isCancelling, onCancel, isClaiming, isDepositing, onClaim, onDeposit, onWithdraw }: {
+export function PortfolioView({ tab, onTabChange, summary, positions, rawPositions, openOrders, historyOrders, isCancelling, onCancel, isClaiming, isDepositing, onClaim, onDeposit, onWithdraw }: {
   tab: PortfolioTab;
   onTabChange: (tab: PortfolioTab) => void;
   summary: Summary | null;
@@ -44,7 +44,7 @@ export function FigmaPortfolioView({ tab, onTabChange, summary, positions, rawPo
 }) {
   const { user, setShowAuthFlow } = useDynamicContext();
   if (!user) return (
-    <div className="app-page centered-page figma-account-portfolio">
+    <div className="app-page centered-page xleuth-account-portfolio">
       <div className="auth-prompt"><span className="account-orb">X</span><h1>Your portfolio, in one view.</h1><p>Sign in to view balances, positions, and order history.</p><button type="button" className="app-primary" onClick={() => setShowAuthFlow(true)}>Sign in</button></div>
     </div>
   );
@@ -58,7 +58,7 @@ export function FigmaPortfolioView({ tab, onTabChange, summary, positions, rawPo
   const originalById = new Map(rawPositions.map(position => [position.position_id, position]));
 
   return (
-    <div className="app-page figma-account-portfolio">
+    <div className="app-page xleuth-account-portfolio">
       <div className="page-heading"><div><span className="app-kicker">Overview</span><h1>Portfolio</h1><p>Your testnet balance and active exposure.</p></div></div>
       <div className="summary-grid">{values.map(([label, value, note]) => <article className="summary-card terminal-card" key={label}><span>{label}</span><strong className={label === "Unrealized PnL" && (summary?.unrealizedPnl ?? 0) < 0 ? "loss" : label === "Unrealized PnL" && summary ? "gain" : ""}>{value}</strong><small>{note}</small></article>)}</div>
       <section className="portfolio-funds terminal-card" aria-label="Testnet funds">

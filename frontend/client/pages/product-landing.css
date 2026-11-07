@@ -1,60 +1,61 @@
 /* Ported from frontend-source-code/src/index.css. Scope every selector so the
    landing page cannot override the legacy trading UI during coexistence. */
-.figma-surface {
-  --bg: var(--figma-bg);
-  --surface: var(--figma-surface);
-  --surface-soft: var(--figma-surface-soft);
-  --surface-strong: var(--figma-surface-strong);
-  --text: var(--figma-text);
-  --text-muted: var(--figma-text-muted);
-  --line: var(--figma-line);
-  --line-strong: var(--figma-line-strong);
-  --accent: var(--figma-accent);
-  --accent-strong: var(--figma-accent-strong);
-  --accent-soft: var(--figma-accent-soft);
-  --signal: var(--figma-signal);
-  --danger: var(--figma-danger);
-  --shadow: var(--figma-shadow);
-  --radius: var(--figma-radius);
+.xleuth-surface {
+  --bg: var(--xleuth-bg);
+  --surface: var(--xleuth-surface);
+  --surface-soft: var(--xleuth-surface-soft);
+  --surface-strong: var(--xleuth-surface-strong);
+  --text: var(--xleuth-text);
+  --text-muted: var(--xleuth-text-muted);
+  --line: var(--xleuth-line);
+  --line-strong: var(--xleuth-line-strong);
+  --accent: var(--xleuth-accent);
+  --accent-strong: var(--xleuth-accent-strong);
+  --accent-soft: var(--xleuth-accent-soft);
+  --signal: var(--xleuth-signal);
+  --danger: var(--xleuth-danger);
+  --shadow: var(--xleuth-shadow);
+  --radius: var(--xleuth-radius);
   scroll-behavior: smooth;
 }
+.xleuth-surface.site { width: 100%; max-width: 100%; overflow-x: clip; }
 
-.figma-surface, .figma-surface *, .figma-surface *::before, .figma-surface *::after {
+.xleuth-surface, .xleuth-surface *, .xleuth-surface *::before, .xleuth-surface *::after {
   box-sizing: border-box;
 }
-.figma-surface button, .figma-surface input { font-family: inherit; }
+.xleuth-surface button, .xleuth-surface input { font-family: inherit; }
 
 /* Port-specific adaptations: real API data and non-interactive landing preview. */
-.figma-surface .figma-skip {
+.xleuth-surface .xleuth-skip {
   position: absolute;
   left: 16px;
   top: -60px;
   z-index: 100;
   padding: 12px;
-  color: var(--figma-text);
-  background: var(--figma-surface);
+  color: var(--xleuth-text);
+  background: var(--xleuth-surface);
 }
-.figma-surface .figma-skip:focus { top: 12px; }
-.figma-surface .preview-empty {
+.xleuth-surface .xleuth-skip:focus { top: 12px; }
+.xleuth-surface .preview-empty {
   height: 100%;
   display: grid;
   place-items: center;
   color: #aaa;
   font-size: 12px;
 }
-.figma-surface .preview-market-name {
+.xleuth-surface .preview-market-name {
   display: block;
   margin: 7px 0 0;
   font-size: 21px;
   font-weight: 500;
   letter-spacing: -0.03em;
 }
-.figma-surface .side-toggle button:disabled { cursor: default; }
-.figma-surface[data-figma-theme="dark"] .button-primary { color: #111217; }
-.figma-surface .basket-row { grid-template-columns: auto 1fr; }
-.figma-surface .basket-row p { margin: 0; text-align: right; }
-.figma-surface .trade-button { text-decoration: none; }
-.figma-surface .figma-honeypot {
+.xleuth-surface .side-toggle button:disabled { cursor: default; }
+.xleuth-surface[data-xleuth-theme="dark"] .button-primary { color: #111217; }
+.xleuth-surface .basket-row { grid-template-columns: auto 1fr; }
+.xleuth-surface .basket-row p { margin: 0; text-align: right; }
+.xleuth-surface .trade-button { text-decoration: none; }
+.xleuth-surface .xleuth-honeypot {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -63,15 +64,15 @@
   white-space: nowrap;
 }
 @media (max-width: 700px) {
-  .figma-surface .preview-stage { height: 390px; }
+  .xleuth-surface .preview-stage { height: 390px; }
 }
 @media (min-width: 701px) {
-  .figma-surface .feature-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .xleuth-surface .feature-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .figma-surface { scroll-behavior: auto; }
+  .xleuth-surface { scroll-behavior: auto; }
 }
-@scope (.figma-surface) {
+@scope (.xleuth-surface) {
 .site {
   overflow: hidden;
   background: var(--bg);
@@ -370,7 +371,7 @@
 }
 .product-tabs span {
   padding: 6px 12px;
-  color: #747780;
+  color: #979aa4;
   border-radius: 5px;
   font-size: 9px;
 }
@@ -409,7 +410,7 @@
 }
 .eyebrow,
 .basket-row > span {
-  color: #777a84;
+  color: #979aa4;
   font-family: "DM Mono";
   font-size: 8px;
   letter-spacing: 0.13em;
@@ -527,7 +528,7 @@
   background: #693140;
 }
 .basket-row p {
-  color: #777a84;
+  color: #979aa4;
   font-size: 9px;
 }
 .order-panel {
@@ -580,7 +581,7 @@
   margin: 14px 0 7px;
   display: flex;
   justify-content: space-between;
-  color: #777a84;
+  color: #979aa4;
   font-size: 8px;
 }
 .order-label b {
@@ -620,7 +621,7 @@
 }
 .quick-amounts button {
   padding: 5px;
-  color: #747780;
+  color: #979aa4;
   border: 1px solid #292b31;
   border-radius: 4px;
   background: transparent;
@@ -669,7 +670,7 @@
   margin: 0 0 8px;
   display: flex;
   justify-content: space-between;
-  color: #72757e;
+  color: #979aa4;
   font-size: 8px;
 }
 .order-summary p:last-child {
@@ -863,7 +864,7 @@
   text-align: center;
 }
 .centered-heading .kicker {
-  color: var(--signal);
+  color: var(--bg);
 }
 .centered-heading h2 em {
   color: color-mix(in srgb, var(--bg) 52%, transparent);
@@ -885,7 +886,7 @@
   display: flex;
   align-items: center;
   gap: 15px;
-  color: color-mix(in srgb, var(--bg) 52%, transparent);
+  color: color-mix(in srgb, var(--bg) 80%, transparent);
   font-family: "DM Mono";
   font-size: 9px;
 }
@@ -946,7 +947,7 @@
   display: flex;
   align-items: end;
   justify-content: center;
-  color: color-mix(in srgb, var(--bg) 45%, transparent);
+  color: color-mix(in srgb, var(--bg) 80%, transparent);
   border: 1px solid color-mix(in srgb, var(--bg) 14%, transparent);
   border-radius: 5px;
   font-family: "DM Mono";
@@ -1283,7 +1284,7 @@ footer {
   display: flex;
   justify-content: space-between;
   gap: 50px;
-  color: #63656c;
+  color: #9a9ca3;
   border-top: 1px solid #25272c;
   font-family: "DM Mono";
   font-size: 8px;

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { joinWaitlist } from "./FigmaWaitlistForm";
+import { joinWaitlist } from "./WaitlistForm";
 
 afterEach(() => vi.unstubAllGlobals());
 

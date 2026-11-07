@@ -23,7 +23,7 @@ export async function joinWaitlist(
   throw new Error("The waitlist is unavailable. Please try again later.");
 }
 
-export function FigmaWaitlistForm() {
+export function WaitlistForm() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [website, setWebsite] = useState("");
@@ -84,10 +84,10 @@ export function FigmaWaitlistForm() {
 
   return (
     <form onSubmit={submit} noValidate>
-      <div className="field"><label htmlFor="figma-waitlist-name">Name</label><input ref={nameRef} id="figma-waitlist-name" name="name" autoComplete="name" value={name} onChange={event => setName(event.target.value)} placeholder="Your name" aria-invalid={invalidField === "name"} aria-describedby={invalidField === "name" ? "figma-form-error" : undefined} /></div>
-      <div className="field"><label htmlFor="figma-waitlist-email">Email</label><input ref={emailRef} id="figma-waitlist-email" name="email" type="email" inputMode="email" autoComplete="email" spellCheck={false} value={email} onChange={event => setEmail(event.target.value)} placeholder="you@company.com" aria-invalid={invalidField === "email"} aria-describedby={invalidField === "email" ? "figma-form-error" : undefined} /></div>
-      <div className="figma-honeypot" aria-hidden="true"><label htmlFor="figma-waitlist-website">Website</label><input id="figma-waitlist-website" name="website" tabIndex={-1} autoComplete="off" value={website} onChange={event => setWebsite(event.target.value)} /></div>
-      {error && <p className="form-error" id="figma-form-error" role="alert">{error}</p>}
+      <div className="field"><label htmlFor="xleuth-waitlist-name">Name</label><input ref={nameRef} id="xleuth-waitlist-name" name="name" autoComplete="name" value={name} onChange={event => setName(event.target.value)} placeholder="Your name" aria-invalid={invalidField === "name"} aria-describedby={invalidField === "name" ? "xleuth-form-error" : undefined} /></div>
+      <div className="field"><label htmlFor="xleuth-waitlist-email">Email</label><input ref={emailRef} id="xleuth-waitlist-email" name="email" type="email" inputMode="email" autoComplete="email" spellCheck={false} value={email} onChange={event => setEmail(event.target.value)} placeholder="you@company.com" aria-invalid={invalidField === "email"} aria-describedby={invalidField === "email" ? "xleuth-form-error" : undefined} /></div>
+      <div className="xleuth-honeypot" aria-hidden="true"><label htmlFor="xleuth-waitlist-website">Website</label><input id="xleuth-waitlist-website" name="website" tabIndex={-1} autoComplete="off" value={website} onChange={event => setWebsite(event.target.value)} /></div>
+      {error && <p className="form-error" id="xleuth-form-error" role="alert">{error}</p>}
       <button className="button button-primary submit-button" type="submit" disabled={formState === "loading"}>{formState === "loading" ? <><span className="spinner" aria-hidden="true" /> Joining…</> : <>Join waitlist <ArrowUpRight /></>}</button>
       <p className="consent">By joining, you agree to receive product updates from Xleuth. Unsubscribe anytime.</p>
     </form>

@@ -1,13 +1,13 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight, ThemeIcon } from "@/components/figma/Primitives";
-import { FigmaWaitlistForm } from "@/components/figma/FigmaWaitlistForm";
+import { ArrowUpRight, ThemeIcon } from "@/components/xleuth/Primitives";
+import { WaitlistForm } from "@/components/xleuth/WaitlistForm";
 import { backendApi } from "@/lib/api/backend";
 import type { BasketInfo, BasketPriceResponseWithChange, PricePoint } from "@/lib/api/schemas";
 import { formatPercentDelta } from "@/lib/format";
 import { usePageMeta } from "@/hooks/use-page-meta";
-import "@/components/figma/foundation.css";
-import "./figma-landing.css";
+import "@/components/xleuth/foundation.css";
+import "./product-landing.css";
 
 type Theme = "light" | "dark";
 
@@ -132,8 +132,8 @@ export default function Landing() {
   usePageMeta({ title: "Xleuth — Trade the signal, not the noise", description: "Leveraged index baskets for prediction markets. One position, a wider view.", path: "/", image: "/favicon.png" });
 
   return (
-    <div className="figma-surface site" data-figma-theme={theme}>
-      <a className="figma-skip" href="#main-content">Skip to content</a>
+    <div className="xleuth-surface site" data-xleuth-theme={theme}>
+      <a className="xleuth-skip" href="#main-content">Skip to content</a>
       <header className="nav-wrap">
         <nav className="nav container" aria-label="Main navigation">
           <Link to="/" className="wordmark" aria-label="Xleuth home">Xleuth<span>.</span></Link>
@@ -173,7 +173,7 @@ export default function Landing() {
 
         <section className="section statement-section container"><span className="kicker">Trade the whole story</span><p className="statement">Markets move together.<br /><em>Your positions should, too.</em></p><div className="orbit-graphic" aria-hidden="true"><div className="orbit orbit-a"><i /><i /><i /><i /></div><div className="orbit orbit-b"><i /><i /><i /></div><div className="orbit-center">X</div></div></section>
 
-        <section className="section waitlist-section" id="waitlist"><div className="ambient ambient-two" /><div className="container waitlist-inner"><div className="waitlist-copy"><span className="kicker">Mainnet access</span><h2>Get early access<br />to <em>mainnet.</em></h2><p>Join the list for product updates and first access when Xleuth moves beyond testnet.</p></div><div className="form-card"><FigmaWaitlistForm /></div></div></section>
+        <section className="section waitlist-section" id="waitlist"><div className="ambient ambient-two" /><div className="container waitlist-inner"><div className="waitlist-copy"><span className="kicker">Mainnet access</span><h2>Get early access<br />to <em>mainnet.</em></h2><p>Join the list for product updates and first access when Xleuth moves beyond testnet.</p></div><div className="form-card"><WaitlistForm /></div></div></section>
       </main>
 
       <footer><div className="container footer-top"><div><Link to="/" className="wordmark footer-wordmark">Xleuth<span>.</span></Link><p>A wider view of prediction markets.</p></div><div className="footer-links"><a href="#how">How it works</a><a href="#features">Features</a><a href="#waitlist">Waitlist</a></div><Link className="button button-light" to="/app">Launch App <ArrowUpRight /></Link></div><div className="container footer-bottom"><p>Xleuth is currently on testnet. Leveraged trading involves significant risk and may not be suitable for everyone.</p><span>© {new Date().getFullYear()} Xleuth</span></div></footer>

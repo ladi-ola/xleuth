@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { FigmaAppShell } from "@/components/figma/FigmaAppShell";
-import { FigmaExploreView } from "@/components/figma/FigmaExploreView";
+import { AppShell } from "@/components/xleuth/AppShell";
+import { ExploreView } from "@/components/xleuth/ExploreView";
 import type { BasketStatus } from "@/lib/market-data";
 import { useBaskets, useBasketPrices } from "@/lib/api/hooks";
 import { adaptBasket } from "@/lib/api/adapters";
@@ -31,8 +31,8 @@ export default function Explore() {
   );
 
   return (
-    <FigmaAppShell>
-      <FigmaExploreView
+    <AppShell>
+      <ExploreView
         tab={tab}
         onTabChange={setTab}
         query={query}
@@ -42,6 +42,6 @@ export default function Explore() {
         isError={isError}
         onRetry={() => { void refetch(); }}
       />
-    </FigmaAppShell>
+    </AppShell>
   );
 }

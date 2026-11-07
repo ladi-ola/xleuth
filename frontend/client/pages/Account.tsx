@@ -1,8 +1,8 @@
 import { useDynamicContext } from "@dynamic-labs/sdk-react-core";
 import { useToast } from "@/hooks/use-toast";
 import { useFaucetClaim, useAccount } from "@/lib/api/hooks";
-import { FigmaAppShell } from "@/components/figma/FigmaAppShell";
-import { FigmaAccountView } from "@/components/figma/FigmaAccountView";
+import { AppShell } from "@/components/xleuth/AppShell";
+import { AccountView } from "@/components/xleuth/AccountView";
 import { usePageMeta } from "@/hooks/use-page-meta";
 
 function getInitials(name: string) {
@@ -50,8 +50,8 @@ export default function Account() {
   };
 
   return (
-    <FigmaAppShell>
-      <FigmaAccountView
+    <AppShell>
+      <AccountView
         signedIn={!!user}
         displayName={displayName}
         initials={initials}
@@ -64,6 +64,6 @@ export default function Account() {
         onClaim={handleClaimFaucet}
         onCopyAddress={handleCopyAddress}
       />
-    </FigmaAppShell>
+    </AppShell>
   );
 }

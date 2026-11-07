@@ -11,7 +11,7 @@ const statuses: { value: BasketStatus; label: string }[] = [
 ];
 
 /** Displays only API-backed baskets, keeping the page's existing query/adapters. */
-export function FigmaExploreView({ tab, onTabChange, query, onQueryChange, baskets, isLoading, isError, onRetry }: {
+export function ExploreView({ tab, onTabChange, query, onQueryChange, baskets, isLoading, isError, onRetry }: {
   tab: BasketStatus;
   onTabChange: (value: BasketStatus) => void;
   query: string;
@@ -22,14 +22,14 @@ export function FigmaExploreView({ tab, onTabChange, query, onQueryChange, baske
   onRetry: () => void;
 }) {
   return (
-    <div className="app-page figma-explore">
+    <div className="app-page xleuth-explore">
       <div className="page-heading">
         <div><span className="app-kicker">Discover</span><h1>Explore baskets</h1><p>Prediction-market indices built around a single thesis.</p></div>
         <span className="testnet-pill">Testnet data</span>
       </div>
       <div className="explore-tools">
         <label className="search-field"><Search size={16} aria-hidden="true" /><input type="search" aria-label="Search baskets" value={query} onChange={event => onQueryChange(event.target.value)} placeholder="Search by basket or ticker" /></label>
-        <button className="app-ghost" type="button" disabled title="Live basket data refreshes automatically">Refresh</button>
+        <button className="app-ghost" type="button" onClick={onRetry} disabled={isLoading}>Refresh</button>
       </div>
       <div className="explore-statuses" role="group" aria-label="Market status">
         {statuses.map(({ value, label }) => <button key={value} type="button" aria-pressed={tab === value} className={tab === value ? "active" : ""} onClick={() => onTabChange(value)}>{label}</button>)}

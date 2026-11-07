@@ -16,8 +16,9 @@ import {
   buildOrder,
 } from "@/lib/api/adapters";
 import { useToast } from "@/hooks/use-toast";
-import { FigmaAppShell } from "@/components/figma/FigmaAppShell";
-import { FigmaMarketsView } from "@/components/figma/FigmaMarketsView";
+import { AppShell } from "@/components/xleuth/AppShell";
+import { MarketsView } from "@/components/xleuth/MarketsView";
+import { CHART_RANGES, type ChartRange } from "@/components/xleuth/chart-ranges";
 import {
   TradeModal,
   type TradeSubmission,
@@ -54,6 +55,7 @@ export default function Markets() {
     path: slug ? `/market/${slug}` : "/app",
   });
   const [tradeSide, setTradeSide] = useState<"buy" | "sell" | null>(null);
+  const [chartRange, setChartRange] = useState<ChartRange>("1D");
   const [showSignIn, setShowSignIn] = useState(false);
   const [filledOrder, setFilledOrder] = useState<Order | null>(null);
   const { user } = useDynamicContext();
@@ -67,28 +69,25 @@ export default function Markets() {
   const apiBasket = basketOptions.find((b) => b.basket_name === basketName);
 
   const { data: priceData } = useBasketPrice(basketName);
-  const { data: candlesData } = useCandles(basketName, {
-    interval: "15m",
-    limit: 180,
-  });
+  const { data: candlesData } = useCandles(basketName, CHART_RANGES[chartRange]);
   const { data: orderBookData } = useOrderBook(basketName);
   const { data: constituentsData } = useBasketConstituents(basketName);
 
   if (basketsLoading) {
     return (
-      <FigmaAppShell>
+      <AppShell>
         <EmptyState
           title="Loading markets"
           caption="Fetching live market data"
         />
-      </FigmaAppShell>
+      </AppShell>
     );
   }
 
   if (!apiBasket || !basketName) {
     const unknownSlug = slug && basketOptions.length > 0;
     return (
-      <FigmaAppShell>
+      <AppShell>
         <EmptyState
           title={
             unknownSlug ? `Unknown basket "${slug}"` : "Markets unavailable"
@@ -99,7 +98,7 @@ export default function Markets() {
               : "Could not load markets"
           }
         />
-      </FigmaAppShell>
+      </AppShell>
     );
   }
 
@@ -263,12 +262,14 @@ export default function Markets() {
   };
 
   return (
-    <FigmaAppShell>
-      <FigmaMarketsView
+    <AppShell>
+      <MarketsView
         basket={basket}
         basketName={basketName}
         basketOptions={basketOptions}
         candles={candles}
+        chartRange={chartRange}
+        onChartRangeChange={setChartRange}
         orderBook={orderBook}
         constituents={constituents}
         signedIn={!!user}
@@ -295,6 +296,6 @@ export default function Markets() {
       {showSignIn && (
         <SignInSheet basket={basket} onClose={() => setShowSignIn(false)} />
       )}
-    </FigmaAppShell>
+    </AppShell>
   );
 }

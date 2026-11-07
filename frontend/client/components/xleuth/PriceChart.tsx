@@ -11,9 +11,10 @@ import {
 } from "lightweight-charts";
 import { cn } from "@/lib/utils";
 import { EmptyState } from "./EmptyState";
+import { scaleCandlesForDisplay } from "./chart-prices";
+import { CHART_RANGES, type ChartRange } from "./chart-ranges";
 
-const TIMEFRAMES = ["1H", "1D", "1W", "1M"] as const;
-type Timeframe = (typeof TIMEFRAMES)[number];
+const TIMEFRAMES = Object.keys(CHART_RANGES) as ChartRange[];
 
 /** Resolve a theme token (stored as HSL channels) into a chart CSS color. */
 function themeColor(name: string, fallback: string, alpha?: number) {
@@ -26,7 +27,7 @@ function themeColor(name: string, fallback: string, alpha?: number) {
 }
 
 function terminalColor(container: HTMLElement | null, token: string, fallback: string) {
-  const surface = container?.closest(".figma-surface");
+  const surface = container?.closest(".xleuth-surface");
   return surface ? getComputedStyle(surface).getPropertyValue(token).trim() || fallback : fallback;
 }
 
@@ -42,6 +43,8 @@ export function PriceChart(props: {
   footer?: ReactNode;
   /** Presentation-only palette for the migrated Market terminal. */
   terminalPalette?: boolean;
+  range: ChartRange;
+  onRangeChange: (range: ChartRange) => void;
 }) {
   const liveCandles = props.candles ?? [];
   const hasData = liveCandles.length > 0;
@@ -51,7 +54,6 @@ export function PriceChart(props: {
     ISeriesApi<"Line"> | ISeriesApi<"Candlestick"> | null
   >(null);
   const [chartType, setChartType] = useState<"line" | "candlestick">("line");
-  const [timeframe, setTimeframe] = useState<Timeframe>("1D");
   const { resolvedTheme } = useTheme();
   const color = (token: string, legacyToken: string, fallback: string, alpha?: number) =>
     props.terminalPalette
@@ -64,14 +66,14 @@ export function PriceChart(props: {
     const chart = createChart(containerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "transparent" },
-        textColor: color("--figma-text-muted", "--muted-foreground", "#5a5a63"),
+        textColor: color("--xleuth-text-muted", "--muted-foreground", "#5a5a63"),
         fontFamily: props.terminalPalette ? "DM Mono, monospace" : "Poppins, -apple-system, Roboto, Helvetica, sans-serif",
         fontSize: 11,
         attributionLogo: false,
       },
       grid: {
-        vertLines: { color: color("--figma-line", "--border", "#d4d4d8", 0.55) },
-        horzLines: { color: color("--figma-line", "--border", "#d4d4d8", 0.55) },
+        vertLines: { color: color("--xleuth-line", "--border", "#d4d4d8", 0.55) },
+        horzLines: { color: color("--xleuth-line", "--border", "#d4d4d8", 0.55) },
       },
       rightPriceScale: {
         borderVisible: false,
@@ -82,12 +84,12 @@ export function PriceChart(props: {
       },
       crosshair: {
         vertLine: {
-          color: color("--figma-text-muted", "--muted-foreground", "#5a5a63", 0.45),
-          labelBackgroundColor: color("--figma-accent", "--accent", "#f4eaf5"),
+          color: color("--xleuth-text-muted", "--muted-foreground", "#5a5a63", 0.45),
+          labelBackgroundColor: color("--xleuth-accent", "--accent", "#f4eaf5"),
         },
         horzLine: {
-          color: color("--figma-text-muted", "--muted-foreground", "#5a5a63", 0.45),
-          labelBackgroundColor: color("--figma-accent", "--accent", "#f4eaf5"),
+          color: color("--xleuth-text-muted", "--muted-foreground", "#5a5a63", 0.45),
+          labelBackgroundColor: color("--xleuth-accent", "--accent", "#f4eaf5"),
         },
       },
       autoSize: true,
@@ -113,11 +115,12 @@ export function PriceChart(props: {
 
     // Live candles only. With no data yet the chart renders its empty grid
     // rather than fabricated prices.
-    const candles = liveCandles;
+    const candles = scaleCandlesForDisplay(liveCandles);
 
     if (chartType === "line") {
       const series = chart.addSeries(LineSeries, {
-        color: color("--figma-accent", "--primary", "#7a3e86"),
+        priceFormat: { type: "price", precision: 3, minMove: 0.001 },
+        color: color("--xleuth-accent", "--primary", "#7a3e86"),
         lineWidth: 2,
         priceLineVisible: false,
         lastValueVisible: true,
@@ -130,9 +133,10 @@ export function PriceChart(props: {
       );
       seriesRef.current = series;
     } else {
-      const up = color("--figma-signal", "--success", "#157347");
-      const down = color("--figma-danger", "--destructive", "#c01230");
+      const up = color("--xleuth-signal", "--success", "#157347");
+      const down = color("--xleuth-danger", "--destructive", "#c01230");
       const series = chart.addSeries(CandlestickSeries, {
+        priceFormat: { type: "price", precision: 3, minMove: 0.001 },
         upColor: up,
         downColor: down,
         borderVisible: false,
@@ -152,7 +156,7 @@ export function PriceChart(props: {
     }
 
     chart.timeScale().fitContent();
-  }, [chartType, timeframe, liveCandles, resolvedTheme, props.terminalPalette]);
+  }, [chartType, liveCandles, resolvedTheme, props.terminalPalette]);
 
   return (
     <div className="flex w-full flex-col gap-3 rounded-xl border-[0.4px] border-border bg-card p-3">
@@ -177,10 +181,11 @@ export function PriceChart(props: {
           {TIMEFRAMES.map((tf) => (
             <button
               key={tf}
-              onClick={() => setTimeframe(tf)}
+              onClick={() => props.onRangeChange(tf)}
+              aria-pressed={props.range === tf}
               className={cn(
                 "rounded-md px-2 py-1 text-[9px] font-medium",
-                timeframe === tf
+                props.range === tf
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground",
               )}

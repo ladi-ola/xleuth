@@ -1,5 +1,3 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
-
 export function ArrowUpRight({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
@@ -18,30 +16,5 @@ export function ThemeIcon({ theme }: { theme: "light" | "dark" }) {
     <svg width="17" height="17" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M20.2 15.6A8.8 8.8 0 0 1 8.4 3.8 8.8 8.8 0 1 0 20.2 15.6Z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
     </svg>
-  );
-}
-
-type ButtonVariant = "primary" | "secondary" | "dark";
-
-export function FigmaButton({
-  children,
-  variant = "primary",
-  small = false,
-  className = "",
-  type = "button",
-  ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & {
-  children: ReactNode;
-  variant?: ButtonVariant;
-  small?: boolean;
-}) {
-  return (
-    <button
-      type={type}
-      className={`figma-button figma-button--${variant}${small ? " figma-button--small" : ""}${className ? ` ${className}` : ""}`}
-      {...props}
-    >
-      {children}
-    </button>
   );
 }

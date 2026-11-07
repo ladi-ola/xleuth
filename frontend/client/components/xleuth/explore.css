@@ -1,0 +1,58 @@
+/* Figma Explore table, scoped to this screen so the Market terminal and the
+   not-yet-migrated account screens keep their own layout. */
+.xleuth-surface .xleuth-explore.app-page { width: min(1280px, calc(100% - 40px)); margin: 0 auto; padding: 58px 0 100px; }
+.xleuth-explore .page-heading { margin-bottom: 38px; display: flex; align-items: end; justify-content: space-between; }
+.xleuth-explore .app-kicker { display: block; margin-bottom: 10px; color: var(--accent-strong); font: 10px "DM Mono", monospace; letter-spacing: .12em; text-transform: uppercase; }
+.xleuth-explore .page-heading h1 { margin: 0; color: var(--text); font-size: clamp(32px, 4vw, 54px); font-weight: 500; letter-spacing: -.06em; }
+.xleuth-explore .page-heading p { margin: 10px 0 0; color: var(--text-muted); font-size: 12px; }
+.xleuth-explore .testnet-pill { padding: 8px 12px; color: var(--accent-strong); border: 1px solid var(--line); border-radius: 99px; font: 10px "DM Mono", monospace; }
+.xleuth-explore .explore-tools { margin-bottom: 15px; display: flex; gap: 8px; }
+.xleuth-explore .search-field { max-width: 420px; height: 42px; padding: 0 12px; flex: 1; display: flex; align-items: center; gap: 9px; color: var(--text-muted); border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.xleuth-explore .search-field input { min-width: 0; flex: 1; color: var(--text); border: 0; outline: none; background: transparent; font-size: 11px; }
+.xleuth-explore .search-field:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+.xleuth-explore .app-ghost { min-height: 42px; padding: 0 13px; color: var(--text); border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-size: 11px; font-weight: 600; }
+.xleuth-explore .app-ghost:disabled { opacity: .55; cursor: not-allowed; }
+.xleuth-explore .explore-statuses { margin-bottom: 15px; display: flex; gap: 4px; width: max-content; max-width: 100%; padding: 4px; background: var(--surface-soft); border-radius: 8px; }
+.xleuth-explore .explore-statuses button { min-height: 36px; padding: 0 16px; border: 0; border-radius: 6px; background: transparent; color: var(--text-muted); font-size: 11px; cursor: pointer; }
+.xleuth-explore .explore-statuses button.active { background: var(--surface); color: var(--text); font-weight: 700; }
+.xleuth-explore .market-table { overflow: hidden; border-radius: 10px; }
+.xleuth-explore .market-table-head, .xleuth-explore .market-table-row { display: grid; grid-template-columns: minmax(180px, 1.8fr) repeat(2, minmax(80px, .65fr)) minmax(65px, .7fr) minmax(55px, .8fr) minmax(90px, .9fr); align-items: center; gap: 16px; }
+.xleuth-explore .market-table-head { min-height: 39px; padding: 0 18px; color: var(--text-muted); border-bottom: 1px solid var(--line); font: 9px "DM Mono", monospace; text-transform: uppercase; }
+.xleuth-explore .market-table-row { min-height: 68px; padding: 12px 18px; color: var(--text); border-bottom: 1px solid var(--line); text-decoration: none; }
+.xleuth-explore .market-table-row:last-child { border-bottom: 0; }
+.xleuth-explore .market-table-row:hover, .xleuth-explore .market-table-row:focus-visible { background: var(--surface-soft); }
+.xleuth-explore .market-table-row > strong, .xleuth-explore .market-table-row > span:not(.basket-name) { font: 11px "DM Mono", monospace; }
+.xleuth-explore .market-table-row > .gain { color: var(--gain); }
+.xleuth-explore .market-table-row > .loss { color: var(--loss); }
+.xleuth-explore .basket-name { min-width: 0; display: flex; align-items: center; gap: 11px; }
+.xleuth-explore .basket-name > i { width: 32px; height: 32px; flex: none; display: grid; place-items: center; color: #111217; border-radius: 50%; background: var(--signal); font: 10px "DM Mono", monospace; font-style: normal; }
+.xleuth-explore .basket-name b { min-width: 0; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; font-size: 11px; }
+.xleuth-explore .basket-name small { color: var(--text-muted); font: 9px "DM Mono", monospace; }
+.xleuth-explore .state-card { min-height: 330px; padding: 40px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); text-align: center; }
+.xleuth-explore .state-card > span { width: 38px; height: 38px; display: grid; place-items: center; color: var(--accent-strong); border-radius: 50%; background: var(--xleuth-accent-soft); font-family: "DM Mono", monospace; }
+.xleuth-explore .state-card h2 { margin: 14px 0 6px; font-size: 15px; }
+.xleuth-explore .state-card p { margin: 0 0 18px; color: var(--text-muted); font-size: 12px; }
+.xleuth-explore .loading-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+.xleuth-explore .loading-grid i { height: 150px; border-radius: 9px; background: linear-gradient(90deg, var(--surface) 25%, var(--surface-soft) 50%, var(--surface) 75%); background-size: 200% 100%; animation: xleuth-explore-shimmer 1.3s linear infinite; }
+@keyframes xleuth-explore-shimmer { to { background-position: -200% 0; } }
+@media (max-width: 850px) {
+  .xleuth-explore .market-table { border: 0; background: transparent; }
+  .xleuth-explore .market-table-head { display: none; }
+  .xleuth-explore .market-table-row { min-height: 80px; margin-bottom: 8px; grid-template-columns: minmax(0, 1fr) auto; gap: 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+  .xleuth-explore .market-table-row > .basket-name { grid-column: 1; grid-row: 1; }
+  .xleuth-explore .market-table-row > strong:nth-child(2) { grid-column: 2; grid-row: 1; text-align: right; }
+  .xleuth-explore .market-table-row > strong:nth-child(3) { grid-column: 1; grid-row: 2; }
+  .xleuth-explore .market-table-row > span:nth-child(4) { grid-column: 2; grid-row: 2; text-align: right; }
+  .xleuth-explore .market-table-row > span:nth-child(n+5) { display: none; }
+}
+@media (max-width: 767px) {
+  .xleuth-surface .xleuth-explore.app-page { width: calc(100% - 24px); padding: 35px 0 90px; }
+  .xleuth-explore .page-heading { margin-bottom: 25px; align-items: start; }
+  .xleuth-explore .page-heading h1 { font-size: 37px; }
+  .xleuth-explore .page-heading .testnet-pill { display: none; }
+  .xleuth-explore .explore-tools { display: grid; grid-template-columns: 1fr auto; }
+  .xleuth-explore .search-field { max-width: none; grid-column: 1 / 3; }
+  .xleuth-explore .loading-grid { grid-template-columns: 1fr; }
+  .xleuth-explore .loading-grid i { height: 105px; }
+}
+@media (prefers-reduced-motion: reduce) { .xleuth-explore .loading-grid i { animation: none; } }

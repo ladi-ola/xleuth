@@ -3,7 +3,7 @@ import { useTheme } from "next-themes";
 import { DYNAMIC_ENVIRONMENT_ID } from "@/lib/dynamic";
 import "./account-portfolio.css";
 
-export function FigmaAccountView({ signedIn, displayName, initials, address, shortAddress, balance, isClaiming, onSignIn, onSignOut, onClaim, onCopyAddress }: {
+export function AccountView({ signedIn, displayName, initials, address, shortAddress, balance, isClaiming, onSignIn, onSignOut, onClaim, onCopyAddress }: {
   signedIn: boolean;
   displayName: string;
   initials: string;
@@ -19,13 +19,13 @@ export function FigmaAccountView({ signedIn, displayName, initials, address, sho
   const { resolvedTheme, setTheme } = useTheme();
 
   if (!signedIn) return (
-    <div className="app-page centered-page figma-account-portfolio">
+    <div className="app-page centered-page xleuth-account-portfolio">
       <div className="auth-prompt"><span className="account-orb">X</span><h1>Sign in to Xleuth.</h1><p>Sign in to access your testnet trading account.</p><button className="app-primary" type="button" onClick={onSignIn}>Sign in</button><small>Secured by Dynamic · Testnet only</small></div>
     </div>
   );
 
   return (
-    <div className="app-page account-page figma-account-portfolio">
+    <div className="app-page account-page xleuth-account-portfolio">
       <div className="page-heading"><div><span className="app-kicker">Settings</span><h1>Account</h1><p>Manage your identity and testnet funds.</p></div></div>
       <div className="account-grid">
         <section className="terminal-card profile-card" aria-label="Account profile">

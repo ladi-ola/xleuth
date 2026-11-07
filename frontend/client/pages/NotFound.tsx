@@ -1,9 +1,9 @@
 import { useLocation, Link } from "react-router-dom";
 import { useEffect } from "react";
-import { Layout } from "@/components/xleuth/Layout";
+import { AppShell } from "@/components/xleuth/AppShell";
 import { usePageMeta } from "@/hooks/use-page-meta";
 
-// Task 13: branded 404 inside the app shell (dark theme, primary CTA home).
+// Branded 404 inside the shared trading shell.
 // Note: with the static SPA 200-rewrite, unknown URLs return HTTP 200 serving
 // this page client-side — a true 404 status needs edge config, documented in
 // the final QA report. Vercel's non-root noindex header covers this route.
@@ -28,30 +28,24 @@ const NotFound = () => {
   const slug = isMarketSlug ? location.pathname.split("/market/")[1] : null;
 
   return (
-    <Layout width="md">
-      <div className="flex flex-col items-center gap-4 px-4 py-16 text-center md:px-0 md:py-24">
-        <span className="text-4xl font-bold text-foreground">404</span>
-        <p className="text-sm text-foreground/80">
+    <AppShell>
+      <div className="xleuth-not-found">
+        <strong>404</strong>
+        <p>
           {slug
             ? `Unknown basket "${slug}". It may have expired, been renamed, or never existed.`
             : "This page does not exist."}
         </p>
-        <div className="flex gap-3">
-          <Link
-            to="/app"
-            className="rounded-lg bg-primary px-4 py-2 text-sm text-primary-foreground"
-          >
+        <div>
+          <Link to="/app">
             Launch app
           </Link>
-          <Link
-            to="/explore"
-            className="rounded-lg border-[0.4px] border-border px-4 py-2 text-sm text-foreground"
-          >
+          <Link to="/explore">
             Browse baskets
           </Link>
         </div>
       </div>
-    </Layout>
+    </AppShell>
   );
 };
 

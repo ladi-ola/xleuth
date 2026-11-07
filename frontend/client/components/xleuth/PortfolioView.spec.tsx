@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Position } from "@/lib/portfolio-data";
 import type { PositionResponse } from "@/lib/api/schemas";
-import { FigmaPortfolioView } from "./FigmaPortfolioView";
+import { PortfolioView } from "./PortfolioView";
 
 vi.mock("@dynamic-labs/sdk-react-core", () => ({ useDynamicContext: () => ({ user: { userId: "test-user" }, setShowAuthFlow: vi.fn() }) }));
 
@@ -22,7 +22,7 @@ const raw: PositionResponse = {
 
 describe("Figma portfolio presentation", () => {
   it("shows unavailable nullable position values, not the adapter's zero placeholders", () => {
-    const markup = renderToStaticMarkup(<FigmaPortfolioView
+    const markup = renderToStaticMarkup(<PortfolioView
       tab="position" onTabChange={vi.fn()} summary={null} positions={[position]}
       rawPositions={[raw]} openOrders={[]} historyOrders={[]}
       isCancelling={false} onCancel={vi.fn()} isClaiming={false}

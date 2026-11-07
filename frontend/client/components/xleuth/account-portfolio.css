@@ -1,0 +1,91 @@
+/* Figma portfolio/account presentation. Live queries and mutations remain on
+   their original pages; these selectors do not touch the data layer. */
+.xleuth-surface .xleuth-account-portfolio.app-page { width: min(1280px, calc(100% - 40px)); margin: 0 auto; padding: 58px 0 100px; }
+.xleuth-account-portfolio .page-heading { margin-bottom: 38px; }
+.xleuth-account-portfolio .app-kicker { display: block; margin-bottom: 10px; color: var(--accent-strong); font: 10px "DM Mono", monospace; letter-spacing: .12em; text-transform: uppercase; }
+.xleuth-account-portfolio .page-heading h1 { margin: 0; color: var(--text); font-size: clamp(32px, 4vw, 54px); font-weight: 500; letter-spacing: -.06em; }
+.xleuth-account-portfolio .page-heading p { margin: 10px 0 0; color: var(--text-muted); font-size: 12px; }
+.xleuth-account-portfolio .app-ghost { min-height: 38px; padding: 0 13px; color: var(--text); border: 1px solid var(--line); border-radius: 7px; background: var(--surface); font-size: 11px; font-weight: 600; cursor: pointer; }
+.xleuth-account-portfolio .app-ghost:disabled { opacity: .55; cursor: not-allowed; }
+.xleuth-account-portfolio .wide { width: 100%; }
+.xleuth-surface .xleuth-account-portfolio.centered-page { min-height: calc(100vh - 58px); display: grid; place-items: center; padding: 30px 0 100px; }
+.xleuth-account-portfolio .auth-prompt { max-width: 390px; text-align: center; }
+.xleuth-account-portfolio .account-orb { width: 48px; height: 48px; margin: 0 auto 22px; display: grid; place-items: center; color: #111217; border-radius: 13px; background: var(--signal); font-family: "DM Mono", monospace; }
+.xleuth-account-portfolio .auth-prompt h1 { margin: 0; color: var(--text); font-size: 34px; font-weight: 500; letter-spacing: -.05em; }
+.xleuth-account-portfolio .auth-prompt p { margin: 13px 0 22px; color: var(--text-muted); font-size: 13px; line-height: 1.7; }
+.xleuth-account-portfolio .auth-prompt small { margin-top: 14px; display: block; color: var(--text-muted); font-size: 10px; }
+.xleuth-account-portfolio .summary-grid { margin-bottom: 12px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.xleuth-account-portfolio .summary-card { min-height: 130px; padding: 21px; display: flex; flex-direction: column; }
+.xleuth-account-portfolio .summary-card > span { color: var(--text-muted); font-size: 11px; }
+.xleuth-account-portfolio .summary-card strong { margin-top: auto; font: 500 clamp(15px, 2vw, 22px) "DM Mono", monospace; overflow-wrap: anywhere; }
+.xleuth-account-portfolio .summary-card strong.gain { color: var(--gain); }
+.xleuth-account-portfolio .summary-card strong.loss { color: var(--loss); }
+.xleuth-account-portfolio .summary-card small { margin-top: 7px; color: var(--text-muted); font: 10px "DM Mono", monospace; }
+.xleuth-account-portfolio .portfolio-funds { margin-bottom: 12px; padding: 16px 21px; display: flex; flex-wrap: wrap; align-items: center; gap: 12px 26px; }
+.xleuth-account-portfolio .portfolio-funds > div:not(.portfolio-fund-actions) { display: flex; flex-direction: column; gap: 4px; }
+.xleuth-account-portfolio .portfolio-funds > div > span { color: var(--text-muted); font-size: 10px; }
+.xleuth-account-portfolio .portfolio-funds > div > strong { font: 500 14px "DM Mono", monospace; }
+.xleuth-account-portfolio .portfolio-fund-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 6px; }
+.xleuth-account-portfolio .portfolio-fund-actions button { min-height: 38px; padding: 0 12px; display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface-soft); color: var(--text); font-size: 10px; cursor: pointer; }
+.xleuth-account-portfolio .portfolio-fund-actions button:nth-child(2) { border-color: var(--accent-strong); background: var(--accent-strong); color: #fff; }
+.xleuth-surface[data-xleuth-theme="dark"] .xleuth-account-portfolio .portfolio-fund-actions button:nth-child(2) { color: #111217; }
+.xleuth-account-portfolio .portfolio-fund-actions button:disabled { opacity: .55; cursor: not-allowed; }
+.xleuth-account-portfolio .portfolio-funds > p { width: 100%; margin: 0; color: var(--text-muted); font-size: 10px; line-height: 1.5; }
+.xleuth-account-portfolio .portfolio-table { min-height: 340px; overflow-x: auto; }
+.xleuth-account-portfolio .data-tabs { min-height: 48px; padding: 0 18px; display: flex; align-items: stretch; gap: 22px; border-bottom: 1px solid var(--line); }
+.xleuth-account-portfolio .data-tabs button { display: flex; align-items: center; gap: 6px; padding: 0 1px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--text-muted); font-size: 11px; cursor: pointer; white-space: nowrap; }
+.xleuth-account-portfolio .data-tabs button.active { color: var(--text); border-bottom-color: var(--accent); }
+.xleuth-account-portfolio .data-tabs span { padding: 2px 5px; border-radius: 3px; background: var(--surface-soft); font: 9px "DM Mono", monospace; }
+.xleuth-account-portfolio .portfolio-data { min-width: 850px; }
+.xleuth-account-portfolio .portfolio-data .table-head, .xleuth-account-portfolio .portfolio-data .table-row { display: grid; grid-template-columns: 1.5fr repeat(7, minmax(80px, .8fr)); gap: 12px; align-items: center; padding: 12px 18px; }
+.xleuth-account-portfolio .portfolio-data .table-head { min-height: 42px; border-bottom: 1px solid var(--line); color: var(--text-muted); font: 9px "DM Mono", monospace; text-transform: uppercase; }
+.xleuth-account-portfolio .portfolio-data .table-row { min-height: 70px; border-bottom: 1px solid var(--line); font: 10px "DM Mono", monospace; }
+.xleuth-account-portfolio .portfolio-data .table-row strong { font: 600 11px Manrope, sans-serif; }
+.xleuth-account-portfolio .portfolio-data .table-row .gain { color: var(--gain); }
+.xleuth-account-portfolio .portfolio-data .table-row .loss { color: var(--loss); }
+.xleuth-account-portfolio .position-extra { display: flex; flex-wrap: wrap; gap: 9px 22px; padding: 0 18px 14px; border-bottom: 1px solid var(--line); color: var(--text-muted); font: 10px "DM Mono", monospace; }
+.xleuth-account-portfolio .portfolio-empty { min-height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.xleuth-account-portfolio .portfolio-empty h2 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.xleuth-account-portfolio .portfolio-empty p { margin: 0; color: var(--text-muted); font-size: 11px; }
+.xleuth-account-portfolio .portfolio-card-list { display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+.xleuth-account-portfolio .portfolio-card-list > div { border-color: var(--line); background: var(--surface); }
+.xleuth-account-portfolio .account-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; }
+.xleuth-account-portfolio .profile-card, .xleuth-account-portfolio .funds-card { padding: 24px; }
+.xleuth-account-portfolio .profile-top { margin-bottom: 25px; display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px; }
+.xleuth-account-portfolio .profile-top > span { width: 43px; height: 43px; display: grid; place-items: center; color: #111217; border-radius: 9px; background: var(--signal); font-weight: 700; }
+.xleuth-account-portfolio .profile-top h2 { margin: 0 0 4px; font-size: 15px; overflow-wrap: anywhere; }
+.xleuth-account-portfolio .profile-top p { margin: 0; color: var(--text-muted); font: 10px "DM Mono", monospace; }
+.xleuth-account-portfolio .detail-row { min-height: 45px; display: flex; justify-content: space-between; align-items: center; gap: 12px; border-top: 1px solid var(--line); color: var(--text-muted); font-size: 11px; }
+.xleuth-account-portfolio .detail-row b { display: flex; align-items: center; gap: 7px; color: var(--text); font: 10px "DM Mono", monospace; }
+.xleuth-account-portfolio .detail-row button { background: transparent; border: 0; color: var(--text); cursor: pointer; }
+.xleuth-account-portfolio .online-dot { width: 6px; height: 6px; background: var(--gain); border-radius: 50%; }
+.xleuth-account-portfolio .profile-card > .app-ghost { display: flex; align-items: center; justify-content: center; gap: 7px; }
+.xleuth-account-portfolio .funds-card > strong { margin: 20px 0 11px; display: block; font: 500 31px "DM Mono", monospace; }
+.xleuth-account-portfolio .funds-card > strong small { color: var(--text-muted); font-size: 10px; }
+.xleuth-account-portfolio .funds-card > p { margin: 0 0 18px; color: var(--text-muted); font-size: 11px; line-height: 1.6; }
+.xleuth-account-portfolio .funds-card .app-ghost { margin-top: 7px; }
+.xleuth-account-portfolio .env-card { margin-top: 12px; padding: 17px 20px; }
+.xleuth-account-portfolio .env-card > div { display: flex; flex-direction: column; gap: 5px; }
+.xleuth-account-portfolio .env-card span { color: var(--text-muted); font-size: 10px; }
+.xleuth-account-portfolio .env-card b { font: 10px "DM Mono", monospace; overflow-wrap: anywhere; }
+.xleuth-account-portfolio .account-settings { margin-top: 12px; padding: 8px 20px; }
+.xleuth-account-portfolio .account-settings .detail-row:first-child { border: 0; }
+.xleuth-account-portfolio .account-settings small { font-size: 10px; }
+.xleuth-account-portfolio .theme-choice { display: flex; gap: 6px; }
+.xleuth-account-portfolio .theme-choice button { padding: 7px 11px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: var(--text); font-size: 10px; }
+.xleuth-account-portfolio .theme-choice button[aria-pressed="true"] { color: var(--accent-strong); border-color: var(--accent); background: var(--xleuth-accent-soft); }
+@media (max-width: 850px) {
+  .xleuth-account-portfolio .summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .xleuth-account-portfolio .account-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+  .xleuth-surface .xleuth-account-portfolio.app-page { width: calc(100% - 24px); padding: 35px 0 90px; }
+  .xleuth-account-portfolio .page-heading { margin-bottom: 25px; }
+  .xleuth-account-portfolio .page-heading h1 { font-size: 37px; }
+  .xleuth-account-portfolio .summary-card { min-height: 110px; padding: 15px; }
+  .xleuth-account-portfolio .portfolio-fund-actions { margin-left: 0; width: 100%; }
+  .xleuth-account-portfolio .portfolio-fund-actions button { flex: 1; justify-content: center; }
+  .xleuth-account-portfolio .data-tabs { gap: 12px; }
+  .xleuth-account-portfolio .profile-card, .xleuth-account-portfolio .funds-card { padding: 16px; }
+  .xleuth-account-portfolio .portfolio-card-list > div { flex-wrap: wrap; }
+}

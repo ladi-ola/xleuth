@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { FigmaAccountView } from "./FigmaAccountView";
+import { AccountView } from "./AccountView";
 
 vi.mock("next-themes", () => ({ useTheme: () => ({ resolvedTheme: "dark", setTheme: vi.fn() }) }));
 
 describe("Figma account presentation", () => {
   it("keeps signed-in actions but does not invent a missing balance", () => {
-    const markup = renderToStaticMarkup(<FigmaAccountView
+    const markup = renderToStaticMarkup(<AccountView
       signedIn displayName="Test User" initials="TU" address="0x12345678"
       shortAddress="0x1234...5678" balance={undefined} isClaiming={false}
       onSignIn={vi.fn()} onSignOut={vi.fn()} onClaim={vi.fn()} onCopyAddress={vi.fn()}
