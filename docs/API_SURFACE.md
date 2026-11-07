@@ -26,8 +26,8 @@ Generated from FastAPI OpenAPI specs. This document describes all public HTTP en
 
 ### Waitlist (Public)
 
-`POST /waitlist` — body `{ "name": "Ada Lovelace", "email": "ada@example.com", "consent": true, "website": "" }`.
-Name and email are trimmed; email is lowercased. `website` is a honeypot and must be left empty. New, duplicate and honeypot submissions return the same `200` response: `{ "message": "Thanks for your interest in Xleuth." }`. Missing consent or invalid input returns `422`; per-IP throttling returns `429` with `Retry-After`; unavailable storage returns `503`. No public listing endpoint exists. Entries are stored only in Postgres, without Dynamic sync, per owner decision.
+`POST /waitlist` — body `{ "name": "Ada Lovelace", "email": "ada@example.com", "website": "" }`.
+Name is whitespace-normalized (1–100 characters after trimming); email is trimmed and lowercased. `website` is a honeypot and must be left empty. New, duplicate and honeypot submissions return the same `201` response: `{ "status": "ok" }`. Invalid input returns `422`; per-IP throttling returns `429` with `Retry-After`; unavailable storage returns `503`. No public listing endpoint exists. Postgres is the source of truth; Dynamic contact sync is disabled pending a supported waitlist API.
 
 ---
 

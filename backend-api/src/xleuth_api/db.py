@@ -68,9 +68,34 @@ CREATE TABLE IF NOT EXISTS waitlist_entries (
     email TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    consent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    source TEXT NOT NULL DEFAULT 'landing'
+    source TEXT NOT NULL DEFAULT 'landing',
+    sync_status TEXT NOT NULL DEFAULT 'pending' CHECK (sync_status IN ('pending', 'synced', 'failed')),
+    synced_at TIMESTAMPTZ,
+    sync_error VARCHAR(200)
 );
+"""
+
+# Older installations collected consent explicitly. Keep historical data, but
+# do not manufacture a consent timestamp for the new name/email-only form.
+WAITLIST_UPGRADE_SQL = (
+    "ALTER TABLE waitlist_entries ADD COLUMN IF NOT EXISTS sync_status TEXT NOT NULL DEFAULT 'pending'",
+    "ALTER TABLE waitlist_entries ADD COLUMN IF NOT EXISTS synced_at TIMESTAMPTZ",
+    "ALTER TABLE waitlist_entries ADD COLUMN IF NOT EXISTS sync_error VARCHAR(200)",
+    "ALTER TABLE waitlist_entries ALTER COLUMN consent_at DROP NOT NULL",
+    "ALTER TABLE waitlist_entries ALTER COLUMN consent_at DROP DEFAULT",
+)
+
+WAITLIST_STATUS_CHECK_SQL = """
+DO $$ BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conrelid = 'waitlist_entries'::regclass
+          AND conname = 'waitlist_entries_sync_status_check'
+    ) THEN
+        ALTER TABLE waitlist_entries ADD CONSTRAINT waitlist_entries_sync_status_check
+            CHECK (sync_status IN ('pending', 'synced', 'failed'));
+    END IF;
+END $$;
 """
 
 # Candle interval -> bucket size in seconds. Whitelisted so the interval can
@@ -122,6 +147,19 @@ class Database:
                 if stmt:
                     await conn.execute(stmt)
             await conn.execute(WAITLIST_TABLE_SQL)
+            # A legacy table may still have consent_at; detect it before
+            # relaxing its constraint, since new databases have no such field.
+            has_consent_at = await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM information_schema.columns "
+                "WHERE table_schema = current_schema() "
+                "AND table_name = 'waitlist_entries' AND column_name = 'consent_at')"
+            )
+            for statement in WAITLIST_UPGRADE_SQL[:3]:
+                await conn.execute(statement)
+            await conn.execute(WAITLIST_STATUS_CHECK_SQL)
+            if has_consent_at:
+                for statement in WAITLIST_UPGRADE_SQL[3:]:
+                    await conn.execute(statement)
         # Baskets registry DDL (shared, idempotent). Reads below prefer the
         # baskets table and fall back to index_prices during migration.
         try:

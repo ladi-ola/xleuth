@@ -593,16 +593,12 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Successful Response",
             "content": {
               "application/json": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
-                  "type": "object",
-                  "title": "Response Join Waitlist Waitlist Post"
+                  "$ref": "#/components/schemas/WaitlistResponse"
                 }
               }
             }
@@ -1552,17 +1548,11 @@
         "properties": {
           "name": {
             "type": "string",
-            "maxLength": 120,
             "title": "Name"
           },
           "email": {
             "type": "string",
-            "maxLength": 255,
             "title": "Email"
-          },
-          "consent": {
-            "type": "boolean",
-            "title": "Consent"
           },
           "website": {
             "type": "string",
@@ -1574,10 +1564,21 @@
         "type": "object",
         "required": [
           "name",
-          "email",
-          "consent"
+          "email"
         ],
         "title": "WaitlistRequest"
+      },
+      "WaitlistResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status",
+            "default": "ok"
+          }
+        },
+        "type": "object",
+        "title": "WaitlistResponse"
       },
       "xleuth_shared__schemas__accounts__UserInfo": {
         "properties": {
